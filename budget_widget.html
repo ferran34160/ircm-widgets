@@ -53,7 +53,16 @@ function fmt(v) {
 }
 
 function renderChart(data) {
-  const labels = data.map(d => d.label.length > 30 ? d.label.substring(0, 28) + '…' : d.label);
+  const sel = document.getElementById('contrat-select').value;
+  const labels = data.map(d => {
+    if (sel) {
+      const parts = d.label.split('|');
+      const sub = parts.length > 1 ? parts[1].trim() : d.label;
+      return sub.length > 25 ? sub.substring(0, 23) + '…' : sub;
+    } else {
+      return d.label.length > 35 ? d.label.substring(0, 33) + '…' : d.label;
+    }
+  });
   const budgets = data.map(d => d.budget_ajuste);
   const dispos = data.map(d => Math.max(0, d.disponible));
   const depasse = data.map(d => d.disponible < 0 ? Math.abs(d.disponible) : 0);
