@@ -58,7 +58,7 @@ function renderChart(data) {
     if (sel) {
       const parts = d.label.split('|');
       const sub = parts.length > 1 ? parts[1].trim() : d.label;
-      return sub.length > 25 ? sub.substring(0, 23) + '…' : sub;
+      return sub;
     } else {
       return d.label.length > 35 ? d.label.substring(0, 33) + '…' : d.label;
     }
