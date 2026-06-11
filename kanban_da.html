@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi des DA</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.title { font-size: 15px; font-weight: 500; }
+.kanban { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.col { background: #f7f7f5; border-radius: 12px; padding: 12px; }
+@media (prefers-color-scheme: dark) { .col { background: #242424; } }
+.col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 0 4px; }
+.col-title { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.col-dot { width: 9px; height: 9px; border-radius: 50%; }
+.col-count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
+@media (prefers-color-scheme: dark) { .col-count { background: rgba(255,255,255,0.12); } }
+.da-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 9px; padding: 11px 13px; margin-bottom: 9px; }
+@media (prefers-color-scheme: dark) { .da-card { background: #2e2e2e; border-color: #404040; } }
+.da-num { font-size: 13px; font-weight: 500; margin: 0 0 3px; }
+.da-four { font-size: 12px; color: #888; margin: 0 0 8px; }
+.da-foot { display: flex; align-items: center; justify-content: space-between; }
+.da-contrat { font-size: 11px; color: #666; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 5px; }
+@media (prefers-color-scheme: dark) { .da-contrat { color: #aaa; background: rgba(255,255,255,0.08); } }
+.da-days { font-size: 11px; font-weight: 500; }
+.da-days.urgent { color: #E24B4A; }
+.da-days.warn { color: #BA7517; }
+.da-days.normal { color: #999; }
+.empty { text-align: center; padding: 24px; color: #aaa; font-size: 12px; }
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Suivi des demandes d'achat</div>
+</div>
+<div id="container">
+  <div class="loading" id="loading">Chargement…</div>
+</div>
+
+<script>
+let allData = [];
+
+function fmtDate(gristDate) {
+  if (!gristDate) return null;
+  let ms;
+  if (gristDate > 1e15) ms = gristDate / 1000;
+  else if (gristDate > 1e11) ms = gristDate;
+  else ms = gristDate * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
+  return d;
+}
+
+function daysSince(gristDate) {
+  const d = fmtDate(gristDate);
+  if (!d) return null;
+  const diff = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
+function render(data) {
+  const container = document.getElementById('container');
+  const enCours  = data.filter(d => d.statut === 'En cours');
+  const envoyee  = data.filter(d => d.statut === 'Envoyée');
+
+  function cardHtml(d) {
+    const days = daysSince(d.date_da);
+    let daysClass = 'normal', daysText = '';
+    if (days !== null) {
+      daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
+      if (d.statut === 'Envoyée') {
+        if (days > 14) daysClass = 'urgent';
+        else if (days > 7) daysClass = 'warn';
+      }
+    }
+    return `
+      <div class="da-card">
+        <p class="da-num">${d.num_da}</p>
+        <p class="da-four">${d.fournisseur || '—'}</p>
+        <div class="da-foot">
+          <span class="da-contrat">${d.contrat || '—'}</span>
+          <span class="da-days ${daysClass}">${daysText}</span>
+        </div>
+      </div>`;
+  }
+
+  const enCoursHtml = enCours.length ? enCours.map(cardHtml).join('') : '<div class="empty">Aucune DA en préparation</div>';
+  const envoyeeHtml = envoyee.length ? envoyee.map(cardHtml).join('') : '<div class="empty">Aucune DA envoyée</div>';
+
+  container.innerHTML = `
+    <div class="kanban">
+      <div class="col">
+        <div class="col-head">
+          <span class="col-title"><span class="col-dot" style="background:#888"></span>En cours</span>
+          <span class="col-count">${enCours.length}</span>
+        </div>
+        ${enCoursHtml}
+      </div>
+      <div class="col">
+        <div class="col-head">
+          <span class="col-title"><span class="col-dot" style="background:#378ADD"></span>Envoyée à PGM</span>
+          <span class="col-count">${envoyee.length}</span>
+        </div>
+        ${envoyeeHtml}
+      </div>
+    </div>`;
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'read table' });
+    grist.onRecords((records) => {
+      allData = records.map(r => ({
+        num_da:      r.Num_DA || '',
+        contrat:     r.Contrat || '',
+        fournisseur: r.Fournisseur || '',
+        date_da:     r.Date_DA,
+        statut:      r.Statut || '',
+      })).filter(d => d.num_da && (d.statut === 'En cours' || d.statut === 'Envoyée'));
+
+      render(allData);
+    });
+  } else {
+    document.getElementById('loading').textContent = 'Connectez ce widget à la table Demandes_achat.';
+  }
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
