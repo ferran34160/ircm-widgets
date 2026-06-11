@@ -64,7 +64,17 @@ function fmt(v) {
 
 function fmtDate(gristDate) {
   if (!gristDate) return null;
-  return 'RAW:' + gristDate;
+  let ms;
+  if (gristDate > 1e15) {
+    ms = gristDate / 1000;        // microsegons
+  } else if (gristDate > 1e11) {
+    ms = gristDate;               // mil·lisegons
+  } else {
+    ms = gristDate * 1000;        // segons
+  }
+  const d = new Date(ms);
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
+  return d.toLocaleDateString('fr-FR');
 }
 
 function getState(d) {
