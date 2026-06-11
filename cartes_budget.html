@@ -12,27 +12,33 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .title { font-size: 15px; font-weight: 500; }
 select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.bcard { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; border-left: 3px solid #ccc; }
-@media (prefers-color-scheme: dark) { .bcard { background: #242424; border-color: #383838; } }
-.bcard.ok { border-left-color: #1D9E75; }
-.bcard.warn { border-left-color: #BA7517; }
-.bcard.danger { border-left-color: #E24B4A; }
-.bcard-cat { font-size: 12px; color: #888; margin: 0 0 2px; }
+.bcard { border-radius: 12px; padding: 14px 16px; border: 1px solid; border-left-width: 4px; }
+.bcard.ok { background: #E1F5EE; border-color: #9FE1CB; border-left-color: #1D9E75; }
+.bcard.warn { background: #FAEEDA; border-color: #FAC775; border-left-color: #BA7517; }
+.bcard.danger { background: #FCEBEB; border-color: #F7C1C1; border-left-color: #E24B4A; }
+@media (prefers-color-scheme: dark) {
+  .bcard.ok { background: #0F3D31; border-color: #1D6E56; border-left-color: #1D9E75; }
+  .bcard.warn { background: #4A3208; border-color: #854F0B; border-left-color: #EF9F27; }
+  .bcard.danger { background: #4A1717; border-color: #791F1F; border-left-color: #E24B4A; }
+}
+.bcard-cat { font-size: 12px; margin: 0 0 2px; opacity: 0.75; }
 .bcard-sub { font-size: 13px; font-weight: 500; margin: 0 0 12px; line-height: 1.3; }
 .bcard-dispo { font-size: 26px; font-weight: 500; margin: 0; }
-.bcard-dispo.ok { color: #0F6E56; }
-.bcard-dispo.warn { color: #854F0B; }
-.bcard-dispo.danger { color: #A32D2D; }
+.bcard.ok .bcard-cat, .bcard.ok .bcard-sub, .bcard.ok .bcard-dispo { color: #085041; }
+.bcard.warn .bcard-cat, .bcard.warn .bcard-sub, .bcard.warn .bcard-dispo { color: #633806; }
+.bcard.danger .bcard-cat, .bcard.danger .bcard-sub, .bcard.danger .bcard-dispo { color: #791F1F; }
 @media (prefers-color-scheme: dark) {
-  .bcard-dispo.ok { color: #5DCAA5; }
-  .bcard-dispo.warn { color: #EF9F27; }
-  .bcard-dispo.danger { color: #F09595; }
+  .bcard.ok .bcard-cat, .bcard.ok .bcard-sub, .bcard.ok .bcard-dispo { color: #9FE1CB; }
+  .bcard.warn .bcard-cat, .bcard.warn .bcard-sub, .bcard.warn .bcard-dispo { color: #FAC775; }
+  .bcard.danger .bcard-cat, .bcard.danger .bcard-sub, .bcard.danger .bcard-dispo { color: #F7C1C1; }
 }
-.bcard-meta { font-size: 11px; color: #999; margin: 4px 0 0; }
-.pct-track { height: 4px; background: #eee; border-radius: 2px; margin-top: 10px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { .pct-track { background: #383838; } }
+.bcard-meta { font-size: 11px; margin: 4px 0 0; opacity: 0.7; }
+.bcard-releve { font-size: 11px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); opacity: 0.8; }
+@media (prefers-color-scheme: dark) { .bcard-releve { border-top-color: rgba(255,255,255,0.15); } }
+.pct-track { height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .pct-track { background: rgba(255,255,255,0.15); } }
 .pct-fill { height: 100%; border-radius: 2px; }
-.bcard-pct { font-size: 11px; color: #888; margin-top: 6px; }
+.bcard-pct { font-size: 11px; margin-top: 6px; opacity: 0.75; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 .summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
 .sum-item { font-size: 13px; }
@@ -54,6 +60,12 @@ let allData = [];
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+function fmtDate(gristDate) {
+  if (!gristDate) return null;
+  const d = new Date(gristDate * 1000);
+  return d.toLocaleDateString('fr-FR');
 }
 
 function getState(d) {
@@ -83,14 +95,20 @@ function render(data) {
 
     const pctText = state === 'danger' ? 'Dépassement' : pct + '% disponible';
 
+    const releveDate = fmtDate(d.date_releve);
+    const releveHtml = (d.montant_releve !== null && d.montant_releve !== undefined && releveDate)
+      ? `<p class="bcard-releve">Dernier relevé PGM : ${fmt(d.montant_releve)} (${releveDate})</p>`
+      : '';
+
     html += `
       <div class="bcard ${state}">
         <p class="bcard-cat">${contrat}</p>
         <p class="bcard-sub">${sub}</p>
-        <p class="bcard-dispo ${state}">${fmt(d.disponible)}</p>
+        <p class="bcard-dispo">${fmt(d.disponible)}</p>
         <p class="bcard-meta">sur ${fmt(d.budget_ajuste)} · engagé ${fmt(d.total_commandes)}</p>
         <div class="pct-track"><div class="pct-fill" style="background:${color}; width:${fillPct}%"></div></div>
         <p class="bcard-pct">${pctText}</p>
+        ${releveHtml}
       </div>`;
   });
   html += '</div>';
@@ -124,6 +142,8 @@ function loadData() {
         budget_ajuste:   r.Budget_ajuste || 0,
         total_commandes: r.Total_commandes || 0,
         disponible:      r.Disponible || 0,
+        montant_releve:  r.Montant_dernier_releve,
+        date_releve:     r.Date_dernier_releve,
       })).filter(d => d.label);
 
       const contrats = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
