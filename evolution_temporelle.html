@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Évolution temporelle</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+.title { font-size: 15px; font-weight: 500; }
+.ctrl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ctrl select { font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
+.legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 12px; color: #888; flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.lsq { width: 14px; height: 3px; border-radius: 2px; }
+.note { font-size: 11px; color: #999; margin-top: 10px; font-style: italic; }
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+.chart-box { position: relative; width: 100%; height: 300px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Évolution du disponible</div>
+  <div class="ctrl">
+    <select id="niveau-select">
+      <option value="contrat">Par contrat</option>
+      <option value="ligne">Par ligne budgétaire</option>
+    </select>
+    <select id="sel-select"></select>
+  </div>
+</div>
+<div class="legend">
+  <span><span class="lsq" style="background:#378ADD"></span>Disponible officiel (relevés PGM)</span>
+  <span><span class="lsq" style="background:#BA7517"></span>Projection</span>
+</div>
+<div id="chart-container">
+  <div class="loading" id="loading">Chargement…</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let allData = [];
+let chart = null;
+
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+function parseDate(gristDate) {
+  if (!gristDate) return null;
+  let ms;
+  if (gristDate > 1e15) ms = gristDate / 1000;
+  else if (gristDate > 1e11) ms = gristDate;
+  else ms = gristDate * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
+  return d;
+}
+
+function buildChart(points, dateFin) {
+  const container = document.getElementById('chart-container');
+  container.innerHTML = '<div class="chart-box"><canvas id="evoChart" role="img" aria-label="Évolution du disponible dans le temps"></canvas></div>';
+
+  if (points.length === 0) {
+    container.innerHTML = '<div class="loading">Aucun relevé PGM disponible pour cette sélection.</div>';
+    return;
+  }
+
+  points.sort((a, b) => a.date - b.date);
+
+  const labels = points.map(p => p.date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
+  const officiel = points.map(p => p.montant);
+
+  let projLabels = [], projData = [];
+  if (points.length >= 2) {
+    const last = points[points.length - 1];
+    const prev = points[points.length - 2];
+    const msPerStep = last.date - prev.date;
+    const conso = prev.montant - last.montant;
+
+    if (msPerStep > 0 && dateFin && dateFin > last.date) {
+      const nbSteps = Math.ceil((dateFin - last.date) / msPerStep);
+      for (let i = 1; i <= nbSteps; i++) {
+        const d = new Date(last.date.getTime() + msPerStep * i);
+        const val = Math.max(0, last.montant - conso * i);
+        projLabels.push(d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
+        projData.push(val);
+      }
+    }
+  }
+
+  const allLabels = labels.concat(projLabels);
+  const officielFull = officiel.concat(projLabels.map(() => null));
+  const projFull = points.map(() => null);
+  projFull[projFull.length - 1] = officiel[officiel.length - 1];
+  const projectionFull = projFull.concat(projData);
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const txt = isDark ? '#ccc' : '#444';
+  const grid = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById('evoChart'), {
+    type: 'line',
+    data: {
+      labels: allLabels,
+      datasets: [
+        {
+          label: 'Disponible officiel',
+          data: officielFull,
+          borderColor: '#378ADD',
+          backgroundColor: '#378ADD22',
+          borderWidth: 2,
+          pointRadius: 5,
+          pointBackgroundColor: '#378ADD',
+          spanGaps: false,
+          tension: 0.2,
+          fill: true,
+        },
+        {
+          label: 'Projection',
+          data: projectionFull,
+          borderColor: '#BA7517',
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          spanGaps: true,
+          tension: 0.1,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.parsed.y != null ? fmt(c.parsed.y) : '' } }
+      },
+      scales: {
+        x: { ticks: { color: txt, font: {size: 11} }, grid: { color: grid } },
+        y: { ticks: { color: txt, font: {size: 11}, callback: v => (v/1000)+'k€' }, grid: { color: grid }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function updateView() {
+  const niveau = document.getElementById('niveau-select').value;
+  const sel = document.getElementById('sel-select').value;
+
+  let filtered, dateFin = null;
+  if (niveau === 'contrat') {
+    const rows = allData.filter(d => d.contrat === sel);
+    const byDate = {};
+    rows.forEach(d => {
+      const key = d.date ? d.date.getTime() : 0;
+      if (!byDate[key]) byDate[key] = { date: d.date, montant: 0 };
+      byDate[key].montant += d.montant;
+      if (d.date_fin) dateFin = d.date_fin;
+    });
+    filtered = Object.values(byDate);
+  } else {
+    const rows = allData.filter(d => d.label === sel);
+    filtered = rows.map(d => ({ date: d.date, montant: d.montant }));
+    if (rows.length) dateFin = rows[0].date_fin;
+  }
+
+  buildChart(filtered, dateFin);
+}
+
+function populateSelect() {
+  const niveau = document.getElementById('niveau-select').value;
+  const sel = document.getElementById('sel-select');
+  let options;
+  if (niveau === 'contrat') {
+    options = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
+  } else {
+    options = [...new Set(allData.map(d => d.label))].filter(Boolean).sort();
+  }
+  sel.innerHTML = '';
+  options.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    sel.appendChild(opt);
+  });
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'read table' });
+    grist.onRecords((records) => {
+      allData = records.map(r => ({
+        contrat:   r.Contrat || '',
+        label:     r.Label_ligne || '',
+        date:      parseDate(r.Date_releve),
+        montant:   r.Disponible_officiel || 0,
+        date_fin:  parseDate(r.Date_fin_contrat),
+      })).filter(d => d.date);
+
+      populateSelect();
+      updateView();
+    });
+  } else {
+    document.getElementById('loading').textContent = 'Connectez ce widget à la table Releves_PGM.';
+  }
+}
+
+document.getElementById('niveau-select').addEventListener('change', () => { populateSelect(); updateView(); });
+document.getElementById('sel-select').addEventListener('change', updateView);
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
