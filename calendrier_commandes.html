@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendrier des commandes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+.title { font-size: 15px; font-weight: 500; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: #888; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.ldot { width: 9px; height: 9px; border-radius: 50%; }
+.month-group { margin-bottom: 18px; }
+.month-title { font-size: 13px; font-weight: 500; color: #888; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e5e5; text-transform: capitalize; }
+@media (prefers-color-scheme: dark) { .month-title { border-bottom-color: #383838; } }
+.cmd-row { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border-radius: 8px; background: #f7f7f5; margin-bottom: 6px; }
+@media (prefers-color-scheme: dark) { .cmd-row { background: #242424; } }
+.cmd-date { min-width: 46px; text-align: center; }
+.cmd-date-day { font-size: 17px; font-weight: 500; }
+.cmd-date-mon { font-size: 10px; color: #999; }
+.cmd-info { flex: 1; min-width: 0; }
+.cmd-num { font-size: 13px; font-weight: 500; }
+.cmd-four { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.cmd-badge { font-size: 10px; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
+.cmd-badge.da { background: #E6F1FB; color: #0C447C; }
+.cmd-badge.pgm { background: #E1F5EE; color: #085041; }
+.cmd-badge.pending { background: #FAEEDA; color: #854F0B; }
+@media (prefers-color-scheme: dark) {
+  .cmd-badge.da { background: #0C447C; color: #B5D4F4; }
+  .cmd-badge.pgm { background: #085041; color: #9FE1CB; }
+  .cmd-badge.pending { background: #633806; color: #FAC775; }
+}
+.cmd-amount { font-size: 12px; font-weight: 500; min-width: 70px; text-align: right; flex-shrink: 0; }
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Calendrier des commandes</div>
+  <div class="legend">
+    <span><span class="ldot" style="background:#378ADD"></span>Date DA</span>
+    <span><span class="ldot" style="background:#1D9E75"></span>Order PGM</span>
+  </div>
+</div>
+<div id="container">
+  <div class="loading" id="loading">Chargement…</div>
+</div>
+
+<script>
+let allData = [];
+
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+function parseDate(gristDate) {
+  if (!gristDate) return null;
+  let ms;
+  if (gristDate > 1e15) ms = gristDate / 1000;
+  else if (gristDate > 1e11) ms = gristDate;
+  else ms = gristDate * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
+  return d;
+}
+
+function render(data) {
+  const container = document.getElementById('container');
+
+  const valid = data.filter(d => d.date_da);
+  valid.sort((a, b) => b.date_da - a.date_da);
+
+  if (valid.length === 0) {
+    container.innerHTML = '<div class="loading">Aucune commande.</div>';
+    return;
+  }
+
+  const groups = {};
+  valid.forEach(d => {
+    const key = d.date_da.getFullYear() + '-' + String(d.date_da.getMonth()).padStart(2, '0');
+    const label = d.date_da.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    if (!groups[key]) groups[key] = { label, items: [] };
+    groups[key].items.push(d);
+  });
+
+  const sortedKeys = Object.keys(groups).sort().reverse();
+
+  let html = '';
+  sortedKeys.forEach(key => {
+    const g = groups[key];
+    html += `<div class="month-group"><div class="month-title">${g.label}</div>`;
+    g.items.forEach(d => {
+      const day = d.date_da.getDate();
+      const mon = d.date_da.toLocaleDateString('fr-FR', { month: 'short' });
+      const daStr = d.date_da.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+
+      let badges = `<span class="cmd-badge da">DA ${daStr}</span>`;
+      if (d.date_pgm) {
+        const pgmStr = d.date_pgm.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+        badges += `<span class="cmd-badge pgm">PGM ${pgmStr}</span>`;
+      } else {
+        badges += `<span class="cmd-badge pending">En attente PGM</span>`;
+      }
+
+      html += `
+        <div class="cmd-row">
+          <div class="cmd-date"><div class="cmd-date-day">${day}</div><div class="cmd-date-mon">${mon}</div></div>
+          <div class="cmd-info">
+            <div class="cmd-num">${d.num_da}</div>
+            <div class="cmd-four">${d.fournisseur || '—'}${d.contrat ? ' · ' + d.contrat : ''}</div>
+          </div>
+          <div class="cmd-badges">${badges}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'read table' });
+    grist.onRecords((records) => {
+      allData = records.map(r => ({
+        num_da:      r.Num_DA || '',
+        contrat:     r.Contrat || '',
+        fournisseur: r.Fournisseur || '',
+        date_da:     parseDate(r.Date_DA),
+        date_pgm:    parseDate(r.Date_OrderPGM),
+      })).filter(d => d.num_da);
+
+      render(allData);
+    });
+  } else {
+    document.getElementById('loading').textContent = 'Connectez ce widget à la table Demandes_achat.';
+  }
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
