@@ -64,8 +64,7 @@ function fmt(v) {
 
 function fmtDate(gristDate) {
   if (!gristDate) return null;
-  const d = new Date(gristDate * 1000);
-  return d.toLocaleDateString('fr-FR');
+  return 'RAW:' + gristDate;
 }
 
 function getState(d) {
