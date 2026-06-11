@@ -8,44 +8,36 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
-.header { margin-bottom: 16px; }
+.header { margin-bottom: 14px; }
 .title { font-size: 15px; font-weight: 500; }
-.contrat { border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border-left: 4px solid #ccc; }
-@media (prefers-color-scheme: dark) { .contrat { border-color: #383838; background: #242424; } }
-.contrat.urgent { border-left-color: #E24B4A; }
-.contrat.warn { border-left-color: #BA7517; }
-.contrat.ok { border-left-color: #1D9E75; }
-.c-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
-.c-nom { font-size: 15px; font-weight: 500; margin: 0 0 2px; }
-.c-fin { font-size: 12px; color: #888; }
-.c-dispo { text-align: right; flex-shrink: 0; }
-.c-dispo-val { font-size: 20px; font-weight: 500; }
-.c-dispo-val.urgent { color: #A32D2D; }
-.c-dispo-val.warn { color: #854F0B; }
-.c-dispo-val.ok { color: #0F6E56; }
+.row { display: flex; align-items: center; gap: 14px; padding: 11px 14px; border: 1px solid #e8e8e8; border-left: 4px solid #ccc; border-radius: 9px; margin-bottom: 8px; }
+@media (prefers-color-scheme: dark) { .row { border-color: #383838; background: #242424; } }
+.row.urgent { border-left-color: #E24B4A; }
+.row.warn { border-left-color: #BA7517; }
+.row.ok { border-left-color: #1D9E75; }
+.r-main { flex: 1; min-width: 0; }
+.r-nom { font-size: 14px; font-weight: 500; margin: 0; }
+.r-fin { font-size: 12px; color: #888; margin: 1px 0 0; }
+.r-ech { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
+.r-ech.urgent { background: #FCEBEB; color: #A32D2D; }
+.r-ech.warn { background: #FAEEDA; color: #854F0B; }
+.r-ech.ok { background: #E1F5EE; color: #0F6E56; }
 @media (prefers-color-scheme: dark) {
-  .c-dispo-val.urgent { color: #F09595; }
-  .c-dispo-val.warn { color: #EF9F27; }
-  .c-dispo-val.ok { color: #5DCAA5; }
+  .r-ech.urgent { background: #4A1717; color: #F09595; }
+  .r-ech.warn { background: #4A3208; color: #EF9F27; }
+  .r-ech.ok { background: #0F3D31; color: #5DCAA5; }
 }
-.c-echeance { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 10px; display: inline-block; margin-top: 3px; }
-.c-echeance.urgent { background: #FCEBEB; color: #A32D2D; }
-.c-echeance.warn { background: #FAEEDA; color: #854F0B; }
-.c-echeance.ok { background: #E1F5EE; color: #0F6E56; }
+.r-dispo { flex-shrink: 0; text-align: right; min-width: 110px; }
+.r-dispo-val { font-size: 16px; font-weight: 500; }
+.r-dispo-val.urgent { color: #A32D2D; }
+.r-dispo-val.warn { color: #854F0B; }
+.r-dispo-val.ok { color: #0F6E56; }
 @media (prefers-color-scheme: dark) {
-  .c-echeance.urgent { background: #4A1717; color: #F09595; }
-  .c-echeance.warn { background: #4A3208; color: #EF9F27; }
-  .c-echeance.ok { background: #0F3D31; color: #5DCAA5; }
+  .r-dispo-val.urgent { color: #F09595; }
+  .r-dispo-val.warn { color: #EF9F27; }
+  .r-dispo-val.ok { color: #5DCAA5; }
 }
-.cats { border-top: 1px solid #eee; padding-top: 10px; }
-@media (prefers-color-scheme: dark) { .cats { border-top-color: #383838; } }
-.cat-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 12px; }
-.cat-label { color: #666; }
-@media (prefers-color-scheme: dark) { .cat-label { color: #aaa; } }
-.cat-bar-wrap { flex: 1; margin: 0 12px; height: 5px; background: rgba(0,0,0,0.07); border-radius: 3px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { .cat-bar-wrap { background: rgba(255,255,255,0.1); } }
-.cat-bar { height: 100%; border-radius: 3px; }
-.cat-val { font-variant-numeric: tabular-nums; font-weight: 500; min-width: 70px; text-align: right; }
+.r-dispo-sub { font-size: 10px; color: #999; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 </style>
 </head>
@@ -77,7 +69,8 @@ function parseDate(gristDate) {
 
 function monthsUntil(d) {
   if (!d) return null;
-  return (d.getFullYear() - new Date().getFullYear()) * 12 + (d.getMonth() - new Date().getMonth());
+  const now = new Date();
+  return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
 }
 
 function render(data) {
@@ -86,9 +79,8 @@ function render(data) {
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, lignes: [], disponible: 0, budget: 0 };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, budget: 0 };
     }
-    contrats[d.contrat].lignes.push(d);
     contrats[d.contrat].disponible += d.disponible;
     contrats[d.contrat].budget += d.budget_ajuste;
     if (!contrats[d.contrat].date_fin && d.date_fin) contrats[d.contrat].date_fin = d.date_fin;
@@ -112,8 +104,7 @@ function render(data) {
   list.forEach(c => {
     let state = 'ok';
     if (c.mois !== null) {
-      if (c.mois < 0) state = 'urgent';
-      else if (c.mois <= 6) state = 'urgent';
+      if (c.mois <= 6) state = 'urgent';
       else if (c.mois <= 12) state = 'warn';
     }
 
@@ -124,40 +115,21 @@ function render(data) {
       else if (c.mois === 0) echStr = 'Ce mois-ci';
       else if (c.mois === 1) echStr = 'Dans 1 mois';
       else echStr = 'Dans ' + c.mois + ' mois';
+    } else {
+      echStr = '—';
     }
 
-    const cats = c.lignes
-      .filter(l => l.budget_ajuste > 0 || l.disponible !== 0)
-      .sort((a, b) => b.disponible - a.disponible);
-
-    let catsHtml = '';
-    cats.forEach(l => {
-      const parts = l.label.split('|');
-      const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
-      const pct = l.budget_ajuste > 0 ? Math.max(0, Math.min(100, Math.round(l.disponible / l.budget_ajuste * 100))) : 0;
-      const barColor = l.disponible < 0 ? '#E24B4A' : (pct < 10 ? '#BA7517' : '#1D9E75');
-      catsHtml += `
-        <div class="cat-row">
-          <span class="cat-label">${sub}</span>
-          <span class="cat-bar-wrap"><span class="cat-bar" style="background:${barColor}; width:${l.disponible < 0 ? 100 : pct}%"></span></span>
-          <span class="cat-val" style="color:${l.disponible < 0 ? '#E24B4A' : 'inherit'}">${fmt(l.disponible)}</span>
-        </div>`;
-    });
-
     html += `
-      <div class="contrat ${state}">
-        <div class="c-head">
-          <div>
-            <p class="c-nom">${c.nom}</p>
-            <p class="c-fin">Fin : ${finStr}</p>
-            ${echStr ? `<span class="c-echeance ${state}">${echStr}</span>` : ''}
-          </div>
-          <div class="c-dispo">
-            <div class="c-dispo-val ${state}">${fmt(c.disponible)}</div>
-            <div style="font-size:11px; color:#999">disponible sur ${fmt(c.budget)}</div>
-          </div>
+      <div class="row ${state}">
+        <div class="r-main">
+          <p class="r-nom">${c.nom}</p>
+          <p class="r-fin">Fin : ${finStr}</p>
         </div>
-        <div class="cats">${catsHtml}</div>
+        <span class="r-ech ${state}">${echStr}</span>
+        <div class="r-dispo">
+          <div class="r-dispo-val ${state}">${fmt(c.disponible)}</div>
+          <div class="r-dispo-sub">sur ${fmt(c.budget)}</div>
+        </div>
       </div>`;
   });
 
