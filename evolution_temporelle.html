@@ -97,14 +97,60 @@ function buildChart(points, dateFin) {
   projFull[projFull.length - 1] = officiel[officiel.length - 1];
   const projectionFull = projFull.concat(projData);
 
+  // Trobar l'índex més proper a la data de fi per la línia vertical
+  let finIndex = -1;
+  if (dateFin) {
+    const allDates = points.map(p => p.date);
+    if (points.length >= 2) {
+      const last = points[points.length - 1];
+      const prev = points[points.length - 2];
+      const msPerStep = last.date - prev.date;
+      if (msPerStep > 0 && dateFin > last.date) {
+        const nbSteps = Math.ceil((dateFin - last.date) / msPerStep);
+        for (let i = 1; i <= nbSteps; i++) {
+          allDates.push(new Date(last.date.getTime() + msPerStep * i));
+        }
+      }
+    }
+    let minDiff = Infinity;
+    allDates.forEach((d, idx) => {
+      const diff = Math.abs(d - dateFin);
+      if (diff < minDiff) { minDiff = diff; finIndex = idx; }
+    });
+  }
+
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
   const txt = isDark ? '#ccc' : '#444';
   const grid = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
 
   if (chart) chart.destroy();
 
+  const finLinePlugin = {
+    id: 'finLine',
+    afterDraw(chart, args, opts) {
+      if (!opts || opts.index < 0) return;
+      const { ctx, chartArea, scales } = chart;
+      const x = scales.x.getPixelForValue(opts.index);
+      ctx.save();
+      ctx.strokeStyle = '#E24B4A';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#E24B4A';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('Fin: ' + opts.label, x, chartArea.top - 2);
+      ctx.restore();
+    }
+  };
+
   chart = new Chart(document.getElementById('evoChart'), {
     type: 'line',
+    plugins: [finLinePlugin],
     data: {
       labels: allLabels,
       datasets: [
@@ -139,6 +185,7 @@ function buildChart(points, dateFin) {
         legend: { display: false },
         tooltip: { callbacks: { label: c => c.parsed.y != null ? fmt(c.parsed.y) : '' } }
       },
+      finLine: { index: finIndex, label: dateFin ? dateFin.toLocaleDateString('fr-FR') : '' },
       scales: {
         x: { ticks: { color: txt, font: {size: 11} }, grid: { color: grid } },
         y: { ticks: { color: txt, font: {size: 11}, callback: v => (v/1000)+'k€' }, grid: { color: grid }, beginAtZero: true }
