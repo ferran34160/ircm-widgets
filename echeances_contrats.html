@@ -10,34 +10,35 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
 .header { margin-bottom: 14px; }
 .title { font-size: 15px; font-weight: 500; }
-.row { display: flex; align-items: center; gap: 14px; padding: 11px 14px; border: 1px solid #e8e8e8; border-left: 4px solid #ccc; border-radius: 9px; margin-bottom: 8px; }
-@media (prefers-color-scheme: dark) { .row { border-color: #383838; background: #242424; } }
-.row.urgent { border-left-color: #E24B4A; }
-.row.warn { border-left-color: #BA7517; }
-.row.ok { border-left-color: #1D9E75; }
-.r-main { flex: 1; min-width: 0; }
-.r-nom { font-size: 14px; font-weight: 500; margin: 0; }
-.r-fin { font-size: 12px; color: #888; margin: 1px 0 0; }
-.r-ech { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
-.r-ech.urgent { background: #FCEBEB; color: #A32D2D; }
-.r-ech.warn { background: #FAEEDA; color: #854F0B; }
-.r-ech.ok { background: #E1F5EE; color: #0F6E56; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.card { border-radius: 12px; padding: 13px 15px; border: 1px solid; border-left-width: 4px; }
+.card.urgent { background: #FCEBEB; border-color: #F7C1C1; border-left-color: #E24B4A; }
+.card.warn { background: #FAEEDA; border-color: #FAC775; border-left-color: #BA7517; }
+.card.ok { background: #E1F5EE; border-color: #9FE1CB; border-left-color: #1D9E75; }
 @media (prefers-color-scheme: dark) {
-  .r-ech.urgent { background: #4A1717; color: #F09595; }
-  .r-ech.warn { background: #4A3208; color: #EF9F27; }
-  .r-ech.ok { background: #0F3D31; color: #5DCAA5; }
+  .card.urgent { background: #4A1717; border-color: #791F1F; border-left-color: #E24B4A; }
+  .card.warn { background: #4A3208; border-color: #854F0B; border-left-color: #EF9F27; }
+  .card.ok { background: #0F3D31; border-color: #1D6E56; border-left-color: #1D9E75; }
 }
-.r-dispo { flex-shrink: 0; text-align: right; min-width: 110px; }
-.r-dispo-val { font-size: 16px; font-weight: 500; }
-.r-dispo-val.urgent { color: #A32D2D; }
-.r-dispo-val.warn { color: #854F0B; }
-.r-dispo-val.ok { color: #0F6E56; }
+.c-nom { font-size: 14px; font-weight: 500; margin: 0 0 2px; }
+.c-fin { font-size: 11px; margin: 0 0 10px; opacity: 0.7; }
+.c-dispo { font-size: 22px; font-weight: 500; margin: 0; }
+.c-budget { font-size: 11px; margin: 2px 0 10px; opacity: 0.7; }
+.c-ech { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 10px; display: inline-block; }
+.card.urgent .c-nom, .card.urgent .c-dispo { color: #791F1F; }
+.card.warn .c-nom, .card.warn .c-dispo { color: #633806; }
+.card.ok .c-nom, .card.ok .c-dispo { color: #085041; }
+.card.urgent .c-ech { background: rgba(162,45,45,0.15); color: #791F1F; }
+.card.warn .c-ech { background: rgba(133,79,11,0.15); color: #633806; }
+.card.ok .c-ech { background: rgba(15,110,86,0.15); color: #085041; }
 @media (prefers-color-scheme: dark) {
-  .r-dispo-val.urgent { color: #F09595; }
-  .r-dispo-val.warn { color: #EF9F27; }
-  .r-dispo-val.ok { color: #5DCAA5; }
+  .card.urgent .c-nom, .card.urgent .c-dispo { color: #F7C1C1; }
+  .card.warn .c-nom, .card.warn .c-dispo { color: #FAC775; }
+  .card.ok .c-nom, .card.ok .c-dispo { color: #9FE1CB; }
+  .card.urgent .c-ech { background: rgba(247,193,193,0.15); color: #F7C1C1; }
+  .card.warn .c-ech { background: rgba(250,199,117,0.15); color: #FAC775; }
+  .card.ok .c-ech { background: rgba(159,225,203,0.15); color: #9FE1CB; }
 }
-.r-dispo-sub { font-size: 10px; color: #999; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 </style>
 </head>
@@ -100,7 +101,7 @@ function render(data) {
     return;
   }
 
-  let html = '';
+  let html = '<div class="grid">';
   list.forEach(c => {
     let state = 'ok';
     if (c.mois !== null) {
@@ -120,18 +121,15 @@ function render(data) {
     }
 
     html += `
-      <div class="row ${state}">
-        <div class="r-main">
-          <p class="r-nom">${c.nom}</p>
-          <p class="r-fin">Fin : ${finStr}</p>
-        </div>
-        <span class="r-ech ${state}">${echStr}</span>
-        <div class="r-dispo">
-          <div class="r-dispo-val ${state}">${fmt(c.disponible)}</div>
-          <div class="r-dispo-sub">sur ${fmt(c.budget)}</div>
-        </div>
+      <div class="card ${state}">
+        <p class="c-nom">${c.nom}</p>
+        <p class="c-fin">Fin : ${finStr}</p>
+        <p class="c-dispo">${fmt(c.disponible)}</p>
+        <p class="c-budget">sur ${fmt(c.budget)}</p>
+        <span class="c-ech">${echStr}</span>
       </div>`;
   });
+  html += '</div>';
 
   container.innerHTML = html;
 }
