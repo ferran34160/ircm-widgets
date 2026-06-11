@@ -10,8 +10,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
 .header { margin-bottom: 14px; }
 .title { font-size: 15px; font-weight: 500; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.card { border-radius: 12px; padding: 13px 15px; border: 1px solid; border-left-width: 4px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: start; }
+.card { border-radius: 12px; padding: 13px 15px; border: 1px solid; border-left-width: 4px; cursor: pointer; transition: transform 0.1s; }
+.card:hover { transform: translateY(-1px); }
 .card.urgent { background: #FCEBEB; border-color: #F7C1C1; border-left-color: #E24B4A; }
 .card.warn { background: #FAEEDA; border-color: #FAC775; border-left-color: #BA7517; }
 .card.ok { background: #E1F5EE; border-color: #9FE1CB; border-left-color: #1D9E75; }
@@ -20,8 +21,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .card.warn { background: #4A3208; border-color: #854F0B; border-left-color: #EF9F27; }
   .card.ok { background: #0F3D31; border-color: #1D6E56; border-left-color: #1D9E75; }
 }
+.c-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .c-nom { font-size: 14px; font-weight: 500; margin: 0 0 2px; }
 .c-fin { font-size: 11px; margin: 0 0 10px; opacity: 0.7; }
+.c-chevron { font-size: 12px; opacity: 0.5; transition: transform 0.15s; }
+.card.open .c-chevron { transform: rotate(180deg); }
 .c-dispo { font-size: 22px; font-weight: 500; margin: 0; }
 .c-budget { font-size: 11px; margin: 2px 0 10px; opacity: 0.7; }
 .c-ech { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 10px; display: inline-block; }
@@ -39,6 +43,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .card.warn .c-ech { background: rgba(250,199,117,0.15); color: #FAC775; }
   .card.ok .c-ech { background: rgba(159,225,203,0.15); color: #9FE1CB; }
 }
+.cats { display: none; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.12); }
+@media (prefers-color-scheme: dark) { .cats { border-top-color: rgba(255,255,255,0.15); } }
+.card.open .cats { display: block; }
+.cat-row { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; font-size: 11px; gap: 8px; }
+.cat-label { opacity: 0.8; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-val { font-variant-numeric: tabular-nums; font-weight: 500; flex-shrink: 0; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 </style>
 </head>
@@ -80,10 +90,11 @@ function render(data) {
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, budget: 0 };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, budget: 0, lignes: [] };
     }
     contrats[d.contrat].disponible += d.disponible;
     contrats[d.contrat].budget += d.budget_ajuste;
+    contrats[d.contrat].lignes.push(d);
     if (!contrats[d.contrat].date_fin && d.date_fin) contrats[d.contrat].date_fin = d.date_fin;
   });
 
@@ -120,13 +131,34 @@ function render(data) {
       echStr = '—';
     }
 
+    const cats = c.lignes
+      .filter(l => l.budget_ajuste > 0 || l.disponible !== 0)
+      .sort((a, b) => b.disponible - a.disponible);
+
+    let catsHtml = '';
+    cats.forEach(l => {
+      const parts = l.label.split('|');
+      const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+      catsHtml += `
+        <div class="cat-row">
+          <span class="cat-label">${sub}</span>
+          <span class="cat-val" style="${l.disponible < 0 ? 'color:#E24B4A' : ''}">${fmt(l.disponible)}</span>
+        </div>`;
+    });
+
     html += `
-      <div class="card ${state}">
-        <p class="c-nom">${c.nom}</p>
-        <p class="c-fin">Fin : ${finStr}</p>
+      <div class="card ${state}" onclick="this.classList.toggle('open')">
+        <div class="c-top">
+          <div>
+            <p class="c-nom">${c.nom}</p>
+            <p class="c-fin">Fin : ${finStr}</p>
+          </div>
+          <span class="c-chevron">▼</span>
+        </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.budget)}</p>
         <span class="c-ech">${echStr}</span>
+        <div class="cats">${catsHtml}</div>
       </div>`;
   });
   html += '</div>';
