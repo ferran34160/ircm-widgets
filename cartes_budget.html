@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartes Budget IRCM</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.title { font-size: 15px; font-weight: 500; }
+select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.bcard { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; border-left: 3px solid #ccc; }
+@media (prefers-color-scheme: dark) { .bcard { background: #242424; border-color: #383838; } }
+.bcard.ok { border-left-color: #1D9E75; }
+.bcard.warn { border-left-color: #BA7517; }
+.bcard.danger { border-left-color: #E24B4A; }
+.bcard-cat { font-size: 12px; color: #888; margin: 0 0 2px; }
+.bcard-sub { font-size: 13px; font-weight: 500; margin: 0 0 12px; line-height: 1.3; }
+.bcard-dispo { font-size: 26px; font-weight: 500; margin: 0; }
+.bcard-dispo.ok { color: #0F6E56; }
+.bcard-dispo.warn { color: #854F0B; }
+.bcard-dispo.danger { color: #A32D2D; }
+@media (prefers-color-scheme: dark) {
+  .bcard-dispo.ok { color: #5DCAA5; }
+  .bcard-dispo.warn { color: #EF9F27; }
+  .bcard-dispo.danger { color: #F09595; }
+}
+.bcard-meta { font-size: 11px; color: #999; margin: 4px 0 0; }
+.pct-track { height: 4px; background: #eee; border-radius: 2px; margin-top: 10px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .pct-track { background: #383838; } }
+.pct-fill { height: 100%; border-radius: 2px; }
+.bcard-pct { font-size: 11px; color: #888; margin-top: 6px; }
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+.summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+.sum-item { font-size: 13px; }
+.sum-item b { font-size: 16px; font-weight: 500; display: block; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Disponible par ligne budgétaire</div>
+  <select id="contrat-select"><option value="">Tous les contrats</option></select>
+</div>
+<div class="summary" id="summary"></div>
+<div id="cards-container">
+  <div class="loading" id="loading">Chargement…</div>
+</div>
+
+<script>
+let allData = [];
+
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+function getState(d) {
+  if (d.disponible < 0) return 'danger';
+  if (d.budget_ajuste > 0 && d.disponible / d.budget_ajuste < 0.1) return 'warn';
+  return 'ok';
+}
+
+function render(data) {
+  const container = document.getElementById('cards-container');
+
+  if (data.length === 0) {
+    container.innerHTML = '<div class="loading">Aucune ligne budgétaire.</div>';
+    return;
+  }
+
+  let html = '<div class="cards-grid">';
+  data.forEach(d => {
+    const state = getState(d);
+    const pct = d.budget_ajuste > 0 ? Math.max(0, Math.min(100, Math.round(d.disponible / d.budget_ajuste * 100))) : 0;
+    const color = state === 'ok' ? '#1D9E75' : state === 'warn' ? '#BA7517' : '#E24B4A';
+    const fillPct = state === 'danger' ? 100 : pct;
+
+    const parts = d.label.split('|');
+    const contrat = parts[0] ? parts[0].trim() : '';
+    const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : d.label;
+
+    const pctText = state === 'danger' ? 'Dépassement' : pct + '% disponible';
+
+    html += `
+      <div class="bcard ${state}">
+        <p class="bcard-cat">${contrat}</p>
+        <p class="bcard-sub">${sub}</p>
+        <p class="bcard-dispo ${state}">${fmt(d.disponible)}</p>
+        <p class="bcard-meta">sur ${fmt(d.budget_ajuste)} · engagé ${fmt(d.total_commandes)}</p>
+        <div class="pct-track"><div class="pct-fill" style="background:${color}; width:${fillPct}%"></div></div>
+        <p class="bcard-pct">${pctText}</p>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function updateView() {
+  const sel = document.getElementById('contrat-select').value;
+  const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
+
+  const totalBudget = filtered.reduce((s, d) => s + d.budget_ajuste, 0);
+  const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
+  const nbAlerts = filtered.filter(d => getState(d) !== 'ok').length;
+
+  document.getElementById('summary').innerHTML = `
+    <div class="sum-item">Budget total<b>${fmt(totalBudget)}</b></div>
+    <div class="sum-item">Disponible total<b style="color:${totalDispo < 0 ? '#E24B4A' : '#1D9E75'}">${fmt(totalDispo)}</b></div>
+    <div class="sum-item">Alertes<b style="color:${nbAlerts > 0 ? '#BA7517' : 'inherit'}">${nbAlerts}</b></div>
+  `;
+
+  render(filtered);
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'read table' });
+    grist.onRecords((records) => {
+      allData = records.map(r => ({
+        label:           r.Label || r.label || '',
+        contrat:         r.Contrat || '',
+        budget_ajuste:   r.Budget_ajuste || 0,
+        total_commandes: r.Total_commandes || 0,
+        disponible:      r.Disponible || 0,
+      })).filter(d => d.label);
+
+      const contrats = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
+      const sel = document.getElementById('contrat-select');
+      sel.innerHTML = '<option value="">Tous les contrats</option>';
+      contrats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        sel.appendChild(opt);
+      });
+
+      updateView();
+    });
+  } else {
+    document.getElementById('loading').textContent = 'Connectez ce widget à la table Lignes_budgetaires.';
+  }
+}
+
+document.getElementById('contrat-select').addEventListener('change', updateView);
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
