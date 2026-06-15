@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opérations par contrat</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.sel { background: #f5f5f3; border-radius: 8px; padding: 10px 13px; margin-bottom: 16px; }
+@media (prefers-color-scheme: dark) { .sel { background: #2a2a2a; } }
+.sel label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; display:block; margin-bottom: 5px; }
+.sel select { width: 100%; max-width: 360px; font-size: 14px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .sel select { background: #1a1a1a; border-color: #444; } }
+.cols { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.ligne { flex: 0 0 280px; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .ligne { border-color: #383838; } }
+.ligne-head { background: #f5f5f3; padding: 10px 13px; }
+@media (prefers-color-scheme: dark) { .ligne-head { background: #2a2a2a; } }
+.ligne-nom { font-weight: 500; font-size: 13px; }
+.ligne-init { font-size: 11px; color: #999; margin-top: 2px; }
+.ligne-dispo { font-size: 14px; font-weight: 500; margin-top: 4px; }
+.ligne-dispo.pos { color: #0F6E56; }
+.ligne-dispo.neg { color: #A32D2D; }
+@media (prefers-color-scheme: dark) { .ligne-dispo.pos { color: #5DCAA5; } .ligne-dispo.neg { color: #F09595; } }
+.ops { padding: 8px 13px 12px; }
+.op-group { margin-top: 10px; }
+.op-group-title { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #999; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.op-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.op-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0 4px 12px; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
+@media (prefers-color-scheme: dark) { .op-row { border-bottom-color: #2e2e2e; } }
+.op-row:last-child { border-bottom: none; }
+.op-desc { color: #666; min-width: 0; }
+@media (prefers-color-scheme: dark) { .op-desc { color: #aaa; } }
+.op-date { font-size: 10px; color: #aaa; }
+.op-amount { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+.op-amount.neg { color: #A32D2D; }
+.op-amount.pos { color: #0F6E56; }
+@media (prefers-color-scheme: dark) { .op-amount.neg { color: #F09595; } .op-amount.pos { color: #5DCAA5; } }
+.no-op { padding-left: 0; color: #bbb; border: none; font-style: italic; }
+.empty { text-align: center; padding: 30px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="sel">
+  <label>Contrat</label>
+  <select id="contrat-select"><option value="">— Choisir un contrat —</option></select>
+</div>
+<div id="container"><div class="empty">Chargement…</div></div>
+
+<script>
+let lignes = [], commandes = [], transferts = [], mouvements = [], das = [], contrats = [];
+
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+function fmtDate(g) {
+  if (!g) return '';
+  let ms; if (g > 1e15) ms = g/1000; else if (g > 1e11) ms = g; else ms = g*1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
+  return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+}
+
+async function fetchAll() {
+  try {
+    const [l, c, t, m, d, ct] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Transferts'),
+      grist.docApi.fetchTable('Mouvements'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    lignes = (l.id||[]).map((id,i) => ({
+      id, label:(l.Label||[])[i]||'', contrat:(l.Contrat||[])[i]||'',
+      budget_initial:(l.Budget_initial||[])[i]||0, disponible:(l.Disponible||[])[i]||0,
+      sous_cat:(l.Sous_categories||[])[i]||null,
+    }));
+    das = {};
+    (d.id||[]).forEach((id,i) => { das[id] = {
+      num_da:(d.Num_DA||[])[i]||('DA#'+id), statut:(d.Statut||[])[i]||'',
+      date_da:(d.Date_DA||[])[i], fournisseur:(d.Fournisseur||[])[i],
+      ligne:(d.Ligne_budgetaire||[])[i],
+    };});
+    commandes = (c.id||[]).map((id,i) => ({
+      id, demande_achat:(c.Demande_achat||[])[i]||null,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+    }));
+    transferts = (t.id||[]).map((id,i) => ({
+      id, source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
+      montant:(t.Montant||[])[i]||0, date:(t.Date||[])[i], motif:(t.Motif||[])[i]||'',
+    }));
+    mouvements = (m.id||[]).map((id,i) => ({
+      id, ligne:(m.Ligne_budgetaire||[])[i]||null, type:(m.Type||[])[i]||'',
+      montant:(m.Montant||[])[i]||0, date:(m.Date||[])[i], motif:(m.Motif||[])[i]||'',
+    }));
+
+    const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(Boolean).sort();
+    const sel = document.getElementById('contrat-select');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Choisir un contrat —</option>';
+    contratSet.forEach(c => {
+      const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+    });
+    if (current) sel.value = current;
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
+  }
+}
+
+function lblLigne(id) {
+  const l = lignes.find(x => x.id === id);
+  if (!l) return '?';
+  const parts = l.label.split('|');
+  return parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+}
+
+function render() {
+  const contrat = document.getElementById('contrat-select').value;
+  const container = document.getElementById('container');
+  if (!contrat) { container.innerHTML = '<div class="empty">Sélectionnez un contrat.</div>'; return; }
+
+  const mesLignes = lignes.filter(l => l.contrat === contrat);
+  if (mesLignes.length === 0) { container.innerHTML = '<div class="empty">Aucune ligne.</div>'; return; }
+
+  let html = '<div class="cols">';
+  mesLignes.forEach(ligne => {
+    const sub = lblLigne(ligne.id);
+    const dispoClass = ligne.disponible < 0 ? 'neg' : 'pos';
+
+    // Commandes tractades (Envoyée PGM / BC reçu) via DA d'aquesta línia
+    const cmds = commandes.filter(c => {
+      if (!c.demande_achat) return false;
+      const da = das[c.demande_achat];
+      return da && da.ligne === ligne.id && (da.statut === 'Envoyée PGM' || da.statut === 'BC reçu');
+    });
+    // Agrupar per DA
+    const parDA = {};
+    cmds.forEach(c => {
+      const da = das[c.demande_achat];
+      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, total: 0 };
+      parDA[c.demande_achat].total += c.montant;
+    });
+
+    // Transferts sortints i entrants
+    const tSort = transferts.filter(t => t.source === ligne.id);
+    const tEnt  = transferts.filter(t => t.dest === ligne.id);
+
+    // Mouvements
+    const mvts = mouvements.filter(m => m.ligne === ligne.id);
+
+    let opsHtml = '';
+
+    const daKeys = Object.keys(parDA);
+    if (daKeys.length) {
+      opsHtml += '<div class="op-group"><div class="op-group-title"><span class="op-dot" style="background:#378ADD"></span>Commandes</div>';
+      daKeys.forEach(k => {
+        const d = parDA[k];
+        opsHtml += `<div class="op-row"><span class="op-desc">${d.num_da}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
+      });
+      opsHtml += '</div>';
+    }
+
+    if (tSort.length || tEnt.length) {
+      opsHtml += '<div class="op-group"><div class="op-group-title"><span class="op-dot" style="background:#9C6ADE"></span>Transferts</div>';
+      tEnt.forEach(t => {
+        opsHtml += `<div class="op-row"><span class="op-desc">← de ${lblLigne(t.source)}<span class="op-date"> · ${fmtDate(t.date)}</span></span><span class="op-amount pos">+ ${fmt(t.montant)}</span></div>`;
+      });
+      tSort.forEach(t => {
+        opsHtml += `<div class="op-row"><span class="op-desc">→ vers ${lblLigne(t.dest)}<span class="op-date"> · ${fmtDate(t.date)}</span></span><span class="op-amount neg">− ${fmt(t.montant)}</span></div>`;
+      });
+      opsHtml += '</div>';
+    }
+
+    if (mvts.length) {
+      opsHtml += '<div class="op-group"><div class="op-group-title"><span class="op-dot" style="background:#BA7517"></span>Mouvements</div>';
+      mvts.forEach(m => {
+        const neg = m.type === 'Sortie';
+        opsHtml += `<div class="op-row"><span class="op-desc">${m.motif||m.type}<span class="op-date"> · ${fmtDate(m.date)}</span></span><span class="op-amount ${neg?'neg':'pos'}">${neg?'−':'+'} ${fmt(m.montant)}</span></div>`;
+      });
+      opsHtml += '</div>';
+    }
+
+    if (!opsHtml) opsHtml = '<div class="op-row no-op">Aucune opération</div>';
+
+    html += `
+      <div class="ligne">
+        <div class="ligne-head">
+          <div class="ligne-nom">${sub}</div>
+          <div class="ligne-init">Budget initial : ${fmt(ligne.budget_initial)}</div>
+          <div class="ligne-dispo ${dispoClass}">Disponible : ${fmt(ligne.disponible)}</div>
+        </div>
+        <div class="ops">${opsHtml}</div>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+document.getElementById('contrat-select').addEventListener('change', render);
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'read table' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+    window.addEventListener('focus', () => fetchAll());
+  } else {
+    document.getElementById('container').innerHTML = '<div class="empty">Connectez à Grist.</div>';
+  }
+}
+const s = document.createElement('script');
+s.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+s.onload = loadData; s.onerror = loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
