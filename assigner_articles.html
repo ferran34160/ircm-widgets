@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assigner articles</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.da-info { background: #E6F1FB; border-radius: 8px; padding: 10px 13px; margin-bottom: 14px; }
+@media (prefers-color-scheme: dark) { .da-info { background: #0C2D4D; } }
+.da-info.none { background: #FAEEDA; }
+@media (prefers-color-scheme: dark) { .da-info.none { background: #4A3208; } }
+.da-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+.da-num { font-size: 15px; font-weight: 500; margin-top: 2px; }
+.arts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+.count-badge { background: #378ADD; color: white; border-radius: 10px; padding: 1px 9px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+.art-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 6px; cursor: pointer; user-select: none; }
+@media (prefers-color-scheme: dark) { .art-row { border-color: #383838; } }
+.art-row.checked { background: #E6F1FB; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .art-row.checked { background: #0C2D4D; border-color: #378ADD; } }
+.art-check { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
+.art-row.checked .art-check { background: #378ADD; border-color: #378ADD; color: white; }
+.art-info { flex: 1; min-width: 0; }
+.art-desig { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.art-meta { font-size: 11px; color: #888; }
+.art-price { font-variant-numeric: tabular-nums; font-weight: 500; flex-shrink: 0; }
+.btn-assign { width: 100%; margin-top: 12px; padding: 10px; background: #378ADD; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn-assign:disabled { background: #ccc; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) { .btn-assign:disabled { background: #444; } }
+.empty { text-align: center; padding: 30px; color: #aaa; font-size: 13px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.toolbar button { font-size: 12px; padding: 4px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+.msg { text-align: center; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
+</style>
+</head>
+<body>
+<div id="da-info" class="da-info none">
+  <div class="da-label">Demande d'achat sélectionnée</div>
+  <div class="da-num" id="da-num">Aucune — sélectionnez une DA dans la vue principale</div>
+</div>
+
+<div class="arts-head">
+  <span>Articles non assignés</span>
+  <span class="count-badge" id="count">0 sélectionnés</span>
+</div>
+
+<div class="toolbar">
+  <button onclick="selectAll()">Tout sélectionner</button>
+  <button onclick="deselectAll()">Tout désélectionner</button>
+</div>
+
+<div id="arts-container">
+  <div class="empty">Chargement…</div>
+</div>
+
+<button class="btn-assign" id="btn-assign" disabled onclick="assignArticles()">Assigner les articles</button>
+<div class="msg" id="msg"></div>
+
+<script>
+let allArticles = [];
+let selectedDA = null;
+let selectedIds = new Set();
+let tableId = null;
+
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+function render() {
+  const container = document.getElementById('arts-container');
+  const unassigned = allArticles.filter(a => !a.demande_achat);
+
+  if (unassigned.length === 0) {
+    container.innerHTML = '<div class="empty">Aucun article non assigné.</div>';
+    updateCount();
+    return;
+  }
+
+  let html = '';
+  unassigned.forEach(a => {
+    const checked = selectedIds.has(a.id);
+    const total = (a.prix || 0) * (a.qte || 1);
+    html += `
+      <div class="art-row ${checked ? 'checked' : ''}" onclick="toggle(${a.id})">
+        <div class="art-check">✓</div>
+        <div class="art-info">
+          <div class="art-desig">${a.designation || '(sans désignation)'}</div>
+          <div class="art-meta">${a.ref ? 'Réf: ' + a.ref + ' · ' : ''}Qté ${a.qte || 1}${a.ghp ? ' · ' + a.ghp : ''}</div>
+        </div>
+        <div class="art-price">${fmt(total)}</div>
+      </div>`;
+  });
+  container.innerHTML = html;
+  updateCount();
+}
+
+function toggle(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  render();
+}
+
+function selectAll() {
+  allArticles.filter(a => !a.demande_achat).forEach(a => selectedIds.add(a.id));
+  render();
+}
+
+function deselectAll() {
+  selectedIds.clear();
+  render();
+}
+
+function updateCount() {
+  document.getElementById('count').textContent = selectedIds.size + ' sélectionnés';
+  const btn = document.getElementById('btn-assign');
+  if (selectedDA && selectedIds.size > 0) {
+    btn.disabled = false;
+    btn.textContent = `Assigner ${selectedIds.size} article(s) à ${selectedDA.num_da}`;
+  } else {
+    btn.disabled = true;
+    btn.textContent = selectedDA ? 'Sélectionnez des articles' : 'Sélectionnez une DA';
+  }
+}
+
+async function assignArticles() {
+  if (!selectedDA || selectedIds.size === 0) return;
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('btn-assign');
+  btn.disabled = true;
+
+  try {
+    const records = [...selectedIds].map(id => ({
+      id: id,
+      fields: { Demande_achat: selectedDA.id }
+    }));
+
+    await grist.docApi.applyUserActions([
+      ['BulkUpdateRecord', tableId, records.map(r => r.id), {
+        Demande_achat: records.map(() => selectedDA.id)
+      }]
+    ]);
+
+    msg.className = 'msg ok';
+    msg.textContent = `${selectedIds.size} article(s) assigné(s) à ${selectedDA.num_da}`;
+    selectedIds.clear();
+    setTimeout(() => { msg.className = 'msg'; }, 3000);
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
+  }
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+
+    // Taula d'articles (Commandes)
+    grist.onRecords((records, mappings) => {
+      tableId = 'Commandes';
+      allArticles = records.map(r => ({
+        id:            r.id,
+        designation:   r.Designation2 || '',
+        ref:           r.Reference_fournisseur || '',
+        ghp:           r.Code_GHP || '',
+        prix:          r.Prix_unitaire_HT || 0,
+        qte:           r.Quantite || 1,
+        demande_achat: r.Demande_achat || null,
+      }));
+      render();
+    });
+
+    // DA seleccionada a la vista vinculada
+    grist.onRecord((record) => {
+      if (record) {
+        selectedDA = { id: record.id, num_da: record.Num_DA || ('DA #' + record.id) };
+        document.getElementById('da-info').className = 'da-info';
+        document.getElementById('da-num').textContent = selectedDA.num_da;
+      } else {
+        selectedDA = null;
+        document.getElementById('da-info').className = 'da-info none';
+        document.getElementById('da-num').textContent = 'Aucune — sélectionnez une DA';
+      }
+      updateCount();
+    });
+  } else {
+    document.getElementById('arts-container').innerHTML = '<div class="empty">Connectez ce widget à Grist.</div>';
+  }
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
