@@ -79,7 +79,7 @@ async function fetchAll() {
 
     // Mapa id -> nom de fournisseur
     const fourNoms = {};
-    (fo.id||[]).forEach((id,i) => { fourNoms[id] = (fo.Fournisseur||[])[i] || (fo.Nom||[])[i] || ('Fourn. #'+id); });
+    (fo.id||[]).forEach((id,i) => { fourNoms[id] = (fo.Label||[])[i] || (fo.Fournisseur||[])[i] || (fo.Nom||[])[i] || ('Fourn. #'+id); });
     function resolFour(v) {
       if (v == null) return '';
       if (typeof v === 'number') return fourNoms[v] || '';
