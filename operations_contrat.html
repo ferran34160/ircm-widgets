@@ -74,8 +74,21 @@ async function fetchAll() {
       grist.docApi.fetchTable('Contrats'),
     ]);
 
+    // Mapa id -> nom de contracte
+    const contratNoms = {};
+    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('Contrat #'+id); });
+
+    function resolContrat(v) {
+      if (v == null) return '';
+      // Si és un número (ID de referència), resoldre
+      if (typeof v === 'number') return contratNoms[v] || ('Contrat #'+v);
+      // Si és una llista ['L', id] de Grist
+      if (Array.isArray(v)) return contratNoms[v[1]] || String(v);
+      return String(v);
+    }
+
     lignes = (l.id||[]).map((id,i) => ({
-      id, label:(l.Label||[])[i]||'', contrat:(l.Contrat||[])[i]||'',
+      id, label:(l.Label||[])[i]||'', contrat:resolContrat((l.Contrat||[])[i]),
       budget_initial:(l.Budget_initial||[])[i]||0, disponible:(l.Disponible||[])[i]||0,
       sous_cat:(l.Sous_categories||[])[i]||null,
     }));
