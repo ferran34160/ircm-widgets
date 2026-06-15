@@ -104,8 +104,11 @@ async function fetchAll() {
       date_da: parseDate((daData.Date_DA || [])[i]),
       statut:  (daData.Statut || [])[i] || '',
     }));
-    // Ordenar DA per data descendent (les més recents primer)
-    allDAs.sort((a, b) => b.date_da - a.date_da);
+    // Ordenar DA per data descendent, després per Num_DA descendent
+    allDAs.sort((a, b) => {
+      if (b.date_da !== a.date_da) return b.date_da - a.date_da;
+      return b.num_da.localeCompare(a.num_da, undefined, { numeric: true });
+    });
 
     populateDASelect();
     render();
