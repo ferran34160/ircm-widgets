@@ -39,7 +39,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </head>
 <body>
 <div class="sel-da">
-  <label>Assigner à la demande d'achat</label>
+  <label style="display:flex; justify-content:space-between; align-items:center;">
+    <span>Assigner à la demande d'achat</span>
+    <button id="btn-refresh" onclick="fetchAll()" title="Actualiser" style="background:none; border:none; cursor:pointer; font-size:14px; color:#888; padding:0;">↻</button>
+  </label>
   <select id="da-select"><option value="">— Choisir une DA —</option></select>
 </div>
 
@@ -224,6 +227,11 @@ function loadData() {
     grist.ready({ requiredAccess: 'full' });
     fetchAll();
     grist.onRecords(() => { fetchAll(); });
+    // Refrescar quan la finestra recupera el focus
+    window.addEventListener('focus', () => { fetchAll(); });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) fetchAll();
+    });
   } else {
     document.getElementById('arts-container').innerHTML = '<div class="empty">Connectez ce widget à Grist.</div>';
   }
