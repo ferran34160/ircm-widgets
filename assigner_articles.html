@@ -103,11 +103,10 @@ async function fetchAll() {
       num_da:  (daData.Num_DA || [])[i] || ('DA #' + id),
       date_da: parseDate((daData.Date_DA || [])[i]),
       statut:  (daData.Statut || [])[i] || '',
-    }));
-    // Ordenar DA per data descendent, després per Num_DA descendent
+    })).filter(da => da.statut === 'En cours');
+    // Ordenar DA per Num_DA descendent (les més recents primer)
     allDAs.sort((a, b) => {
-      if (b.date_da !== a.date_da) return b.date_da - a.date_da;
-      return b.num_da.localeCompare(a.num_da, undefined, { numeric: true });
+      return String(b.num_da).localeCompare(String(a.num_da), undefined, { numeric: true });
     });
 
     populateDASelect();
@@ -125,7 +124,7 @@ function populateDASelect() {
     const opt = document.createElement('option');
     opt.value = da.id;
     const dateStr = da.date_da ? new Date(da.date_da).toLocaleDateString('fr-FR') : '';
-    opt.textContent = `${da.num_da}${dateStr ? ' — ' + dateStr : ''} (${da.statut})`;
+    opt.textContent = `${da.num_da}${dateStr ? ' — ' + dateStr : ''}`;
     sel.appendChild(opt);
   });
   if (current) sel.value = current;
