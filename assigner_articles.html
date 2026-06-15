@@ -64,10 +64,30 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 let allArticles = [];
 let selectedDA = null;
 let selectedIds = new Set();
-let tableId = null;
+const COMMANDES_TABLE = 'Commandes';
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+
+async function fetchArticles() {
+  try {
+    const data = await grist.docApi.fetchTable(COMMANDES_TABLE);
+    // fetchTable retorna {id: [...], Col1: [...], ...}
+    const ids = data.id || [];
+    allArticles = ids.map((id, i) => ({
+      id: id,
+      designation:   (data.Designation2 || [])[i] || '',
+      ref:           (data.Reference_fournisseur || [])[i] || '',
+      ghp:           (data.Code_GHP || [])[i] || '',
+      prix:          (data.Prix_unitaire_HT || [])[i] || 0,
+      qte:           (data.Quantite || [])[i] || 1,
+      demande_achat: (data.Demande_achat || [])[i] || null,
+    }));
+    render();
+  } catch (e) {
+    document.getElementById('arts-container').innerHTML = '<div class="empty">Erreur lecture articles: ' + e.message + '</div>';
+  }
 }
 
 function render() {
@@ -133,24 +153,22 @@ async function assignArticles() {
   btn.disabled = true;
 
   try {
-    const records = [...selectedIds].map(id => ({
-      id: id,
-      fields: { Demande_achat: selectedDA.id }
-    }));
-
+    const ids = [...selectedIds];
     await grist.docApi.applyUserActions([
-      ['BulkUpdateRecord', tableId, records.map(r => r.id), {
-        Demande_achat: records.map(() => selectedDA.id)
+      ['BulkUpdateRecord', COMMANDES_TABLE, ids, {
+        Demande_achat: ids.map(() => selectedDA.id)
       }]
     ]);
 
     msg.className = 'msg ok';
-    msg.textContent = `${selectedIds.size} article(s) assigné(s) à ${selectedDA.num_da}`;
+    msg.textContent = `${ids.length} article(s) assigné(s) à ${selectedDA.num_da}`;
     selectedIds.clear();
+    await fetchArticles();
     setTimeout(() => { msg.className = 'msg'; }, 3000);
   } catch (e) {
     msg.className = 'msg err';
     msg.textContent = 'Erreur : ' + e.message;
+    btn.disabled = false;
   }
 }
 
@@ -158,22 +176,7 @@ function loadData() {
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
 
-    // Taula d'articles (Commandes)
-    grist.onRecords((records, mappings) => {
-      tableId = 'Commandes';
-      allArticles = records.map(r => ({
-        id:            r.id,
-        designation:   r.Designation2 || '',
-        ref:           r.Reference_fournisseur || '',
-        ghp:           r.Code_GHP || '',
-        prix:          r.Prix_unitaire_HT || 0,
-        qte:           r.Quantite || 1,
-        demande_achat: r.Demande_achat || null,
-      }));
-      render();
-    });
-
-    // DA seleccionada a la vista vinculada
+    // La DA seleccionada arriba via onRecord (vinculació amb la vista 1)
     grist.onRecord((record) => {
       if (record) {
         selectedDA = { id: record.id, num_da: record.Num_DA || ('DA #' + record.id) };
@@ -186,6 +189,12 @@ function loadData() {
       }
       updateCount();
     });
+
+    // Els articles els llegim a part (tots, sense filtre)
+    fetchArticles();
+
+    // Refrescar articles quan canviï la taula
+    grist.onRecords(() => { fetchArticles(); });
   } else {
     document.getElementById('arts-container').innerHTML = '<div class="empty">Connectez ce widget à Grist.</div>';
   }
