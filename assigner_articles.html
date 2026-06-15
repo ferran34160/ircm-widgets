@@ -8,12 +8,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
-.da-info { background: #E6F1FB; border-radius: 8px; padding: 10px 13px; margin-bottom: 14px; }
-@media (prefers-color-scheme: dark) { .da-info { background: #0C2D4D; } }
-.da-info.none { background: #FAEEDA; }
-@media (prefers-color-scheme: dark) { .da-info.none { background: #4A3208; } }
-.da-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
-.da-num { font-size: 15px; font-weight: 500; margin-top: 2px; }
+.sel-da { background: #f5f5f3; border-radius: 8px; padding: 11px 13px; margin-bottom: 14px; }
+@media (prefers-color-scheme: dark) { .sel-da { background: #2a2a2a; } }
+.sel-da label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 6px; }
+.sel-da select { width: 100%; font-size: 14px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .sel-da select { background: #1a1a1a; border-color: #444; } }
 .arts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
 .count-badge { background: #378ADD; color: white; border-radius: 10px; padding: 1px 9px; font-size: 11px; text-transform: none; letter-spacing: 0; }
 .art-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 6px; cursor: pointer; user-select: none; }
@@ -32,15 +31,16 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .empty { text-align: center; padding: 30px; color: #aaa; font-size: 13px; }
 .toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
 .toolbar button { font-size: 12px; padding: 4px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .toolbar button { border-color: #444; } }
 .msg { text-align: center; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; }
 .msg.ok { background: #E1F5EE; color: #085041; display: block; }
 .msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
 </style>
 </head>
 <body>
-<div id="da-info" class="da-info none">
-  <div class="da-label">Demande d'achat sélectionnée</div>
-  <div class="da-num" id="da-num">Aucune — sélectionnez une DA dans la vue principale</div>
+<div class="sel-da">
+  <label>Assigner à la demande d'achat</label>
+  <select id="da-select"><option value="">— Choisir une DA —</option></select>
 </div>
 
 <div class="arts-head">
@@ -57,37 +57,75 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   <div class="empty">Chargement…</div>
 </div>
 
-<button class="btn-assign" id="btn-assign" disabled onclick="assignArticles()">Assigner les articles</button>
+<button class="btn-assign" id="btn-assign" disabled onclick="assignArticles()">Sélectionnez une DA</button>
 <div class="msg" id="msg"></div>
 
 <script>
 let allArticles = [];
-let selectedDA = null;
+let allDAs = [];
+let selectedDAId = null;
 let selectedIds = new Set();
 const COMMANDES_TABLE = 'Commandes';
+const DA_TABLE = 'Demandes_achat';
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 }
 
-async function fetchArticles() {
+function parseDate(g) {
+  if (!g) return 0;
+  if (g > 1e15) return g / 1000;
+  if (g > 1e11) return g;
+  return g * 1000;
+}
+
+async function fetchAll() {
   try {
-    const data = await grist.docApi.fetchTable(COMMANDES_TABLE);
-    // fetchTable retorna {id: [...], Col1: [...], ...}
-    const ids = data.id || [];
-    allArticles = ids.map((id, i) => ({
-      id: id,
-      designation:   (data.Designation2 || [])[i] || '',
-      ref:           (data.Reference_fournisseur || [])[i] || '',
-      ghp:           (data.Code_GHP || [])[i] || '',
-      prix:          (data.Prix_unitaire_HT || [])[i] || 0,
-      qte:           (data.Quantite || [])[i] || 1,
-      demande_achat: (data.Demande_achat || [])[i] || null,
+    const [cmdData, daData] = await Promise.all([
+      grist.docApi.fetchTable(COMMANDES_TABLE),
+      grist.docApi.fetchTable(DA_TABLE),
+    ]);
+
+    const cmdIds = cmdData.id || [];
+    allArticles = cmdIds.map((id, i) => ({
+      id,
+      designation:   (cmdData.Designation2 || [])[i] || '',
+      ref:           (cmdData.Reference_fournisseur || [])[i] || '',
+      ghp:           (cmdData.Code_GHP || [])[i] || '',
+      prix:          (cmdData.Prix_unitaire_HT || [])[i] || 0,
+      qte:           (cmdData.Quantite || [])[i] || 1,
+      demande_achat: (cmdData.Demande_achat || [])[i] || null,
     }));
+
+    const daIds = daData.id || [];
+    allDAs = daIds.map((id, i) => ({
+      id,
+      num_da:  (daData.Num_DA || [])[i] || ('DA #' + id),
+      date_da: parseDate((daData.Date_DA || [])[i]),
+      statut:  (daData.Statut || [])[i] || '',
+    }));
+    // Ordenar DA per data descendent (les més recents primer)
+    allDAs.sort((a, b) => b.date_da - a.date_da);
+
+    populateDASelect();
     render();
   } catch (e) {
-    document.getElementById('arts-container').innerHTML = '<div class="empty">Erreur lecture articles: ' + e.message + '</div>';
+    document.getElementById('arts-container').innerHTML = '<div class="empty">Erreur: ' + e.message + '</div>';
   }
+}
+
+function populateDASelect() {
+  const sel = document.getElementById('da-select');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Choisir une DA —</option>';
+  allDAs.forEach(da => {
+    const opt = document.createElement('option');
+    opt.value = da.id;
+    const dateStr = da.date_da ? new Date(da.date_da).toLocaleDateString('fr-FR') : '';
+    opt.textContent = `${da.num_da}${dateStr ? ' — ' + dateStr : ''} (${da.statut})`;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
 }
 
 function render() {
@@ -137,33 +175,35 @@ function deselectAll() {
 function updateCount() {
   document.getElementById('count').textContent = selectedIds.size + ' sélectionnés';
   const btn = document.getElementById('btn-assign');
-  if (selectedDA && selectedIds.size > 0) {
+  const da = allDAs.find(d => d.id == selectedDAId);
+  if (selectedDAId && selectedIds.size > 0) {
     btn.disabled = false;
-    btn.textContent = `Assigner ${selectedIds.size} article(s) à ${selectedDA.num_da}`;
+    btn.textContent = `Assigner ${selectedIds.size} article(s) à ${da ? da.num_da : ''}`;
   } else {
     btn.disabled = true;
-    btn.textContent = selectedDA ? 'Sélectionnez des articles' : 'Sélectionnez une DA';
+    btn.textContent = selectedDAId ? 'Sélectionnez des articles' : 'Sélectionnez une DA';
   }
 }
 
 async function assignArticles() {
-  if (!selectedDA || selectedIds.size === 0) return;
+  if (!selectedDAId || selectedIds.size === 0) return;
   const msg = document.getElementById('msg');
   const btn = document.getElementById('btn-assign');
   btn.disabled = true;
+  const da = allDAs.find(d => d.id == selectedDAId);
 
   try {
     const ids = [...selectedIds];
     await grist.docApi.applyUserActions([
       ['BulkUpdateRecord', COMMANDES_TABLE, ids, {
-        Demande_achat: ids.map(() => selectedDA.id)
+        Demande_achat: ids.map(() => Number(selectedDAId))
       }]
     ]);
 
     msg.className = 'msg ok';
-    msg.textContent = `${ids.length} article(s) assigné(s) à ${selectedDA.num_da}`;
+    msg.textContent = `${ids.length} article(s) assigné(s) à ${da ? da.num_da : ''}`;
     selectedIds.clear();
-    await fetchArticles();
+    await fetchAll();
     setTimeout(() => { msg.className = 'msg'; }, 3000);
   } catch (e) {
     msg.className = 'msg err';
@@ -172,29 +212,16 @@ async function assignArticles() {
   }
 }
 
+document.getElementById('da-select').addEventListener('change', (e) => {
+  selectedDAId = e.target.value || null;
+  updateCount();
+});
+
 function loadData() {
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
-
-    // La DA seleccionada arriba via onRecord (vinculació amb la vista 1)
-    grist.onRecord((record) => {
-      if (record) {
-        selectedDA = { id: record.id, num_da: record.Num_DA || ('DA #' + record.id) };
-        document.getElementById('da-info').className = 'da-info';
-        document.getElementById('da-num').textContent = selectedDA.num_da;
-      } else {
-        selectedDA = null;
-        document.getElementById('da-info').className = 'da-info none';
-        document.getElementById('da-num').textContent = 'Aucune — sélectionnez une DA';
-      }
-      updateCount();
-    });
-
-    // Els articles els llegim a part (tots, sense filtre)
-    fetchArticles();
-
-    // Refrescar articles quan canviï la taula
-    grist.onRecords(() => { fetchArticles(); });
+    fetchAll();
+    grist.onRecords(() => { fetchAll(); });
   } else {
     document.getElementById('arts-container').innerHTML = '<div class="empty">Connectez ce widget à Grist.</div>';
   }
