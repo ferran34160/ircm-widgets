@@ -65,14 +65,14 @@ function daysSince(gristDate) {
 function render(data) {
   const container = document.getElementById('container');
   const enCours  = data.filter(d => d.statut === 'En cours');
-  const envoyee  = data.filter(d => d.statut === 'Envoyée');
+  const envoyee  = data.filter(d => d.statut === 'Envoyée PGM');
 
   function cardHtml(d) {
     const days = daysSince(d.date_da);
     let daysClass = 'normal', daysText = '';
     if (days !== null) {
       daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
-      if (d.statut === 'Envoyée') {
+      if (d.statut === 'Envoyée PGM') {
         if (days > 14) daysClass = 'urgent';
         else if (days > 7) daysClass = 'warn';
       }
@@ -120,7 +120,7 @@ function loadData() {
         fournisseur: r.Fournisseur || '',
         date_da:     r.Date_DA,
         statut:      r.Statut || '',
-      })).filter(d => d.num_da && (d.statut === 'En cours' || d.statut === 'Envoyée'));
+      })).filter(d => d.num_da && (d.statut === 'En cours' || d.statut === 'Envoyée PGM'));
 
       render(allData);
     });
