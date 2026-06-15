@@ -111,7 +111,7 @@ async function fetchAll() {
       montant:(m.Montant||[])[i]||0, date:(m.Date||[])[i], motif:(m.Motif||[])[i]||'',
     }));
 
-    const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(Boolean).sort();
+    const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
     const sel = document.getElementById('contrat-select');
     const current = sel.value;
     sel.innerHTML = '<option value="">— Choisir un contrat —</option>';
@@ -130,6 +130,24 @@ function lblLigne(id) {
   if (!l) return '?';
   const parts = l.label.split('|');
   return parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+}
+
+// Color de fons segons la catégorie (primera paraula de la sous-catégorie)
+const CAT_COLORS = {
+  'Fonctionnement': { bg: '#EAF3FB', dark: '#16314A', border: '#378ADD' },
+  'Équipement':     { bg: '#FBF0E8', dark: '#3D2A1A', border: '#D97B3F' },
+  'Personnel':      { bg: '#F0EAFB', dark: '#2A1F3D', border: '#9C6ADE' },
+  'Prestation':     { bg: '#EAFBF3', dark: '#16402F', border: '#1D9E75' },
+  'Mission':        { bg: '#FBF8E8', dark: '#3D3A1A', border: '#BA9517' },
+};
+function catColor(label) {
+  const cat = (label.split('|')[1] || label).trim();
+  // La sous-catégorie sol ser "Categoria – Subcategoria", agafem la primera part
+  // però el label real és "Contrat | Categoria – Subcat", provem cada categoria coneguda
+  for (const key in CAT_COLORS) {
+    if (label.includes(key)) return CAT_COLORS[key];
+  }
+  return { bg: '#F5F5F3', dark: '#2A2A2A', border: '#999' };
 }
 
 function render() {
@@ -151,12 +169,13 @@ function render() {
       const da = das[c.demande_achat];
       return da && da.ligne === ligne.id && (da.statut === 'Envoyée PGM' || da.statut === 'BC reçu');
     });
-    // Agrupar per DA
+    // Agrupar per DA amb comptador d'articles
     const parDA = {};
     cmds.forEach(c => {
       const da = das[c.demande_achat];
-      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, total: 0 };
+      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, total: 0, nb: 0 };
       parDA[c.demande_achat].total += c.montant;
+      parDA[c.demande_achat].nb += 1;
     });
 
     // Transferts sortints i entrants
@@ -173,7 +192,8 @@ function render() {
       opsHtml += '<div class="op-group"><div class="op-group-title"><span class="op-dot" style="background:#378ADD"></span>Commandes</div>';
       daKeys.forEach(k => {
         const d = parDA[k];
-        opsHtml += `<div class="op-row"><span class="op-desc">${d.num_da}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
+        const artLabel = d.nb === 1 ? '1 art.' : d.nb + ' art.';
+        opsHtml += `<div class="op-row"><span class="op-desc">${d.num_da} · ${artLabel}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
       });
       opsHtml += '</div>';
     }
@@ -200,9 +220,12 @@ function render() {
 
     if (!opsHtml) opsHtml = '<div class="op-row no-op">Aucune opération</div>';
 
+    const col = catColor(ligne.label);
+    const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const headBg = isDark ? col.dark : col.bg;
     html += `
-      <div class="ligne">
-        <div class="ligne-head">
+      <div class="ligne" style="border-top: 3px solid ${col.border};">
+        <div class="ligne-head" style="background:${headBg};">
           <div class="ligne-nom">${sub}</div>
           <div class="ligne-init">Budget initial : ${fmt(ligne.budget_initial)}</div>
           <div class="ligne-dispo ${dispoClass}">Disponible : ${fmt(ligne.disponible)}</div>
