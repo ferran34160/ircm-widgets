@@ -212,7 +212,8 @@ function render() {
   const isDarkMode = matchMedia('(prefers-color-scheme: dark)').matches;
   // DEBUG temporal: comptar relevés carregats
   const nbReleves = Object.keys(dernierReleve).length;
-  let html = `<div style="font-size:11px; color:#c00; margin-bottom:10px; padding:6px; background:#fff3f3; border-radius:6px;">DEBUG: ${nbReleves} lignes amb relevé · Période active: ${document.getElementById('periode-select').value}</div>`;
+  window._dbg = [];
+  let html = '';
 
   catsOrdered.forEach(catName => {
     const catCol = catColor('| ' + catName);
@@ -234,7 +235,12 @@ function render() {
       const da = das[c.demande_achat];
       if (!da || da.ligne !== ligne.id) return false;
       if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return false;
-      return apresReleve(toMs(da.date_pgm) || toMs(da.date_da));
+      const dPgm = toMs(da.date_pgm);
+      const dDa = toMs(da.date_da);
+      const dUsada = dPgm || dDa;
+      window._dbg = window._dbg || [];
+      window._dbg.push(`${da.num_da}: pgm=${dPgm?new Date(dPgm).toLocaleDateString():'∅'} da=${dDa?new Date(dDa).toLocaleDateString():'∅'} releve=${dateReleve?new Date(dateReleve).toLocaleDateString():'∅'} apres=${apresReleve(dUsada)}`);
+      return apresReleve(dUsada);
     });
     // Agrupar per DA amb comptador d'articles
     const parDA = {};
@@ -303,7 +309,7 @@ function render() {
     });
     html += '</div></div>';
   });
-  container.innerHTML = html;
+  container.innerHTML = `<div style="font-size:10px; color:#c00; margin-bottom:10px; padding:6px; background:#fff3f3; border-radius:6px; white-space:pre-line;">DEBUG (${nbReleves} relevés)\n${(window._dbg||[]).join('\n')}</div>` + html;
 }
 
 document.getElementById('contrat-select').addEventListener('change', render);
