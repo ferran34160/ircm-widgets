@@ -48,21 +48,36 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </style>
 </head>
 <body>
-<div class="sel">
-  <label>Contrat</label>
-  <select id="contrat-select"><option value="">— Choisir un contrat —</option></select>
+<div class="sel" style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end;">
+  <div style="flex:1; min-width:200px;">
+    <label>Contrat</label>
+    <select id="contrat-select"><option value="">— Choisir un contrat —</option></select>
+  </div>
+  <div>
+    <label>Période</label>
+    <select id="periode-select" style="max-width:none;">
+      <option value="releve">Depuis le dernier relevé</option>
+      <option value="tout">Tout l'historique</option>
+    </select>
+  </div>
 </div>
 <div id="container"><div class="empty">Chargement…</div></div>
 
 <script>
-let lignes = [], commandes = [], transferts = [], mouvements = [], das = [], contrats = [];
+let lignes = [], commandes = [], transferts = [], mouvements = [], das = [], contrats = [], dernierReleve = {};
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 }
+function toMs(g) {
+  if (!g) return 0;
+  if (g > 1e15) return g/1000;
+  if (g > 1e11) return g;
+  return g*1000;
+}
 function fmtDate(g) {
   if (!g) return '';
-  let ms; if (g > 1e15) ms = g/1000; else if (g > 1e11) ms = g; else ms = g*1000;
+  const ms = toMs(g);
   const d = new Date(ms);
   if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
   return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
@@ -70,7 +85,7 @@ function fmtDate(g) {
 
 async function fetchAll() {
   try {
-    const [l, c, t, m, d, ct, fo] = await Promise.all([
+    const [l, c, t, m, d, ct, fo, rp] = await Promise.all([
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Transferts'),
@@ -78,6 +93,7 @@ async function fetchAll() {
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Contrats'),
       grist.docApi.fetchTable('Fournisseurs'),
+      grist.docApi.fetchTable('Releves_PGM'),
     ]);
 
     // Mapa id -> nom de fournisseur
@@ -108,10 +124,20 @@ async function fetchAll() {
       disponible:(l.Disponible||[])[i]||0, reste_notifier:(l.Reste_a_notifier||[])[i]||0,
       sous_cat:(l.Sous_categories||[])[i]||null,
     }));
+
+    // Data de l'últim relevé per línia
+    dernierReleve = {};
+    (rp.id||[]).forEach((id,i) => {
+      const lid = (rp.Ligne_budgetaire||[])[i];
+      const dt = toMs((rp.Date_releve||[])[i]);
+      if (lid && (!dernierReleve[lid] || dt > dernierReleve[lid])) {
+        dernierReleve[lid] = dt;
+      }
+    });
     das = {};
     (d.id||[]).forEach((id,i) => { das[id] = {
       num_da:(d.Num_DA||[])[i]||('DA#'+id), statut:(d.Statut||[])[i]||'',
-      date_da:(d.Date_DA||[])[i], fournisseur:resolFour((d.Fournisseur||[])[i]),
+      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], fournisseur:resolFour((d.Fournisseur||[])[i]),
       ligne:(d.Ligne_budgetaire||[])[i],
     };});
     commandes = (c.id||[]).map((id,i) => ({
@@ -120,11 +146,11 @@ async function fetchAll() {
     }));
     transferts = (t.id||[]).map((id,i) => ({
       id, source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
-      montant:(t.Montant||[])[i]||0, date:(t.Date||[])[i], motif:(t.Motif||[])[i]||'',
+      montant:(t.Montant||[])[i]||0, date:toMs((t.Date||[])[i]), motif:(t.Motif||[])[i]||'',
     }));
     mouvements = (m.id||[]).map((id,i) => ({
       id, ligne:(m.Ligne_budgetaire||[])[i]||null, type:(m.Type||[])[i]||'',
-      montant:(m.Montant||[])[i]||0, date:(m.Date||[])[i], motif:(m.Motif||[])[i]||'',
+      montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]), motif:(m.Motif||[])[i]||'',
     }));
 
     const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
@@ -193,11 +219,18 @@ function render() {
     const sub = lblLigne(ligne.id);
     const dispoClass = ligne.disponible < 0 ? 'neg' : 'pos';
 
+    // Filtre període: si "depuis le relevé", només operacions posteriors a l'últim relevé
+    const periode = document.getElementById('periode-select').value;
+    const dateReleve = dernierReleve[ligne.id] || 0;
+    const apresReleve = (dateMs) => periode === 'tout' || !dateReleve || (dateMs && dateMs > dateReleve);
+
     // Commandes tractades (Envoyée PGM / BC reçu) via DA d'aquesta línia
     const cmds = commandes.filter(c => {
       if (!c.demande_achat) return false;
       const da = das[c.demande_achat];
-      return da && da.ligne === ligne.id && (da.statut === 'Envoyée PGM' || da.statut === 'BC reçu');
+      if (!da || da.ligne !== ligne.id) return false;
+      if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return false;
+      return apresReleve(toMs(da.date_pgm) || toMs(da.date_da));
     });
     // Agrupar per DA amb comptador d'articles
     const parDA = {};
@@ -208,12 +241,12 @@ function render() {
       parDA[c.demande_achat].nb += 1;
     });
 
-    // Transferts sortints i entrants
-    const tSort = transferts.filter(t => t.source === ligne.id);
-    const tEnt  = transferts.filter(t => t.dest === ligne.id);
+    // Transferts sortints i entrants (filtrats per període)
+    const tSort = transferts.filter(t => t.source === ligne.id && apresReleve(t.date));
+    const tEnt  = transferts.filter(t => t.dest === ligne.id && apresReleve(t.date));
 
-    // Mouvements
-    const mvts = mouvements.filter(m => m.ligne === ligne.id);
+    // Mouvements (filtrats per període)
+    const mvts = mouvements.filter(m => m.ligne === ligne.id && apresReleve(m.date));
 
     let opsHtml = '';
 
@@ -270,6 +303,7 @@ function render() {
 }
 
 document.getElementById('contrat-select').addEventListener('change', render);
+document.getElementById('periode-select').addEventListener('change', render);
 
 function loadData() {
   if (window.grist) {
