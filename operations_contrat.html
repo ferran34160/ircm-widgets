@@ -102,7 +102,7 @@ async function fetchAll() {
 
     lignes = (l.id||[]).map((id,i) => ({
       id, label:(l.Label||[])[i]||'', contrat:resolContrat((l.Contrat||[])[i]),
-      budget_initial:(l.Budget_initial||[])[i]||0, disponible:(l.Disponible||[])[i]||0,
+      disponible:(l.Disponible||[])[i]||0, reste_notifier:(l.Reste_a_notifier||[])[i]||0,
       sous_cat:(l.Sous_categories||[])[i]||null,
     }));
     das = {};
@@ -241,8 +241,8 @@ function render() {
       <div class="ligne" style="border-top: 3px solid ${col.border};">
         <div class="ligne-head" style="background:${headBg};">
           <div class="ligne-nom">${sub}</div>
-          <div class="ligne-init">Budget initial : ${fmt(ligne.budget_initial)}</div>
           <div class="ligne-dispo ${dispoClass}">Disponible : ${fmt(ligne.disponible)}</div>
+          ${ligne.reste_notifier > 0 ? `<div class="ligne-init">Reste à notifier : ${fmt(ligne.reste_notifier)}</div>` : ''}
         </div>
         <div class="ops">${opsHtml}</div>
       </div>`;
