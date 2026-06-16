@@ -184,6 +184,8 @@ function loadData() {
         date_releve:     r.Date_dernier_releve,
         reste_notifier:  r.Reste_a_notifier || 0,
       })).filter(d => d.label);
+      console.log('DEBUG reste:', allData.map(d => ({label: d.label, reste: d.reste_notifier})));
+      console.log('DEBUG claus disponibles:', records.length ? Object.keys(records[0]) : 'cap registre');
 
       const contrats = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
       const sel = document.getElementById('contrat-select');
