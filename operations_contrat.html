@@ -13,8 +13,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .sel label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; display:block; margin-bottom: 5px; }
 .sel select { width: 100%; max-width: 360px; font-size: 14px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .sel select { background: #1a1a1a; border-color: #444; } }
-.cols { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
-.ligne { flex: 0 0 280px; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
+.cat-section { margin-bottom: 24px; }
+.cat-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; padding-bottom: 5px; border-bottom: 2px solid; }
+.cat-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.cols { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; flex-wrap: wrap; }
+.ligne { flex: 0 0 340px; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
 @media (prefers-color-scheme: dark) { .ligne { border-color: #383838; } }
 .ligne-head { background: #f5f5f3; padding: 10px 13px; }
 @media (prefers-color-scheme: dark) { .ligne-head { background: #2a2a2a; } }
@@ -163,6 +166,9 @@ function catColor(label) {
   return { bg: '#F5F5F3', dark: '#2A2A2A', border: '#999' };
 }
 
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCatName(label) { for (const k of CAT_ORDER) if (label.includes(k)) return k; return 'Autre'; }
+
 function render() {
   const contrat = document.getElementById('contrat-select').value;
   const container = document.getElementById('container');
@@ -171,8 +177,19 @@ function render() {
   const mesLignes = lignes.filter(l => l.contrat === contrat);
   if (mesLignes.length === 0) { container.innerHTML = '<div class="empty">Aucune ligne.</div>'; return; }
 
-  let html = '<div class="cols">';
-  mesLignes.forEach(ligne => {
+  // Agrupar per categoria
+  const groups = {};
+  mesLignes.forEach(l => { const c = getCatName(l.label); (groups[c] = groups[c] || []).push(l); });
+  const catsOrdered = CAT_ORDER.filter(c => groups[c]).concat(Object.keys(groups).filter(c => !CAT_ORDER.includes(c)));
+
+  const isDarkMode = matchMedia('(prefers-color-scheme: dark)').matches;
+  let html = '';
+
+  catsOrdered.forEach(catName => {
+    const catCol = catColor('| ' + catName);
+    html += `<div class="cat-section"><div class="cat-title" style="border-bottom-color:${catCol.border}; color:${isDarkMode ? catCol.border : catCol.border};"><span class="cat-dot" style="background:${catCol.border}"></span>${catName}</div><div class="cols">`;
+
+    groups[catName].forEach(ligne => {
     const sub = lblLigne(ligne.id);
     const dispoClass = ligne.disponible < 0 ? 'neg' : 'pos';
 
@@ -246,8 +263,9 @@ function render() {
         </div>
         <div class="ops">${opsHtml}</div>
       </div>`;
+    });
+    html += '</div></div>';
   });
-  html += '</div>';
   container.innerHTML = html;
 }
 
