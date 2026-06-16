@@ -127,6 +127,7 @@ async function fetchAll() {
 
     // Data de l'últim relevé per línia
     dernierReleve = {};
+
     (rp.id||[]).forEach((id,i) => {
       const lid = (rp.Ligne_budgetaire||[])[i];
       const dt = toMs((rp.Date_releve||[])[i]);
@@ -209,7 +210,9 @@ function render() {
   const catsOrdered = CAT_ORDER.filter(c => groups[c]).concat(Object.keys(groups).filter(c => !CAT_ORDER.includes(c)));
 
   const isDarkMode = matchMedia('(prefers-color-scheme: dark)').matches;
-  let html = '';
+  // DEBUG temporal: comptar relevés carregats
+  const nbReleves = Object.keys(dernierReleve).length;
+  let html = `<div style="font-size:11px; color:#c00; margin-bottom:10px; padding:6px; background:#fff3f3; border-radius:6px;">DEBUG: ${nbReleves} lignes amb relevé · Période active: ${document.getElementById('periode-select').value}</div>`;
 
   catsOrdered.forEach(catName => {
     const catCol = catColor('| ' + catName);
@@ -223,6 +226,7 @@ function render() {
     const periode = document.getElementById('periode-select').value;
     const dateReleve = dernierReleve[ligne.id] || 0;
     const apresReleve = (dateMs) => periode === 'tout' || !dateReleve || (dateMs && dateMs > dateReleve);
+
 
     // Commandes tractades (Envoyée PGM / BC reçu) via DA d'aquesta línia
     const cmds = commandes.filter(c => {
