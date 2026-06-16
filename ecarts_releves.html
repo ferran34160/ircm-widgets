@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Écarts relevés PGM</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+.title { font-size: 15px; font-weight: 500; }
+select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+.intro { font-size: 12px; color: #888; margin-bottom: 16px; background: #f5f5f3; padding: 10px 13px; border-radius: 8px; }
+@media (prefers-color-scheme: dark) { .intro { background: #2a2a2a; } }
+.cat-section { margin-bottom: 22px; }
+.cat-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; padding-bottom: 5px; border-bottom: 2px solid; }
+.cat-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { border-radius: 12px; padding: 14px 16px; border: 1px solid; border-left-width: 4px; }
+.c-cat { font-size: 12px; margin: 0 0 2px; opacity: 0.75; }
+.c-sub { font-size: 13px; font-weight: 500; margin: 0 0 10px; line-height: 1.3; }
+.c-ecart { font-size: 24px; font-weight: 500; margin: 0; }
+.c-ecart.ok { color: #0F6E56; }
+.c-ecart.small { color: #854F0B; }
+.c-ecart.big { color: #A32D2D; }
+@media (prefers-color-scheme: dark) {
+  .c-ecart.ok { color: #5DCAA5; }
+  .c-ecart.small { color: #EF9F27; }
+  .c-ecart.big { color: #F09595; }
+}
+.badge { font-size: 10px; padding: 1px 8px; border-radius: 8px; display: inline-block; margin-top: 4px; }
+.badge.ok { background: rgba(29,158,117,0.15); color: #0F6E56; }
+.badge.first { background: rgba(120,120,120,0.15); color: #777; }
+@media (prefers-color-scheme: dark) { .badge.ok { color: #5DCAA5; } .badge.first { color: #aaa; } }
+.c-detail { font-size: 11px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 3px; opacity: 0.85; }
+@media (prefers-color-scheme: dark) { .c-detail { border-top-color: rgba(255,255,255,0.15); } }
+.c-detail .row { display: flex; justify-content: space-between; gap: 10px; }
+.c-detail .row b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.c-date { font-size: 10px; opacity: 0.6; margin-top: 6px; }
+.loading { text-align: center; padding: 40px; color: #888; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Écarts au dernier relevé PGM</div>
+  <select id="contrat-select"><option value="">Tous les contrats</option></select>
+</div>
+<div class="intro">
+  Comparaison entre le disponible <b>officiel</b> du dernier relevé et le disponible <b>calculé</b> à la date de ce relevé (basé sur le relevé précédent + opérations entre les deux). Un écart proche de 0 = concordant.
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+
+<script>
+let lignes=[], releves=[], commandes=[], transferts=[], mouvements=[], das={}, contratNoms={};
+
+const CAT_COLORS = {
+  'Fonctionnement': { c: '#378ADD', bg: '#EAF3FB', dark: '#16314A', txt: '#0C447C', dtxt: '#9FC6EE' },
+  'Équipement':     { c: '#D97B3F', bg: '#FBF0E8', dark: '#3D2A1A', txt: '#8A4A18', dtxt: '#E0A87C' },
+  'Personnel':      { c: '#9C6ADE', bg: '#F0EAFB', dark: '#2A1F3D', txt: '#5E3A9E', dtxt: '#C4A6EC' },
+  'Prestation':     { c: '#1D9E75', bg: '#EAFBF3', dark: '#16402F', txt: '#0F6E56', dtxt: '#9FE1CB' },
+  'Mission':        { c: '#BA9517', bg: '#FBF8E8', dark: '#3D3A1A', txt: '#6B5A0B', dtxt: '#E0CC7C' },
+};
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label) { for (const k of CAT_ORDER) if (label.includes(k)) return k; return 'Autre'; }
+function catStyle(cat) { return CAT_COLORS[cat] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
+
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v); }
+function fmtSign(v) { const s = v >= 0 ? '+ ' : '− '; return s + fmt(Math.abs(v)); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+
+async function fetchAll() {
+  try {
+    const [l,r,c,t,m,d,ct] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Releves_PGM'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Transferts'),
+      grist.docApi.fetchTable('Mouvements'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||('#'+v); if(Array.isArray(v))return contratNoms[v[1]]||String(v); return String(v); }
+
+    lignes = (l.id||[]).map((id,i)=>({
+      id, label:(l.Label||[])[i]||'', contrat:resolContrat((l.Contrat||[])[i]),
+    }));
+
+    releves = (r.id||[]).map((id,i)=>({
+      id, ligne:(r.Ligne_budgetaire||[])[i]||null,
+      date:toMs((r.Date_releve||[])[i]), officiel:(r.Disponible_officiel||[])[i]||0,
+    }));
+
+    das = {};
+    (d.id||[]).forEach((id,i)=>{ das[id]={
+      ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
+      date_pgm:toMs((d.Date_OrderPGM||[])[i]),
+    };});
+
+    commandes = (c.id||[]).map((id,i)=>({
+      id, demande_achat:(c.Demande_achat||[])[i]||null,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+    }));
+
+    transferts = (t.id||[]).map((id,i)=>({
+      id, source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
+      montant:(t.Montant||[])[i]||0, date:toMs((t.Date||[])[i]),
+    }));
+
+    mouvements = (m.id||[]).map((id,i)=>({
+      id, ligne:(m.Ligne_budgetaire||[])[i]||null, type:(m.Type||[])[i]||'',
+      montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]),
+    }));
+
+    const contratSet = [...new Set(lignes.map(x=>x.contrat))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+    const sel = document.getElementById('contrat-select');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tous les contrats</option>';
+    contratSet.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+    if(cur) sel.value=cur;
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="loading">Erreur: '+e.message+'</div>';
+  }
+}
+
+function lblLigne(id){ const l=lignes.find(x=>x.id===id); return l?l.label:''; }
+
+function calcEcart(ligne) {
+  // Relevés d'aquesta línia ordenats per data
+  const rs = releves.filter(x => x.ligne === ligne.id).sort((a,b)=>a.date-b.date);
+  if (rs.length === 0) return null;
+  const dernier = rs[rs.length-1];
+
+  if (rs.length === 1) {
+    return { first: true, officiel: dernier.officiel, date: dernier.date };
+  }
+
+  const precedent = rs[rs.length-2];
+  const t0 = precedent.date, t1 = dernier.date;
+
+  // Operacions entre els dos relevés (t0 < date <= t1)
+  // Commandes via DA d'aquesta línia, Statut tractat, Date_OrderPGM dins l'interval
+  let cmd = 0;
+  commandes.forEach(c => {
+    if (!c.demande_achat) return;
+    const da = das[c.demande_achat];
+    if (!da || da.ligne !== ligne.id) return;
+    if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return;
+    if (da.date_pgm > t0 && da.date_pgm <= t1) cmd += c.montant;
+  });
+
+  let tEnt = 0, tSort = 0;
+  transferts.forEach(t => {
+    if (t.date > t0 && t.date <= t1) {
+      if (t.dest === ligne.id) tEnt += t.montant;
+      if (t.source === ligne.id) tSort += t.montant;
+    }
+  });
+
+  let mvt = 0;
+  mouvements.forEach(m => {
+    if (m.ligne === ligne.id && m.date > t0 && m.date <= t1) {
+      mvt += (m.type === 'Sortie' ? -m.montant : m.montant);
+    }
+  });
+
+  const calcule = precedent.officiel + tEnt - tSort - cmd + mvt;
+  const ecart = dernier.officiel - calcule;
+  return { first: false, officiel: dernier.officiel, calcule, ecart, date: dernier.date };
+}
+
+function magnitude(ecart) {
+  const a = Math.abs(ecart);
+  if (a < 1) return 'ok';
+  if (a < 500) return 'small';
+  return 'big';
+}
+
+function render() {
+  const contrat = document.getElementById('contrat-select').value;
+  const container = document.getElementById('container');
+
+  let data = lignes.filter(l => !contrat || l.contrat === contrat)
+    .map(l => ({ ...l, calc: calcEcart(l) }))
+    .filter(l => l.calc !== null);
+
+  if (data.length === 0) { container.innerHTML = '<div class="loading">Aucune ligne avec relevé.</div>'; return; }
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const groups = {};
+  data.forEach(d => { const c=getCat(d.label); (groups[c]=groups[c]||[]).push(d); });
+  const cats = CAT_ORDER.filter(c=>groups[c]).concat(Object.keys(groups).filter(c=>!CAT_ORDER.includes(c)));
+
+  let html = '';
+  cats.forEach(cat => {
+    const st = catStyle(cat);
+    html += `<div class="cat-section"><div class="cat-title" style="border-bottom-color:${st.c}; color:${isDark?st.dtxt:st.txt};"><span class="cat-dot" style="background:${st.c}"></span>${cat}</div><div class="cards-grid">`;
+
+    groups[cat].forEach(d => {
+      const parts = d.label.split('|');
+      const contratNom = parts[0] ? parts[0].trim() : '';
+      const sub = parts.length>1 ? parts.slice(1).join('|').trim() : d.label;
+      const cardBg = isDark ? st.dark : st.bg;
+      const txtColor = isDark ? st.dtxt : st.txt;
+      const calc = d.calc;
+
+      let body;
+      if (calc.first) {
+        body = `
+          <p class="c-ecart" style="color:${txtColor}; font-size:18px;">${fmt(calc.officiel)}</p>
+          <span class="badge first">Premier relevé</span>
+          <div class="c-date">Relevé du ${fmtDate(calc.date)}</div>`;
+      } else {
+        const mag = magnitude(calc.ecart);
+        const badge = mag === 'ok' ? '<span class="badge ok">✓ Concordant</span>' : '';
+        body = `
+          <p class="c-ecart ${mag}">${fmtSign(calc.ecart)}</p>
+          ${badge}
+          <div class="c-detail">
+            <div class="row"><span>Officiel PGM</span><b>${fmt(calc.officiel)}</b></div>
+            <div class="row"><span>Calculé système</span><b>${fmt(calc.calcule)}</b></div>
+          </div>
+          <div class="c-date">Relevé du ${fmtDate(calc.date)}</div>`;
+      }
+
+      html += `
+        <div class="card" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c};">
+          <p class="c-cat" style="color:${txtColor}">${contratNom}</p>
+          <p class="c-sub" style="color:${txtColor}">${sub}</p>
+          ${body}
+        </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+document.getElementById('contrat-select').addEventListener('change', render);
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+    window.addEventListener('focus', () => fetchAll());
+  } else {
+    document.getElementById('container').innerHTML = '<div class="loading">Connectez à Grist.</div>';
+  }
+}
+const s = document.createElement('script');
+s.src='https://docs.getgrist.com/grist-plugin-api.js';
+s.onload=loadData; s.onerror=loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
