@@ -223,7 +223,15 @@ function render() {
     // Filtre període: si "depuis le relevé", només operacions posteriors a l'últim relevé
     const periode = document.getElementById('periode-select').value;
     const dateReleve = dernierReleve[ligne.id] || 0;
+    // Per transferts/mouvements: posterior al relevé si la seva data > date_releve
     const apresReleve = (dateMs) => periode === 'tout' || !dateReleve || (dateMs && dateMs > dateReleve);
+    // Per comandes: ja està al relevé NOMÉS si Date_OrderPGM existeix i és <= date_releve
+    const commandeApresReleve = (da) => {
+      if (periode === 'tout' || !dateReleve) return true;
+      const pgm = toMs(da.date_pgm);
+      const dejaAuReleve = pgm && pgm <= dateReleve;
+      return !dejaAuReleve;
+    };
 
 
     // Commandes tractades (Envoyée PGM / BC reçu) via DA d'aquesta línia
@@ -232,7 +240,7 @@ function render() {
       const da = das[c.demande_achat];
       if (!da || da.ligne !== ligne.id) return false;
       if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return false;
-      return apresReleve(toMs(da.date_pgm) || toMs(da.date_da));
+      return commandeApresReleve(da);
     });
     // Agrupar per DA amb comptador d'articles
     const parDA = {};
