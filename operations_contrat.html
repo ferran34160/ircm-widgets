@@ -17,7 +17,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .cat-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; padding-bottom: 5px; border-bottom: 2px solid; }
 .cat-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 .cols { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; flex-wrap: wrap; }
-.ligne { flex: 0 0 340px; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
+.ligne { flex: 0 0 420px; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
 @media (prefers-color-scheme: dark) { .ligne { border-color: #383838; } }
 .ligne-head { background: #f5f5f3; padding: 10px 13px; }
 @media (prefers-color-scheme: dark) { .ligne-head { background: #2a2a2a; } }
@@ -44,7 +44,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .op-caret { font-size: 9px; color: #aaa; display: inline-block; width: 10px; }
 .op-arts { padding: 2px 0 6px 22px; }
 .op-art { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 3px 0; color: #555; }
-.op-art-name { overflow: hidden; text-overflow: ellipsis; }
+.op-art-name { word-break: break-word; }
 .op-art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .op-art-service { font-style: italic; opacity: 0.65; font-size: 11px; }
 @media (prefers-color-scheme: dark) { .op-art { color: #bbb; } }
@@ -153,6 +153,8 @@ async function fetchAll() {
       id, demande_achat:(c.Demande_achat||[])[i]||null,
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       type_article:(c.Type_article||[])[i]||'Produit',
+      designation:(c.Designation2||[])[i]||'',
+      qte:(c.Quantite||[])[i]||1,
     }));
     transferts = (t.id||[]).map((id,i) => ({
       id, source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
