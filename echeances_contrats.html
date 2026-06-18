@@ -53,8 +53,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </style>
 </head>
 <body>
+<style>
+.header select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .header select { border-color: #444; } }
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+</style>
 <div class="header">
   <div class="title">Échéances des contrats</div>
+  <select id="cat-filter"><option value="">Toutes catégories</option></select>
 </div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
@@ -66,6 +72,10 @@ let allData = [];
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
+
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label) { for (const k of CAT_ORDER) if (label.includes(k)) return k; return 'Autre'; }
+function catRank(label) { const i = CAT_ORDER.indexOf(getCat(label)); return i < 0 ? 99 : i; }
 
 function parseDate(gristDate) {
   if (!gristDate) return null;
@@ -84,16 +94,24 @@ function monthsUntil(d) {
   return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
 }
 
+function updateView() {
+  const catFilter = document.getElementById('cat-filter').value;
+  const filtered = catFilter
+    ? allData.filter(d => getCat(d.label) === catFilter)
+    : allData;
+  render(filtered);
+}
+
 function render(data) {
   const container = document.getElementById('container');
 
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, budget: 0, lignes: [] };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, lignes: [] };
     }
     contrats[d.contrat].disponible += d.disponible;
-    contrats[d.contrat].budget += d.budget_ajuste;
+    contrats[d.contrat].releve += d.montant_releve;
     contrats[d.contrat].lignes.push(d);
     if (!contrats[d.contrat].date_fin && d.date_fin) contrats[d.contrat].date_fin = d.date_fin;
   });
@@ -132,8 +150,8 @@ function render(data) {
     }
 
     const cats = c.lignes
-      .filter(l => l.budget_ajuste > 0 || l.disponible !== 0)
-      .sort((a, b) => b.disponible - a.disponible);
+      .filter(l => l.montant_releve > 0 || l.disponible !== 0)
+      .sort((a, b) => catRank(a.label) - catRank(b.label));
 
     let catsHtml = '';
     cats.forEach(l => {
@@ -156,7 +174,7 @@ function render(data) {
           <span class="c-chevron">▼</span>
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
-        <p class="c-budget">sur ${fmt(c.budget)}</p>
+        <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         <span class="c-ech">${echStr}</span>
         <div class="cats">${catsHtml}</div>
       </div>`;
@@ -176,14 +194,28 @@ function loadData() {
         date_fin:      r.Date_fin_contrat,
         disponible:    r.Disponible || 0,
         budget_ajuste: r.Budget_ajuste || 0,
+        montant_releve: r.Montant_dernier_releve || 0,
       })).filter(d => d.label);
 
-      render(allData);
+      // Omplir el filtre de categories (ordenades)
+      const catsPresents = [...new Set(allData.map(d => getCat(d.label)))]
+        .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+      const sel = document.getElementById('cat-filter');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">Toutes catégories</option>';
+      catsPresents.forEach(c => {
+        const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+      });
+      if (cur) sel.value = cur;
+
+      updateView();
     });
   } else {
     document.getElementById('loading').textContent = 'Connectez ce widget à la table Lignes_budgetaires.';
   }
 }
+
+document.getElementById('cat-filter').addEventListener('change', updateView);
 
 const gristScript = document.createElement('script');
 gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
