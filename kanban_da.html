@@ -32,7 +32,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-arts { padding: 10px 13px; }
 .art-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 2px 0; color: #666; }
 @media (prefers-color-scheme: dark) { .art-line { color: #aaa; } }
-.art-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-name { word-break: break-word; }
+.art-line.art-service { font-style: italic; opacity: 0.65; font-size: 10px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .da-foot { display: flex; align-items: center; justify-content: space-between; padding: 8px 13px; border-top: 1px solid #eee; }
 .da-foot-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
@@ -130,6 +131,7 @@ async function fetchAll() {
       prix:          (c.Prix_unitaire_HT||[])[i] || 0,
       qte:           (c.Quantite||[])[i] || 1,
       montant:       (c.Montant2||[])[i] || ((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      type_article:  (c.Type_article||[])[i] || 'Produit',
     }));
 
     render();
@@ -178,7 +180,7 @@ function render() {
     }
 
     const artsHtml = arts.length
-      ? arts.map(a => `<div class="art-line"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</span><span class="art-price">${fmt(a.montant)}</span></div>`).join('')
+      ? arts.map(a => `<div class="art-line ${a.type_article === 'Service' ? 'art-service' : ''}"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</span><span class="art-price">${fmt(a.montant)}</span></div>`).join('')
       : '<div class="art-line"><span class="art-name" style="font-style:italic; color:#bbb;">Aucun article assigné</span></div>';
 
     html += `
