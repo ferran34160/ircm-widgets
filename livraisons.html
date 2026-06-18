@@ -64,15 +64,15 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <div class="header">
   <div class="title">Suivi des livraisons</div>
   <div class="filters">
-    <button class="filter-btn active" data-f="tous" onclick="setFilter('tous')">Tous</button>
-    <button class="filter-btn" data-f="attente" onclick="setFilter('attente')">En attente</button>
+    <button class="filter-btn" data-f="tous" onclick="setFilter('tous')">Tous</button>
+    <button class="filter-btn active" data-f="attente" onclick="setFilter('attente')">En attente</button>
     <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
   </div>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let articles = [], dasMap = {}, fourNoms = {}, filter = 'tous';
+let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -95,7 +95,7 @@ async function fetchAll() {
     (d.id||[]).forEach((id,i)=>{ dasMap[id]={
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
       fournisseur:resolFour((d.Fournisseur||[])[i]),
-      date_da:(d.Date_DA||[])[i], statut:(d.Statut||[])[i]||'',
+      date_da:(d.Date_DA||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
     };});
 
     articles = (c.id||[]).map((id,i)=>({
@@ -184,7 +184,7 @@ function render() {
     const totaux = totauxDA[key] || { total: arts.length, recus: 0 };
 
     const numDA = da ? da.num_da : 'Sans DA';
-    const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}` : '';
+    const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}${da.num_bc ? ' · BC ' + da.num_bc : ''}` : '';
 
     const complete = totaux.recus === totaux.total && totaux.total > 0;
     html += `<div class="da-group">
