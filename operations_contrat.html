@@ -40,6 +40,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .op-desc { color: #aaa; } }
 .op-date { font-size: 10px; color: #aaa; }
 .op-amount { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+.op-row-clickable { cursor: pointer; }
+.op-caret { font-size: 9px; color: #aaa; display: inline-block; width: 10px; }
+.op-arts { padding: 2px 0 6px 22px; }
+.op-art { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 2px 0; color: #888; }
+.op-art-name { overflow: hidden; text-overflow: ellipsis; }
+.op-art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) { .op-art { color: #999; } }
 .op-amount.neg { color: #A32D2D; }
 .op-amount.pos { color: #0F6E56; }
 @media (prefers-color-scheme: dark) { .op-amount.neg { color: #F09595; } .op-amount.pos { color: #5DCAA5; } }
@@ -247,9 +254,10 @@ function render() {
     const parDA = {};
     cmds.forEach(c => {
       const da = das[c.demande_achat];
-      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, fournisseur: da.fournisseur, total: 0, nb: 0 };
+      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, fournisseur: da.fournisseur, total: 0, nb: 0, articles: [] };
       parDA[c.demande_achat].total += c.montant;
       if (c.type_article !== 'Service') parDA[c.demande_achat].nb += 1;
+      parDA[c.demande_achat].articles.push(c);
     });
 
     // Transferts sortints i entrants (filtrats per període)
@@ -268,7 +276,14 @@ function render() {
         const d = parDA[k];
         const artLabel = d.nb === 1 ? '1 art.' : d.nb + ' art.';
         const fourStr = d.fournisseur ? ' · ' + d.fournisseur : '';
-        opsHtml += `<div class="op-row"><span class="op-desc">${d.num_da} · ${artLabel}${fourStr}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
+        const rowId = 'da-' + ligne.id + '-' + k;
+        const artsDetail = d.articles.map(a => {
+          const desig = a.designation || '(sans nom)';
+          const svc = a.type_article === 'Service' ? ' <span style="opacity:.6">(service)</span>' : '';
+          return `<div class="op-art"><span class="op-art-name">${a.qte > 1 ? a.qte + '× ' : ''}${desig}${svc}</span><span class="op-art-price">${fmt(a.montant)}</span></div>`;
+        }).join('');
+        opsHtml += `<div class="op-row op-row-clickable" onclick="toggleDA('${rowId}')"><span class="op-desc"><span class="op-caret" id="caret-${rowId}">▸</span> ${d.num_da} · ${artLabel}${fourStr}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
+        opsHtml += `<div class="op-arts" id="${rowId}" style="display:none;">${artsDetail}</div>`;
       });
       opsHtml += '</div>';
     }
@@ -311,6 +326,16 @@ function render() {
     html += '</div></div>';
   });
   container.innerHTML = html;
+}
+
+function toggleDA(id) {
+  const el = document.getElementById(id);
+  const caret = document.getElementById('caret-' + id);
+  if (el) {
+    const open = el.style.display !== 'none';
+    el.style.display = open ? 'none' : 'block';
+    if (caret) caret.textContent = open ? '▸' : '▾';
+  }
 }
 
 document.getElementById('contrat-select').addEventListener('change', render);
