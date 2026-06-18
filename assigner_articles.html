@@ -72,7 +72,7 @@ const COMMANDES_TABLE = 'Commandes';
 const DA_TABLE = 'Demandes_achat';
 
 function fmt(v) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 
 function parseDate(g) {
