@@ -43,10 +43,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .op-row-clickable { cursor: pointer; }
 .op-caret { font-size: 9px; color: #aaa; display: inline-block; width: 10px; }
 .op-arts { padding: 2px 0 6px 22px; }
-.op-art { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 2px 0; color: #888; }
+.op-art { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 3px 0; color: #555; }
 .op-art-name { overflow: hidden; text-overflow: ellipsis; }
 .op-art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (prefers-color-scheme: dark) { .op-art { color: #999; } }
+.op-art-service { font-style: italic; opacity: 0.65; font-size: 11px; }
+@media (prefers-color-scheme: dark) { .op-art { color: #bbb; } }
 .op-amount.neg { color: #A32D2D; }
 .op-amount.pos { color: #0F6E56; }
 @media (prefers-color-scheme: dark) { .op-amount.neg { color: #F09595; } .op-amount.pos { color: #5DCAA5; } }
@@ -279,8 +280,8 @@ function render() {
         const rowId = 'da-' + ligne.id + '-' + k;
         const artsDetail = d.articles.map(a => {
           const desig = a.designation || '(sans nom)';
-          const svc = a.type_article === 'Service' ? ' <span style="opacity:.6">(service)</span>' : '';
-          return `<div class="op-art"><span class="op-art-name">${a.qte > 1 ? a.qte + '× ' : ''}${desig}${svc}</span><span class="op-art-price">${fmt(a.montant)}</span></div>`;
+          const isSvc = a.type_article === 'Service';
+          return `<div class="op-art ${isSvc ? 'op-art-service' : ''}"><span class="op-art-name">${a.qte > 1 ? a.qte + '× ' : ''}${desig}</span><span class="op-art-price">${fmt(a.montant)}</span></div>`;
         }).join('');
         opsHtml += `<div class="op-row op-row-clickable" onclick="toggleDA('${rowId}')"><span class="op-desc"><span class="op-caret" id="caret-${rowId}">▸</span> ${d.num_da} · ${artLabel}${fourStr}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
         opsHtml += `<div class="op-arts" id="${rowId}" style="display:none;">${artsDetail}</div>`;
