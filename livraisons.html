@@ -28,7 +28,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .art-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .art-name { font-size: 13px; font-weight: 500; }
 .art-ref { font-size: 11px; color: #888; margin-top: 1px; }
-.art-status { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 7px; white-space: nowrap; cursor: pointer; }
+.art-status { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 7px; white-space: nowrap; }
 .art-status.recu { background: #1D9E75; color: #fff; }
 .art-status.attente { background: #F0E2C8; color: #8A6D1F; }
 @media (prefers-color-scheme: dark) { .art-status.attente { background: #4A3D1A; color: #E0C77C; } }
@@ -49,7 +49,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-save { background: #1D9E75; color: #fff; }
 .btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
 @media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
-.btn-edit { font-size: 11px; color: #378ADD; background: none; border: none; cursor: pointer; padding: 0; margin-top: 6px; }
+.btn-edit { font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 6px; cursor: pointer; padding: 5px 12px; margin-top: 8px; }
+.btn-edit:hover { background: #378ADD; color: #fff; }
 .empty { text-align: center; padding: 30px; color: #aaa; }
 .loading { text-align: center; padding: 40px; color: #888; }
 </style>
@@ -129,6 +130,18 @@ function render() {
     return MOTS_CLES.some(m => des.includes(m));
   }
 
+  // Total real de productes per DA (tots, excloent serveis) — independent del filtre
+  const totauxDA = {};
+  articles.forEach(a => {
+    const da = dasMap[a.demande_achat];
+    if (!da || da.statut !== 'BC reçu') return;
+    if (estService(a)) return;
+    const key = a.demande_achat || 'sans';
+    if (!totauxDA[key]) totauxDA[key] = { total: 0, recus: 0 };
+    totauxDA[key].total += 1;
+    if (a.date_livraison) totauxDA[key].recus += 1;
+  });
+
   // Només articles de DA amb statut "BC reçu", excloent els hors-livraison
   let arts = articles.filter(a => {
     const da = dasMap[a.demande_achat];
@@ -163,7 +176,7 @@ function render() {
   keys.forEach(key => {
     const da = dasMap[key];
     const arts = groups[key];
-    const nbRecu = arts.filter(a => a.date_livraison).length;
+    const totaux = totauxDA[key] || { total: arts.length, recus: 0 };
 
     const numDA = da ? da.num_da : 'Sans DA';
     const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}` : '';
@@ -172,7 +185,7 @@ function render() {
       <div class="da-head">
         <span class="da-num">${numDA}</span>
         <span class="da-meta">${meta}</span>
-        <span class="da-progress">${nbRecu}/${arts.length} reçus</span>
+        <span class="da-progress">${totaux.recus}/${totaux.total} reçus</span>
       </div>`;
 
     arts.forEach(a => {
@@ -184,15 +197,15 @@ function render() {
               <div class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</div>
               <div class="art-ref">${a.ref ? 'Réf: ' + a.ref + ' · ' : ''}${fmt(a.montant)}</div>
             </div>
-            <span class="art-status ${recu ? 'recu' : 'attente'}" onclick="toggleForm(${a.id})">${recu ? '✓ Reçu' : 'En attente'}</span>
+            <span class="art-status ${recu ? 'recu' : 'attente'}">${recu ? '✓ Reçu' : 'En attente'}</span>
           </div>
           ${recu ? `<div class="art-livraison">
             <span><b>Livré:</b> ${fmtDate(a.date_livraison)}</span>
             ${a.lieu ? `<span><b>Lieu:</b> ${a.lieu}</span>` : ''}
             ${a.recu_par ? `<span><b>Reçu par:</b> ${a.recu_par}</span>` : ''}
             ${a.notes ? `<span><b>Notes:</b> ${a.notes}</span>` : ''}
-          </div>
-          <button class="btn-edit" onclick="toggleForm(${a.id})">Modifier</button>` : ''}
+          </div>` : ''}
+          <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
           <div class="form" id="form-${a.id}">
             <div class="form-row">
               <div class="form-field"><label>Date livraison</label><input type="date" id="date-${a.id}" value="${dateInput(a.date_livraison)}"></div>
