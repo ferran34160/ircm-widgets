@@ -181,7 +181,7 @@ function render() {
         <div class="da-top">
           <div>
             <p class="da-num">${d.num_da}</p>
-            <p class="da-four">${resolveFour(d.fournisseur) || '—'} · ${fmtDate(d.date_da)}</p>
+            <p class="da-four">${resolveFour(d.fournisseur) || '—'} · DA du ${fmtDate(d.date_da)}</p>
           </div>
           <span class="da-days ${daysClass}">${daysText}</span>
         </div>
