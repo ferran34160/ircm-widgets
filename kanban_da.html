@@ -13,7 +13,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
 .count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
 @media (prefers-color-scheme: dark) { .count { background: rgba(255,255,255,0.12); } }
-.list { display: flex; flex-direction: column; gap: 9px; max-width: 440px; }
+.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 360px)); gap: 12px; align-items: start; }
 .da-card { background: #f7f7f5; border: 1px solid #e8e8e8; border-radius: 10px; padding: 12px 14px; }
 @media (prefers-color-scheme: dark) { .da-card { background: #242424; border-color: #383838; } }
 .da-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
@@ -35,6 +35,21 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-contrat { font-size: 11px; color: #666; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 5px; }
 @media (prefers-color-scheme: dark) { .da-contrat { color: #aaa; background: rgba(255,255,255,0.08); } }
 .da-total { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.btn-bc { width: 100%; margin-top: 10px; padding: 7px; background: none; border: 1px solid #378ADD; color: #378ADD; border-radius: 7px; font-size: 12px; cursor: pointer; }
+.btn-bc:hover { background: #378ADD; color: #fff; }
+.bc-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #d5d5d5; display: none; }
+.bc-form.open { display: block; }
+@media (prefers-color-scheme: dark) { .bc-form { border-top-color: #444; } }
+.bc-form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.bc-field { flex: 1; }
+.bc-field label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 2px; }
+.bc-field input { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .bc-field input { border-color: #444; } }
+.bc-actions { display: flex; gap: 8px; }
+.bc-btn { font-size: 12px; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; }
+.bc-save { background: #1D9E75; color: #fff; }
+.bc-cancel { background: rgba(0,0,0,0.08); color: inherit; }
+@media (prefers-color-scheme: dark) { .bc-cancel { background: rgba(255,255,255,0.12); } }
 .empty { text-align: center; padding: 24px; color: #aaa; font-size: 13px; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 </style>
@@ -66,6 +81,13 @@ function fmtDate(g) {
   if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
   return d.toLocaleDateString('fr-FR');
 }
+function dateInput(g) {
+  const ms = toMs(g);
+  if (!ms) return '';
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0,10);
+}
 function daysSince(g) {
   const ms = toMs(g);
   if (!ms) return null;
@@ -93,6 +115,8 @@ async function fetchAll() {
       fournisseur: (d.Fournisseur||[])[i] || '',
       date_da:     (d.Date_DA||[])[i],
       statut:      (d.Statut||[])[i] || '',
+      num_bc:      (d.Num_BC||[])[i] || '',
+      date_pgm:    (d.Date_OrderPGM||[])[i],
     })).filter(x => x.num_da && x.statut === 'Envoyée PGM');
 
     commandes = (c.id||[]).map((id,i) => ({
@@ -166,10 +190,51 @@ function render() {
           <span class="da-contrat">${resolveContrat(d.contrat) || '—'}</span>
           <span class="da-total">${fmt(total)}</span>
         </div>
+        <button class="btn-bc" onclick="toggleBC(${d.id})">Réception BC</button>
+        <div class="bc-form" id="bc-form-${d.id}">
+          <div class="bc-form-row">
+            <div class="bc-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
+            <div class="bc-field"><label>Date Order PGM</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_pgm)}"></div>
+          </div>
+          <div class="bc-actions">
+            <button class="bc-btn bc-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
+            <button class="bc-btn bc-cancel" onclick="toggleBC(${d.id})">Annuler</button>
+          </div>
+        </div>
       </div>`;
   });
   html += '</div>';
   container.innerHTML = html;
+}
+
+function toggleBC(id) {
+  const form = document.getElementById('bc-form-' + id);
+  if (form) form.classList.toggle('open');
+}
+
+async function saveBC(id) {
+  const numBC = document.getElementById('bc-num-' + id).value.trim();
+  const dateVal = document.getElementById('bc-date-' + id).value;
+
+  if (!numBC) { alert('Veuillez saisir le N° BC.'); return; }
+
+  let datePgm = null;
+  if (dateVal) {
+    datePgm = Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000);
+  }
+
+  try {
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', id, {
+        Num_BC: numBC,
+        Date_OrderPGM: datePgm,
+        Statut: 'BC reçu',
+      }]
+    ]);
+    await fetchAll();
+  } catch(e) {
+    alert('Erreur: ' + e.message);
+  }
 }
 
 function loadData() {
