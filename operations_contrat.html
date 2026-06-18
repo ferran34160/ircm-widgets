@@ -67,7 +67,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 let lignes = [], commandes = [], transferts = [], mouvements = [], das = [], contrats = [], dernierReleve = {};
 
 function fmt(v) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 function toMs(g) {
   if (!g) return 0;
