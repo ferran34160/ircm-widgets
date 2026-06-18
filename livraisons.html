@@ -74,7 +74,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente';
 
-function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v); }
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 function dateInput(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d))return ''; return d.toISOString().slice(0,10); }
