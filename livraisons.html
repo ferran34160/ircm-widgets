@@ -14,14 +14,19 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
-.da-group { margin-bottom: 18px; max-width: 620px; }
-.da-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #e8e8e8; }
-@media (prefers-color-scheme: dark) { .da-head { border-bottom-color: #383838; } }
+.da-group { margin-bottom: 16px; max-width: 620px; background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .da-group { background: #202020; border-color: #353535; } }
+.da-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f0ec; border-bottom: 1px solid #e5e5e5; }
+@media (prefers-color-scheme: dark) { .da-head { background: #2a2a2a; border-bottom-color: #383838; } }
 .da-num { font-size: 13px; font-weight: 600; }
 .da-meta { font-size: 11px; color: #888; }
-.da-progress { font-size: 11px; margin-left: auto; padding: 2px 8px; border-radius: 8px; background: rgba(0,0,0,0.06); }
-@media (prefers-color-scheme: dark) { .da-progress { background: rgba(255,255,255,0.1); } }
-.art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; }
+.da-progress { font-size: 11px; font-weight: 500; margin-left: auto; padding: 2px 9px; border-radius: 8px; background: rgba(0,0,0,0.07); }
+@media (prefers-color-scheme: dark) { .da-progress { background: rgba(255,255,255,0.12); } }
+.da-progress.complete { background: #1D9E75; color: #fff; }
+.da-body { padding: 10px 14px; }
+.art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; background: #fff; }
+.art:last-child { margin-bottom: 0; }
+@media (prefers-color-scheme: dark) { .art { background: #2a2a2a; } }
 @media (prefers-color-scheme: dark) { .art { border-color: #383838; } }
 .art.recu { background: #F2FAF6; border-color: #C6E8DA; }
 @media (prefers-color-scheme: dark) { .art.recu { background: #16291F; border-color: #2C4A3B; } }
@@ -181,12 +186,14 @@ function render() {
     const numDA = da ? da.num_da : 'Sans DA';
     const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}` : '';
 
+    const complete = totaux.recus === totaux.total && totaux.total > 0;
     html += `<div class="da-group">
       <div class="da-head">
         <span class="da-num">${numDA}</span>
         <span class="da-meta">${meta}</span>
-        <span class="da-progress">${totaux.recus}/${totaux.total} reçus</span>
-      </div>`;
+        <span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span>
+      </div>
+      <div class="da-body">`;
 
     arts.forEach(a => {
       const recu = !!a.date_livraison;
@@ -223,7 +230,7 @@ function render() {
         </div>`;
     });
 
-    html += `</div>`;
+    html += `</div></div>`;
   });
 
   container.innerHTML = html;
