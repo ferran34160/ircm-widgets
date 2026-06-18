@@ -95,7 +95,7 @@ async function fetchAll() {
     (d.id||[]).forEach((id,i)=>{ dasMap[id]={
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
       fournisseur:resolFour((d.Fournisseur||[])[i]),
-      date_da:(d.Date_DA||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
+      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
     };});
 
     articles = (c.id||[]).map((id,i)=>({
@@ -184,7 +184,8 @@ function render() {
     const totaux = totauxDA[key] || { total: arts.length, recus: 0 };
 
     const numDA = da ? da.num_da : 'Sans DA';
-    const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}${da.num_bc ? ' · BC ' + da.num_bc : ''}` : '';
+    const datePGM = da && da.date_pgm ? fmtDate(da.date_pgm) : (da ? fmtDate(da.date_da) : '');
+    const meta = da ? `${da.fournisseur || ''} · PGM du ${datePGM}${da.num_bc ? ' · BC ' + da.num_bc : ''}` : '';
 
     const complete = totaux.recus === totaux.total && totaux.total > 0;
     html += `<div class="da-group">
