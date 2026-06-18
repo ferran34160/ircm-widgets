@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion des DA</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
+.tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
+.spacer { flex: 1; }
+.refresh { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .refresh { border-color: #444; } }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
+.da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+.da-item { border: 1px solid #e5e5e5; border-radius: 9px; padding: 9px 11px; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .da-item { border-color: #383838; } }
+.da-item.sel { border-color: #378ADD; border-width: 1.5px; background: #E6F1FB; }
+@media (prefers-color-scheme: dark) { .da-item.sel { background: #0C2D4D; } }
+.da-item.libres { border-style: dashed; border-color: #BA7517; }
+.da-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.da-item-num { font-size: 13px; font-weight: 600; }
+.badge { font-size: 10px; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
+.b-cours { background: #F1EFE8; color: #5F5E5A; }
+.b-pgm { background: #E6F1FB; color: #0C447C; }
+.b-bc { background: #E1F5EE; color: #085041; }
+.b-libres { background: #FAEEDA; color: #854F0B; }
+@media (prefers-color-scheme: dark) {
+  .b-cours { background: #444441; color: #D3D1C7; }
+  .b-pgm { background: #0C447C; color: #B5D4F4; }
+  .b-bc { background: #085041; color: #9FE1CB; }
+  .b-libres { background: #633806; color: #FAC775; }
+}
+.da-item-meta { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-item-foot { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; }
+.da-item-total { font-weight: 500; }
+.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .detail { border-color: #383838; } }
+.detail-head { background: #eef2f6; padding: 11px 13px; }
+@media (prefers-color-scheme: dark) { .detail-head { background: #283038; } }
+.detail-head-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.detail-num { font-size: 15px; font-weight: 600; }
+.detail-route { font-size: 12px; color: #666; }
+@media (prefers-color-scheme: dark) { .detail-route { color: #aaa; } }
+.detail-arts { padding: 8px 13px; }
+.art { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+@media (prefers-color-scheme: dark) { .art { border-bottom-color: #2e2e2e; } }
+.art:last-child { border-bottom: none; }
+.art-name { word-break: break-word; }
+.art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
+.art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
+@media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
+.detail-total { font-weight: 600; font-size: 14px; }
+.empty { text-align: center; padding: 40px 20px; color: #aaa; font-size: 13px; }
+.loading { text-align: center; padding: 40px; color: #888; }
+/* Assignació */
+.assign-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.assign-toolbar { display: flex; gap: 6px; margin-bottom: 8px; }
+.assign-toolbar button { font-size: 11px; padding: 4px 9px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .assign-toolbar button { border-color: #444; } }
+.assign-da-select { width: 100%; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; margin-bottom: 10px; }
+@media (prefers-color-scheme: dark) { .assign-da-select { border-color: #444; } }
+.assign-art { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 5px; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .assign-art { border-color: #383838; } }
+.assign-art.checked { background: #E6F1FB; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .assign-art.checked { background: #0C2D4D; } }
+.assign-check { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: transparent; }
+.assign-art.checked .assign-check { background: #378ADD; border-color: #378ADD; color: #fff; }
+.assign-art-info { flex: 1; min-width: 0; }
+.assign-art-name { font-size: 12px; font-weight: 500; }
+.assign-art-meta { font-size: 11px; color: #888; }
+.btn-assign { width: 100%; margin-top: 10px; padding: 10px; background: #378ADD; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-assign:disabled { background: #ccc; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) { .btn-assign:disabled { background: #444; } }
+.msg { text-align: center; padding: 9px; border-radius: 8px; margin-top: 10px; font-size: 12px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button class="tab active" data-f="toutes" onclick="setTab('toutes')">Toutes</button>
+  <button class="tab" data-f="En cours" onclick="setTab('En cours')">En cours</button>
+  <button class="tab" data-f="Envoyée PGM" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
+  <button class="tab" data-f="BC reçu" onclick="setTab('BC reçu')">BC reçu</button>
+  <button class="tab" data-f="libres" onclick="setTab('libres')">Articles libres</button>
+  <span class="spacer"></span>
+  <button class="refresh" onclick="fetchAll()" title="Actualiser">↻</button>
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+
+<script>
+let das = [], commandes = [], contratNoms = {}, fourNoms = {};
+let tab = 'toutes', selectedDA = null, selectedArts = new Set();
+
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+
+function resolveContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
+function resolveFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
+
+async function fetchAll() {
+  try {
+    const [d, c, ct, fo] = await Promise.all([
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Fournisseurs'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    fourNoms = {};
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
+
+    das = (d.id||[]).map((id,i)=>({
+      id,
+      num_da:(d.Num_DA||[])[i]||('DA#'+id),
+      contrat:resolveContrat((d.Contrat||[])[i]),
+      fournisseur:resolveFour((d.Fournisseur||[])[i]),
+      date_da:(d.Date_DA||[])[i],
+      statut:(d.Statut||[])[i]||'',
+      num_bc:(d.Num_BC||[])[i]||'',
+    }));
+
+    commandes = (c.id||[]).map((id,i)=>({
+      id,
+      demande_achat:(c.Demande_achat||[])[i]||null,
+      designation:(c.Designation2||[])[i]||'',
+      ref:(c.Reference_fournisseur||[])[i]||'',
+      qte:(c.Quantite||[])[i]||1,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      type_article:(c.Type_article||[])[i]||'Produit',
+    }));
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
+  }
+}
+
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.f === t));
+  selectedDA = null;
+  selectedArts.clear();
+  render();
+}
+
+function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
+function totalOf(daId) { return artsOf(daId).reduce((s,a)=>s+a.montant,0); }
+function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service').length; }
+
+function badgeClass(statut) {
+  if (statut === 'En cours') return 'b-cours';
+  if (statut === 'Envoyée PGM') return 'b-pgm';
+  if (statut === 'BC reçu') return 'b-bc';
+  return 'b-cours';
+}
+
+function render() {
+  const container = document.getElementById('container');
+
+  if (tab === 'libres') { renderLibres(container); return; }
+
+  // Llista de DA filtrada
+  let list = das.slice();
+  if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
+  list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+
+  const nbLibres = commandes.filter(c => !c.demande_achat).length;
+
+  let listHtml = '';
+  list.forEach(d => {
+    const sel = selectedDA === d.id ? 'sel' : '';
+    const nb = nbProduits(d.id);
+    listHtml += `
+      <div class="da-item ${sel}" onclick="selectDA(${d.id})">
+        <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
+        <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
+        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
+      </div>`;
+  });
+  if (!listHtml) listHtml = '<div class="empty">Aucune DA.</div>';
+
+  // Detall
+  let detailHtml;
+  if (selectedDA) {
+    const d = das.find(x => x.id === selectedDA);
+    detailHtml = renderDetail(d);
+  } else {
+    detailHtml = '<div class="empty">Sélectionnez une DA pour voir le détail.</div>';
+  }
+
+  container.innerHTML = `
+    <div class="layout">
+      <div class="panel">
+        <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
+        <div class="da-list">${listHtml}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Détail</div>
+        ${detailHtml}
+      </div>
+    </div>`;
+}
+
+function renderDetail(d) {
+  if (!d) return '<div class="empty">DA introuvable.</div>';
+  const arts = artsOf(d.id);
+  const total = totalOf(d.id);
+  const nbProd = arts.filter(a=>a.type_article!=='Service').length;
+  const nbServ = arts.filter(a=>a.type_article==='Service').length;
+
+  let artsHtml = arts.length ? arts.map(a => `
+    <div class="art ${a.type_article==='Service'?'svc':''}">
+      <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref?' · '+a.ref:''}</span>
+      <span class="art-price">${fmt(a.montant)}</span>
+    </div>`).join('') : '<div class="empty">Aucun article.</div>';
+
+  const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
+
+  return `
+    <div class="detail">
+      <div class="detail-head">
+        <div class="detail-head-top">
+          <span class="detail-num">${d.num_da}</span>
+          <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+        </div>
+        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'} · ${fmtDate(d.date_da)}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+      </div>
+      <div class="detail-arts">${artsHtml}</div>
+      <div class="detail-foot">
+        <span style="color:#888">${footLabel}</span>
+        <span class="detail-total">${fmt(total)}</span>
+      </div>
+    </div>`;
+}
+
+function selectDA(id) {
+  selectedDA = id;
+  render();
+}
+
+function renderLibres(container) {
+  const libres = commandes.filter(c => !c.demande_achat);
+  // DA en cours per assignar
+  const dasEnCours = das.filter(d => d.statut === 'En cours')
+    .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+
+  let artsHtml = libres.length ? libres.map(a => {
+    const checked = selectedArts.has(a.id);
+    return `
+      <div class="assign-art ${checked?'checked':''}" onclick="toggleArt(${a.id})">
+        <div class="assign-check">✓</div>
+        <div class="assign-art-info">
+          <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
+          <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
+        </div>
+      </div>`;
+  }).join('') : '<div class="empty">Aucun article libre.</div>';
+
+  let options = '<option value="">— Choisir une DA —</option>';
+  dasEnCours.forEach(d => {
+    options += `<option value="${d.id}">${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+  });
+
+  container.innerHTML = `
+    <div style="max-width:560px;">
+      <div class="panel-title">Assigner les articles libres à une DA en cours</div>
+      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
+      <div class="assign-toolbar">
+        <button onclick="selectAllLibres()">Tout sélectionner</button>
+        <button onclick="deselectAllLibres()">Tout désélectionner</button>
+        <span style="flex:1"></span>
+        <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
+      </div>
+      ${artsHtml}
+      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 || !document.getElementById('assign-da')?.value ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <div class="msg" id="msg"></div>
+    </div>`;
+}
+
+function toggleArt(id) {
+  if (selectedArts.has(id)) selectedArts.delete(id);
+  else selectedArts.add(id);
+  renderLibres(document.getElementById('container'));
+}
+function selectAllLibres() {
+  commandes.filter(c => !c.demande_achat).forEach(c => selectedArts.add(c.id));
+  renderLibres(document.getElementById('container'));
+}
+function deselectAllLibres() {
+  selectedArts.clear();
+  renderLibres(document.getElementById('container'));
+}
+function onAssignDAChange() {
+  const btn = document.getElementById('btn-assign');
+  if (btn) btn.disabled = selectedArts.size === 0 || !document.getElementById('assign-da').value;
+}
+
+async function assignArticles() {
+  const daId = document.getElementById('assign-da').value;
+  if (!daId || selectedArts.size === 0) return;
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('btn-assign');
+  btn.disabled = true;
+
+  try {
+    const ids = [...selectedArts];
+    await grist.docApi.applyUserActions([
+      ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(()=>Number(daId)) }]
+    ]);
+    const da = das.find(x => x.id == daId);
+    msg.className = 'msg ok';
+    msg.textContent = `${ids.length} article(s) assigné(s) à ${da ? da.num_da : ''}`;
+    selectedArts.clear();
+    await fetchAll();
+    setTimeout(() => { if(document.getElementById('msg')){} }, 100);
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+    window.addEventListener('focus', () => fetchAll());
+  } else {
+    document.getElementById('container').innerHTML = '<div class="empty">Connectez à Grist.</div>';
+  }
+}
+const s = document.createElement('script');
+s.src='https://docs.getgrist.com/grist-plugin-api.js';
+s.onload=loadData; s.onerror=loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
