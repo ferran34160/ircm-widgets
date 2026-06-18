@@ -14,7 +14,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
-.da-group { margin-bottom: 16px; max-width: 620px; background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
+.da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
+.da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
 @media (prefers-color-scheme: dark) { .da-group { background: #202020; border-color: #353535; } }
 .da-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f0ec; border-bottom: 1px solid #e5e5e5; }
 @media (prefers-color-scheme: dark) { .da-head { background: #2a2a2a; border-bottom-color: #383838; } }
@@ -177,7 +178,7 @@ function render() {
     return String(na).localeCompare(String(nb), undefined, {numeric:true});
   });
 
-  let html = '';
+  let html = '<div class="da-grid">';
   keys.forEach(key => {
     const da = dasMap[key];
     const arts = groups[key];
@@ -233,6 +234,7 @@ function render() {
 
     html += `</div></div>`;
   });
+  html += '</div>';
 
   container.innerHTML = html;
 }
