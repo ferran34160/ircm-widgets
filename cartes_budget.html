@@ -113,11 +113,18 @@ function render(data) {
       <div class="cards-grid">`;
 
     groups[cat].forEach(d => {
-      const state = getState(d);
-      const pct = d.budget_ajuste > 0 ? Math.max(0, Math.min(100, Math.round(d.disponible / d.budget_ajuste * 100))) : 0;
+      const aReleve = d.montant_releve != null;
+      const base = aReleve ? d.montant_releve : 0;
+
+      // Estat segons disponible respecte al relevé
+      let state = 'ok';
+      if (d.disponible < 0) state = 'danger';
+      else if (aReleve && base > 0 && d.disponible / base < 0.1) state = 'warn';
+
+      const pct = (aReleve && base > 0) ? Math.max(0, Math.min(100, Math.round(d.disponible / base * 100))) : 0;
       const barColor = state === 'ok' ? '#1D9E75' : state === 'warn' ? '#BA7517' : '#E24B4A';
       const fillPct = state === 'danger' ? 100 : pct;
-      const pctText = state === 'danger' ? 'Dépassement' : pct + '% disponible';
+      const pctText = state === 'danger' ? 'Dépassement' : pct + '% du dernier relevé';
 
       const parts = d.label.split('|');
       const contrat = parts[0] ? parts[0].trim() : '';
@@ -125,26 +132,33 @@ function render(data) {
 
       const alertIcon = state !== 'ok' ? '<span class="alert-icon">⚠</span>' : '';
 
+      const cardBg = isDark ? st.dark : st.bg;
+      const txtColor = isDark ? st.dtxt : st.txt;
+
       const releveDate = fmtDate(d.date_releve);
-      const releveHtml = (d.montant_releve != null && releveDate)
-        ? `<p class="bcard-releve">Dernier relevé PGM : ${fmt(d.montant_releve)} (${releveDate})</p>`
-        : '';
+
+      // Bloc central: amb relevé o sense
+      let infoHtml, barHtml;
+      if (aReleve) {
+        infoHtml = `<p class="bcard-meta" style="color:${txtColor}">sur ${fmt(d.montant_releve)} au dernier relevé du ${releveDate} · engagé ${fmt(d.commandes_post)}</p>`;
+        barHtml = `<div class="pct-track"><div class="pct-fill" style="background:${barColor}; width:${fillPct}%"></div></div>
+          <p class="bcard-pct" style="color:${txtColor}">${pctText}</p>`;
+      } else {
+        infoHtml = `<p class="bcard-meta" style="color:${txtColor}; font-style:italic;">Pas encore de relevé</p>`;
+        barHtml = '';
+      }
+
       const resteHtml = (d.reste_notifier > 0)
         ? `<p class="bcard-reste">Reste à notifier : ${fmt(d.reste_notifier)}</p>`
         : '';
-
-      const cardBg = isDark ? st.dark : st.bg;
-      const txtColor = isDark ? st.dtxt : st.txt;
 
       html += `
         <div class="bcard" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c};">
           <p class="bcard-cat" style="color:${txtColor}">${contrat}</p>
           <p class="bcard-sub" style="color:${txtColor}">${sub} ${alertIcon}</p>
           <p class="bcard-dispo ${state === 'danger' ? 'neg' : ''}" style="${state !== 'danger' ? 'color:'+txtColor : ''}">${fmt(d.disponible)}</p>
-          <p class="bcard-meta" style="color:${txtColor}">sur ${fmt(d.budget_ajuste)} · engagé ${fmt(d.total_commandes)}</p>
-          <div class="pct-track"><div class="pct-fill" style="background:${barColor}; width:${fillPct}%"></div></div>
-          <p class="bcard-pct" style="color:${txtColor}">${pctText}</p>
-          ${releveHtml}
+          ${infoHtml}
+          ${barHtml}
           ${resteHtml}
         </div>`;
     });
@@ -182,6 +196,7 @@ function loadData() {
         disponible:      r.Disponible || 0,
         montant_releve:  r.Montant_dernier_releve,
         date_releve:     r.Date_dernier_releve,
+        commandes_post:  r.Commandes_post_releve || 0,
         reste_notifier:  r.Reste_a_notifier || 0,
       })).filter(d => d.label);
 
