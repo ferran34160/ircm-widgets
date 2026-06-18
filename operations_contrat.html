@@ -144,6 +144,7 @@ async function fetchAll() {
     commandes = (c.id||[]).map((id,i) => ({
       id, demande_achat:(c.Demande_achat||[])[i]||null,
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      type_article:(c.Type_article||[])[i]||'Produit',
     }));
     transferts = (t.id||[]).map((id,i) => ({
       id, source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
@@ -248,7 +249,7 @@ function render() {
       const da = das[c.demande_achat];
       if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_da, fournisseur: da.fournisseur, total: 0, nb: 0 };
       parDA[c.demande_achat].total += c.montant;
-      parDA[c.demande_achat].nb += 1;
+      if (c.type_article !== 'Service') parDA[c.demande_achat].nb += 1;
     });
 
     // Transferts sortints i entrants (filtrats per període)
