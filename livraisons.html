@@ -103,7 +103,7 @@ async function fetchAll() {
       lieu:(c.Lieu_stockage||[])[i]||'',
       recu_par:(c.Recu_par||[])[i]||'',
       notes:(c.Notes_livraison||[])[i]||'',
-      hors_livraison:(c.Hors_livraison||[])[i]||false,
+      type_article:(c.Type_article||[])[i]||'Produit',
     }));
 
     render();
@@ -123,8 +123,8 @@ function render() {
 
   // Detecció de conceptes que no són productes físics
   const MOTS_CLES = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', "frais d'envoi", 'envoi'];
-  function estHorsLivraison(a) {
-    if (a.hors_livraison) return true;
+  function estService(a) {
+    if (a.type_article === 'Service') return true;
     const des = (a.designation || '').toLowerCase();
     return MOTS_CLES.some(m => des.includes(m));
   }
@@ -133,7 +133,7 @@ function render() {
   let arts = articles.filter(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return false;
-    if (estHorsLivraison(a)) return false;
+    if (estService(a)) return false;
     const recu = !!a.date_livraison;
     if (filter === 'recu') return recu;
     if (filter === 'attente') return !recu;
