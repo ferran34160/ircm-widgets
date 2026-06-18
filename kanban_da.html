@@ -9,123 +9,177 @@
 body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
 .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.title { font-size: 15px; font-weight: 500; }
-.kanban { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.col { background: #f7f7f5; border-radius: 12px; padding: 12px; }
-@media (prefers-color-scheme: dark) { .col { background: #242424; } }
-.col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 0 4px; }
-.col-title { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
-.col-dot { width: 9px; height: 9px; border-radius: 50%; }
-.col-count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
-@media (prefers-color-scheme: dark) { .col-count { background: rgba(255,255,255,0.12); } }
-.da-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 9px; padding: 11px 13px; margin-bottom: 9px; }
-@media (prefers-color-scheme: dark) { .da-card { background: #2e2e2e; border-color: #404040; } }
-.da-num { font-size: 13px; font-weight: 500; margin: 0 0 3px; }
-.da-four { font-size: 12px; color: #888; margin: 0 0 8px; }
-.da-foot { display: flex; align-items: center; justify-content: space-between; }
+.title { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
+.count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
+@media (prefers-color-scheme: dark) { .count { background: rgba(255,255,255,0.12); } }
+.list { display: flex; flex-direction: column; gap: 9px; max-width: 440px; }
+.da-card { background: #f7f7f5; border: 1px solid #e8e8e8; border-radius: 10px; padding: 12px 14px; }
+@media (prefers-color-scheme: dark) { .da-card { background: #242424; border-color: #383838; } }
+.da-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.da-num { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+.da-four { font-size: 12px; color: #888; margin: 0; }
+.da-days { font-size: 11px; font-weight: 500; white-space: nowrap; padding: 2px 8px; border-radius: 6px; }
+.da-days.urgent { color: #fff; background: #E24B4A; }
+.da-days.warn { color: #fff; background: #BA7517; }
+.da-days.normal { color: #888; background: rgba(0,0,0,0.06); }
+@media (prefers-color-scheme: dark) { .da-days.normal { background: rgba(255,255,255,0.1); } }
+.da-arts { border-top: 1px solid #e8e8e8; padding-top: 8px; margin-top: 4px; }
+@media (prefers-color-scheme: dark) { .da-arts { border-top-color: #383838; } }
+.art-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 2px 0; color: #666; }
+@media (prefers-color-scheme: dark) { .art-line { color: #aaa; } }
+.art-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.da-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e8e8e8; }
+@media (prefers-color-scheme: dark) { .da-foot { border-top-color: #383838; } }
 .da-contrat { font-size: 11px; color: #666; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 5px; }
 @media (prefers-color-scheme: dark) { .da-contrat { color: #aaa; background: rgba(255,255,255,0.08); } }
-.da-days { font-size: 11px; font-weight: 500; }
-.da-days.urgent { color: #E24B4A; }
-.da-days.warn { color: #BA7517; }
-.da-days.normal { color: #999; }
-.empty { text-align: center; padding: 24px; color: #aaa; font-size: 12px; }
+.da-total { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.empty { text-align: center; padding: 24px; color: #aaa; font-size: 13px; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 </style>
 </head>
 <body>
 <div class="header">
-  <div class="title">Suivi des demandes d'achat</div>
+  <div class="title"><span class="title-dot"></span>DA envoyées à PGM <span class="count" id="count">0</span></div>
 </div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
 </div>
 
 <script>
-let allData = [];
+let das = [], commandes = [], contratNoms = {}, fourNoms = {};
 
-function fmtDate(gristDate) {
-  if (!gristDate) return null;
-  let ms;
-  if (gristDate > 1e15) ms = gristDate / 1000;
-  else if (gristDate > 1e11) ms = gristDate;
-  else ms = gristDate * 1000;
+function fmt(v) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+}
+function toMs(g) {
+  if (!g) return 0;
+  if (g > 1e15) return g/1000;
+  if (g > 1e11) return g;
+  return g*1000;
+}
+function fmtDate(g) {
+  const ms = toMs(g);
+  if (!ms) return '';
   const d = new Date(ms);
-  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
-  return d;
+  if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
+  return d.toLocaleDateString('fr-FR');
+}
+function daysSince(g) {
+  const ms = toMs(g);
+  if (!ms) return null;
+  return Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24));
 }
 
-function daysSince(gristDate) {
-  const d = fmtDate(gristDate);
-  if (!d) return null;
-  const diff = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
-  return diff;
+async function fetchAll() {
+  try {
+    const [d, c, ct, fo] = await Promise.all([
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Fournisseurs'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('#'+id); });
+    fourNoms = {};
+    (fo.id||[]).forEach((id,i) => { fourNoms[id] = (fo.Label||[])[i] || (fo.Fournisseur||[])[i] || (fo.Nom||[])[i] || ('#'+id); });
+
+    das = (d.id||[]).map((id,i) => ({
+      id,
+      num_da:      (d.Num_DA||[])[i] || '',
+      contrat:     (d.Contrat||[])[i] || '',
+      fournisseur: (d.Fournisseur||[])[i] || '',
+      date_da:     (d.Date_DA||[])[i],
+      statut:      (d.Statut||[])[i] || '',
+    })).filter(x => x.num_da && x.statut === 'Envoyée PGM');
+
+    commandes = (c.id||[]).map((id,i) => ({
+      demande_achat: (c.Demande_achat||[])[i] || null,
+      designation:   (c.Designation2||[])[i] || '',
+      prix:          (c.Prix_unitaire_HT||[])[i] || 0,
+      qte:           (c.Quantite||[])[i] || 1,
+      montant:       (c.Montant2||[])[i] || ((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+    }));
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
+  }
 }
 
-function render(data) {
+function resolveContrat(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return contratNoms[v] || ('#'+v);
+  if (Array.isArray(v)) return contratNoms[v[1]] || '';
+  return String(v);
+}
+function resolveFour(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return fourNoms[v] || '';
+  if (Array.isArray(v)) return fourNoms[v[1]] || '';
+  return String(v);
+}
+
+function render() {
   const container = document.getElementById('container');
-  const enCours  = data.filter(d => d.statut === 'En cours');
-  const envoyee  = data.filter(d => d.statut === 'Envoyée PGM');
 
-  function cardHtml(d) {
+  // Ordenar per data ascendent (les més antigues primer = més temps esperant)
+  const sorted = [...das].sort((a,b) => toMs(a.date_da) - toMs(b.date_da));
+
+  document.getElementById('count').textContent = sorted.length;
+
+  if (sorted.length === 0) {
+    container.innerHTML = '<div class="empty">Aucune DA envoyée à PGM.</div>';
+    return;
+  }
+
+  let html = '<div class="list">';
+  sorted.forEach(d => {
+    const arts = commandes.filter(c => c.demande_achat === d.id);
+    const total = arts.reduce((s,a) => s + a.montant, 0);
     const days = daysSince(d.date_da);
+
     let daysClass = 'normal', daysText = '';
     if (days !== null) {
       daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
-      if (d.statut === 'Envoyée PGM') {
-        if (days > 14) daysClass = 'urgent';
-        else if (days > 7) daysClass = 'warn';
-      }
+      if (days > 14) daysClass = 'urgent';
+      else if (days > 7) daysClass = 'warn';
     }
-    return `
+
+    const artsHtml = arts.length
+      ? arts.map(a => `<div class="art-line"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</span><span class="art-price">${fmt(a.montant)}</span></div>`).join('')
+      : '<div class="art-line"><span class="art-name" style="font-style:italic; color:#bbb;">Aucun article assigné</span></div>';
+
+    html += `
       <div class="da-card">
-        <p class="da-num">${d.num_da}</p>
-        <p class="da-four">${d.fournisseur || '—'}</p>
-        <div class="da-foot">
-          <span class="da-contrat">${d.contrat || '—'}</span>
+        <div class="da-top">
+          <div>
+            <p class="da-num">${d.num_da}</p>
+            <p class="da-four">${resolveFour(d.fournisseur) || '—'} · ${fmtDate(d.date_da)}</p>
+          </div>
           <span class="da-days ${daysClass}">${daysText}</span>
         </div>
+        <div class="da-arts">${artsHtml}</div>
+        <div class="da-foot">
+          <span class="da-contrat">${resolveContrat(d.contrat) || '—'}</span>
+          <span class="da-total">${fmt(total)}</span>
+        </div>
       </div>`;
-  }
-
-  const enCoursHtml = enCours.length ? enCours.map(cardHtml).join('') : '<div class="empty">Aucune DA en préparation</div>';
-  const envoyeeHtml = envoyee.length ? envoyee.map(cardHtml).join('') : '<div class="empty">Aucune DA envoyée</div>';
-
-  container.innerHTML = `
-    <div class="kanban">
-      <div class="col">
-        <div class="col-head">
-          <span class="col-title"><span class="col-dot" style="background:#888"></span>En cours</span>
-          <span class="col-count">${enCours.length}</span>
-        </div>
-        ${enCoursHtml}
-      </div>
-      <div class="col">
-        <div class="col-head">
-          <span class="col-title"><span class="col-dot" style="background:#378ADD"></span>Envoyée à PGM</span>
-          <span class="col-count">${envoyee.length}</span>
-        </div>
-        ${envoyeeHtml}
-      </div>
-    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
 }
 
 function loadData() {
   if (window.grist) {
-    grist.ready({ requiredAccess: 'read table' });
-    grist.onRecords((records) => {
-      allData = records.map(r => ({
-        num_da:      r.Num_DA || '',
-        contrat:     r.Contrat || '',
-        fournisseur: r.Fournisseur || '',
-        date_da:     r.Date_DA,
-        statut:      r.Statut || '',
-      })).filter(d => d.num_da && (d.statut === 'En cours' || d.statut === 'Envoyée PGM'));
-
-      render(allData);
-    });
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+    window.addEventListener('focus', () => fetchAll());
   } else {
-    document.getElementById('loading').textContent = 'Connectez ce widget à la table Demandes_achat.';
+    document.getElementById('loading').textContent = 'Connectez ce widget à Grist.';
   }
 }
 
