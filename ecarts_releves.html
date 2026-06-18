@@ -65,7 +65,7 @@ const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', '
 function getCat(label) { for (const k of CAT_ORDER) if (label.includes(k)) return k; return 'Autre'; }
 function catStyle(cat) { return CAT_COLORS[cat] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
 
-function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v); }
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function fmtSign(v) { const s = v >= 0 ? '+ ' : '− '; return s + fmt(Math.abs(v)); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
