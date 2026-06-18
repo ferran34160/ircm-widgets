@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi des livraisons</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+.title { font-size: 15px; font-weight: 500; }
+.filters { display: flex; gap: 6px; }
+.filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+.filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
+.da-group { margin-bottom: 18px; max-width: 620px; }
+.da-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #e8e8e8; }
+@media (prefers-color-scheme: dark) { .da-head { border-bottom-color: #383838; } }
+.da-num { font-size: 13px; font-weight: 600; }
+.da-meta { font-size: 11px; color: #888; }
+.da-progress { font-size: 11px; margin-left: auto; padding: 2px 8px; border-radius: 8px; background: rgba(0,0,0,0.06); }
+@media (prefers-color-scheme: dark) { .da-progress { background: rgba(255,255,255,0.1); } }
+.art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; }
+@media (prefers-color-scheme: dark) { .art { border-color: #383838; } }
+.art.recu { background: #F2FAF6; border-color: #C6E8DA; }
+@media (prefers-color-scheme: dark) { .art.recu { background: #16291F; border-color: #2C4A3B; } }
+.art-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.art-name { font-size: 13px; font-weight: 500; }
+.art-ref { font-size: 11px; color: #888; margin-top: 1px; }
+.art-status { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 7px; white-space: nowrap; cursor: pointer; }
+.art-status.recu { background: #1D9E75; color: #fff; }
+.art-status.attente { background: #F0E2C8; color: #8A6D1F; }
+@media (prefers-color-scheme: dark) { .art-status.attente { background: #4A3D1A; color: #E0C77C; } }
+.art-livraison { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e0e0e0; font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 10px; }
+@media (prefers-color-scheme: dark) { .art-livraison { border-top-color: #3a3a3a; color: #aaa; } }
+.art-livraison b { font-weight: 500; color: #444; }
+@media (prefers-color-scheme: dark) { .art-livraison b { color: #ccc; } }
+.form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e0e0e0; display: none; }
+.form.open { display: block; }
+@media (prefers-color-scheme: dark) { .form { border-top-color: #3a3a3a; } }
+.form-row { display: flex; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
+.form-field { flex: 1; min-width: 120px; }
+.form-field label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 2px; }
+.form-field input { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .form-field input { border-color: #444; } }
+.form-actions { display: flex; gap: 8px; margin-top: 4px; }
+.btn { font-size: 12px; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; }
+.btn-save { background: #1D9E75; color: #fff; }
+.btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
+@media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
+.btn-edit { font-size: 11px; color: #378ADD; background: none; border: none; cursor: pointer; padding: 0; margin-top: 6px; }
+.empty { text-align: center; padding: 30px; color: #aaa; }
+.loading { text-align: center; padding: 40px; color: #888; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Suivi des livraisons</div>
+  <div class="filters">
+    <button class="filter-btn active" data-f="tous" onclick="setFilter('tous')">Tous</button>
+    <button class="filter-btn" data-f="attente" onclick="setFilter('attente')">En attente</button>
+    <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
+  </div>
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+
+<script>
+let articles = [], dasMap = {}, fourNoms = {}, filter = 'tous';
+
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+function dateInput(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d))return ''; return d.toISOString().slice(0,10); }
+
+async function fetchAll() {
+  try {
+    const [c, d, fo] = await Promise.all([
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Fournisseurs'),
+    ]);
+
+    fourNoms = {};
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
+    function resolFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
+
+    dasMap = {};
+    (d.id||[]).forEach((id,i)=>{ dasMap[id]={
+      num_da:(d.Num_DA||[])[i]||('DA#'+id),
+      fournisseur:resolFour((d.Fournisseur||[])[i]),
+      date_da:(d.Date_DA||[])[i], statut:(d.Statut||[])[i]||'',
+    };});
+
+    articles = (c.id||[]).map((id,i)=>({
+      id,
+      demande_achat:(c.Demande_achat||[])[i]||null,
+      designation:(c.Designation2||[])[i]||'',
+      ref:(c.Reference_fournisseur||[])[i]||'',
+      qte:(c.Quantite||[])[i]||1,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      date_livraison:(c.Date_livraison||[])[i]||null,
+      lieu:(c.Lieu_stockage||[])[i]||'',
+      recu_par:(c.Recu_par||[])[i]||'',
+      notes:(c.Notes_livraison||[])[i]||'',
+    }));
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
+  }
+}
+
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  render();
+}
+
+function render() {
+  const container = document.getElementById('container');
+
+  // Filtrar articles segons l'estat de livraison
+  let arts = articles.filter(a => {
+    const recu = !!a.date_livraison;
+    if (filter === 'recu') return recu;
+    if (filter === 'attente') return !recu;
+    return true;
+  });
+
+  if (arts.length === 0) {
+    container.innerHTML = '<div class="empty">Aucun article.</div>';
+    return;
+  }
+
+  // Agrupar per DA
+  const groups = {};
+  arts.forEach(a => {
+    const key = a.demande_achat || 'sans';
+    (groups[key] = groups[key] || []).push(a);
+  });
+
+  // Ordenar DA per Num_DA
+  const keys = Object.keys(groups).sort((a,b) => {
+    const na = dasMap[a] ? dasMap[a].num_da : 'zzz';
+    const nb = dasMap[b] ? dasMap[b].num_da : 'zzz';
+    return String(na).localeCompare(String(nb), undefined, {numeric:true});
+  });
+
+  let html = '';
+  keys.forEach(key => {
+    const da = dasMap[key];
+    const arts = groups[key];
+    const nbRecu = arts.filter(a => a.date_livraison).length;
+
+    const numDA = da ? da.num_da : 'Sans DA';
+    const meta = da ? `${da.fournisseur || ''} · ${fmtDate(da.date_da)}` : '';
+
+    html += `<div class="da-group">
+      <div class="da-head">
+        <span class="da-num">${numDA}</span>
+        <span class="da-meta">${meta}</span>
+        <span class="da-progress">${nbRecu}/${arts.length} reçus</span>
+      </div>`;
+
+    arts.forEach(a => {
+      const recu = !!a.date_livraison;
+      html += `
+        <div class="art ${recu ? 'recu' : ''}">
+          <div class="art-top">
+            <div>
+              <div class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</div>
+              <div class="art-ref">${a.ref ? 'Réf: ' + a.ref + ' · ' : ''}${fmt(a.montant)}</div>
+            </div>
+            <span class="art-status ${recu ? 'recu' : 'attente'}" onclick="toggleForm(${a.id})">${recu ? '✓ Reçu' : 'En attente'}</span>
+          </div>
+          ${recu ? `<div class="art-livraison">
+            <span><b>Livré:</b> ${fmtDate(a.date_livraison)}</span>
+            ${a.lieu ? `<span><b>Lieu:</b> ${a.lieu}</span>` : ''}
+            ${a.recu_par ? `<span><b>Reçu par:</b> ${a.recu_par}</span>` : ''}
+            ${a.notes ? `<span><b>Notes:</b> ${a.notes}</span>` : ''}
+          </div>
+          <button class="btn-edit" onclick="toggleForm(${a.id})">Modifier</button>` : ''}
+          <div class="form" id="form-${a.id}">
+            <div class="form-row">
+              <div class="form-field"><label>Date livraison</label><input type="date" id="date-${a.id}" value="${dateInput(a.date_livraison)}"></div>
+              <div class="form-field"><label>Lieu stockage</label><input type="text" id="lieu-${a.id}" value="${a.lieu.replace(/"/g,'&quot;')}"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-field"><label>Reçu par</label><input type="text" id="recu-${a.id}" value="${a.recu_par.replace(/"/g,'&quot;')}"></div>
+              <div class="form-field"><label>Notes</label><input type="text" id="notes-${a.id}" value="${a.notes.replace(/"/g,'&quot;')}"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-save" onclick="saveLivraison(${a.id})">Enregistrer</button>
+              <button class="btn btn-cancel" onclick="toggleForm(${a.id})">Annuler</button>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleForm(id) {
+  const form = document.getElementById('form-' + id);
+  if (form) form.classList.toggle('open');
+}
+
+async function saveLivraison(id) {
+  const dateVal = document.getElementById('date-' + id).value;
+  const lieu = document.getElementById('lieu-' + id).value;
+  const recu = document.getElementById('recu-' + id).value;
+  const notes = document.getElementById('notes-' + id).value;
+
+  // Convertir data a segons des de epoch (format Grist)
+  let dateGrist = null;
+  if (dateVal) {
+    dateGrist = Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000);
+  }
+
+  try {
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Commandes', id, {
+        Date_livraison: dateGrist,
+        Lieu_stockage: lieu,
+        Recu_par: recu,
+        Notes_livraison: notes,
+      }]
+    ]);
+    await fetchAll();
+  } catch(e) {
+    alert('Erreur: ' + e.message);
+  }
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+    window.addEventListener('focus', () => fetchAll());
+  } else {
+    document.getElementById('container').innerHTML = '<div class="empty">Connectez à Grist.</div>';
+  }
+}
+const s = document.createElement('script');
+s.src='https://docs.getgrist.com/grist-plugin-api.js';
+s.onload=loadData; s.onerror=loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
