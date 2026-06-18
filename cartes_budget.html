@@ -69,7 +69,7 @@ function catStyle(cat) {
 }
 
 function fmt(v) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 function fmtDate(g) {
   if (!g) return null;
