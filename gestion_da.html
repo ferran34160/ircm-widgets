@@ -92,12 +92,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   <button class="tab" data-f="BC reçu" onclick="setTab('BC reçu')">BC reçu</button>
   <button class="tab" data-f="libres" onclick="setTab('libres')">Articles libres</button>
   <span class="spacer"></span>
+  <button class="tab" style="border-color:#1D9E75; color:#1D9E75;" onclick="openNewDA()">+ Nouvelle DA</button>
   <button class="refresh" onclick="fetchAll()" title="Actualiser">↻</button>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
 let das = [], commandes = [], contratNoms = {}, fourNoms = {};
+let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set();
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -109,17 +111,25 @@ function resolveFour(v){ if(v==null)return''; if(typeof v==='number')return four
 
 async function fetchAll() {
   try {
-    const [d, c, ct, fo] = await Promise.all([
+    const [d, c, ct, fo, lb] = await Promise.all([
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Contrats'),
       grist.docApi.fetchTable('Fournisseurs'),
+      grist.docApi.fetchTable('Lignes_budgetaires'),
     ]);
 
     contratNoms = {};
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    contratsList = [];
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); contratsList.push({id, nom:contratNoms[id]}); });
     fourNoms = {};
-    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
+    fournisseursList = [];
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); fournisseursList.push({id, nom:fourNoms[id]}); });
+    lignesList = (lb.id||[]).map((id,i)=>({
+      id,
+      label:(lb.Label||[])[i]||'',
+      contrat:(lb.Contrat||[])[i],
+    }));
 
     das = (d.id||[]).map((id,i)=>({
       id,
@@ -329,6 +339,110 @@ async function assignArticles() {
     msg.className = 'msg err';
     msg.textContent = 'Erreur : ' + e.message;
     btn.disabled = false;
+  }
+}
+
+
+function openNewDA() {
+  tab = 'nouvelle';
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  renderNewDA(document.getElementById('container'));
+}
+
+function renderNewDA(container) {
+  const contratsOpts = '<option value="">— Choisir —</option>' +
+    contratsList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
+      .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+  const fourOpts = '<option value="">— Choisir —</option>' +
+    fournisseursList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
+      .map(f => `<option value="${f.id}">${f.nom}</option>`).join('');
+  const today = new Date().toISOString().slice(0,10);
+
+  container.innerHTML = `
+    <div style="max-width:480px;">
+      <div class="panel-title">Nouvelle demande d'achat</div>
+      <div style="border:1px solid #e5e5e5; border-radius:11px; padding:16px;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Contrat</label>
+          <select class="assign-da-select" id="new-contrat" style="margin-bottom:0;" onchange="onNewContratChange()">${contratsOpts}</select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Ligne budgétaire</label>
+          <select class="assign-da-select" id="new-ligne" style="margin-bottom:0;" disabled><option value="">— Choisir d'abord un contrat —</option></select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Fournisseur</label>
+          <select class="assign-da-select" id="new-four" style="margin-bottom:0;">${fourOpts}</select>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Date DA</label>
+          <input type="date" class="assign-da-select" id="new-date" style="margin-bottom:0;" value="${today}">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-assign" style="margin-top:0;" onclick="createDA()">Créer la DA</button>
+          <button class="tab" onclick="setTab('toutes')">Annuler</button>
+        </div>
+        <div class="msg" id="new-msg"></div>
+      </div>
+    </div>`;
+}
+
+function onNewContratChange() {
+  const contratId = document.getElementById('new-contrat').value;
+  const sel = document.getElementById('new-ligne');
+  if (!contratId) {
+    sel.innerHTML = '<option value="">— Choisir d\'abord un contrat —</option>';
+    sel.disabled = true;
+    return;
+  }
+  // Filtrar línies del contracte seleccionat
+  const lignesContrat = lignesList.filter(l => {
+    const c = l.contrat;
+    const cid = typeof c === 'number' ? c : (Array.isArray(c) ? c[1] : null);
+    return cid == contratId;
+  });
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">— Choisir —</option>' +
+    lignesContrat.map(l => {
+      const parts = l.label.split('|');
+      const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+      return `<option value="${l.id}">${sub}</option>`;
+    }).join('');
+}
+
+async function createDA() {
+  const contratId = document.getElementById('new-contrat').value;
+  const ligneId = document.getElementById('new-ligne').value;
+  const fourId = document.getElementById('new-four').value;
+  const dateVal = document.getElementById('new-date').value;
+  const msg = document.getElementById('new-msg');
+
+  if (!contratId || !ligneId || !fourId) {
+    msg.className = 'msg err';
+    msg.textContent = 'Contrat, ligne et fournisseur sont obligatoires.';
+    return;
+  }
+
+  let dateDA = null;
+  if (dateVal) dateDA = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
+
+  try {
+    await grist.docApi.applyUserActions([
+      ['AddRecord', 'Demandes_achat', null, {
+        Contrat: Number(contratId),
+        Ligne_budgetaire: Number(ligneId),
+        Fournisseur: Number(fourId),
+        Date_DA: dateDA,
+        Statut: 'En cours',
+      }]
+    ]);
+    msg.className = 'msg ok';
+    msg.textContent = 'DA créée avec succès !';
+    await fetchAll();
+    setTimeout(() => setTab('En cours'), 800);
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
   }
 }
 
