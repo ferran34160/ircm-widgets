@@ -120,8 +120,10 @@ function setFilter(f) {
 function render() {
   const container = document.getElementById('container');
 
-  // Filtrar articles segons l'estat de livraison
+  // Només articles de DA amb statut "BC reçu"
   let arts = articles.filter(a => {
+    const da = dasMap[a.demande_achat];
+    if (!da || da.statut !== 'BC reçu') return false;
     const recu = !!a.date_livraison;
     if (filter === 'recu') return recu;
     if (filter === 'attente') return !recu;
