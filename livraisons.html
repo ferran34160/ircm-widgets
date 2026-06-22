@@ -30,10 +30,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .da-progress { background: rgba(255,255,255,0.12); } }
 .da-progress.complete { background: #1D9E75; color: #fff; }
 .da-days { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 7px; white-space: nowrap; margin-left: 6px; }
-.da-days.normal { background: rgba(0,0,0,0.06); color: #888; }
-.da-days.warn { background: #F0E2C8; color: #8A6D1F; }
+.da-days.jaune { background: #FAF0CC; color: #8A7510; }
+.da-days.orange { background: #FBE2CC; color: #9A5410; }
 .da-days.urgent { background: #E24B4A; color: #fff; }
-@media (prefers-color-scheme: dark) { .da-days.normal { background: rgba(255,255,255,0.1); color: #aaa; } .da-days.warn { background: #4A3D1A; color: #E0C77C; } }
+@media (prefers-color-scheme: dark) { .da-days.jaune { background: #4A4413; color: #E8D77C; } .da-days.orange { background: #4A3318; color: #E8B27C; } }
 .da-body { padding: 10px 14px; }
 .art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; background: #fff; }
 .art:last-child { margin-bottom: 0; }
@@ -216,9 +216,9 @@ function render() {
       const days = daysSince(refDate);
       if (days !== null) {
         const daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
-        let dc = 'normal';
-        if (days > 21) dc = 'urgent';
-        else if (days > 10) dc = 'warn';
+        let dc = 'jaune';
+        if (days > 14) dc = 'urgent';
+        else if (days >= 7) dc = 'orange';
         daysBadge = `<span class="da-days ${dc}">${daysText}</span>`;
       }
     }
