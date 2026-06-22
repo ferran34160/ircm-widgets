@@ -95,7 +95,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   <button class="tab" data-f="libres" onclick="setTab('libres')">Articles libres</button>
   <span class="spacer"></span>
   <button class="btn-new" onclick="openNewDA()"><span style="font-size:15px; line-height:1;">+</span> Nouvelle DA</button>
-  <button class="refresh" onclick="fetchAll()" title="Actualiser">↻</button>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
@@ -352,6 +351,17 @@ function openNewDA() {
   renderNewDA(document.getElementById('container'));
 }
 
+function nextNumDA() {
+  // Buscar el número més alt existent i sumar 1
+  let maxN = 0;
+  das.forEach(d => {
+    const m = String(d.num_da).match(/(\d+)/);
+    if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
+  });
+  const next = maxN + 1;
+  return 'DA-' + String(next).padStart(3, '0');
+}
+
 function renderNewDA(container) {
   const contratsOpts = '<option value="">— Choisir —</option>' +
     contratsList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
@@ -362,9 +372,13 @@ function renderNewDA(container) {
   const today = new Date().toISOString().slice(0,10);
 
   container.innerHTML = `
-    <div style="max-width:480px;">
+    <div style="max-width:380px;">
       <div class="panel-title">Nouvelle demande d'achat</div>
       <div style="border:1px solid #e5e5e5; border-radius:11px; padding:16px;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">N° DA</label>
+          <input type="text" class="assign-da-select" id="new-num" style="margin-bottom:0;" value="${nextNumDA()}">
+        </div>
         <div style="margin-bottom:12px;">
           <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Contrat</label>
           <select class="assign-da-select" id="new-contrat" style="margin-bottom:0;" onchange="onNewContratChange()">${contratsOpts}</select>
@@ -414,15 +428,16 @@ function onNewContratChange() {
 }
 
 async function createDA() {
+  const numDA = document.getElementById('new-num').value.trim();
   const contratId = document.getElementById('new-contrat').value;
   const ligneId = document.getElementById('new-ligne').value;
   const fourId = document.getElementById('new-four').value;
   const dateVal = document.getElementById('new-date').value;
   const msg = document.getElementById('new-msg');
 
-  if (!contratId || !ligneId || !fourId) {
+  if (!numDA || !contratId || !ligneId || !fourId) {
     msg.className = 'msg err';
-    msg.textContent = 'Contrat, ligne et fournisseur sont obligatoires.';
+    msg.textContent = 'N° DA, contrat, ligne et fournisseur sont obligatoires.';
     return;
   }
 
@@ -432,6 +447,7 @@ async function createDA() {
   try {
     await grist.docApi.applyUserActions([
       ['AddRecord', 'Demandes_achat', null, {
+        Num_DA: numDA,
         Contrat: Number(contratId),
         Ligne_budgetaire: Number(ligneId),
         Fournisseur: Number(fourId),
