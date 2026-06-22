@@ -214,9 +214,13 @@ function render() {
   container.innerHTML = html;
 }
 
+let formOpen = false;
 function toggleBC(id) {
   const form = document.getElementById('bc-form-' + id);
-  if (form) form.classList.toggle('open');
+  if (form) {
+    form.classList.toggle('open');
+    formOpen = form.classList.contains('open');
+  }
 }
 
 async function saveBC(id) {
@@ -238,6 +242,7 @@ async function saveBC(id) {
         Statut: 'BC reçu',
       }]
     ]);
+    formOpen = false;
     await fetchAll();
   } catch(e) {
     alert('Erreur: ' + e.message);
@@ -248,8 +253,8 @@ function loadData() {
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
     fetchAll();
-    grist.onRecords(() => fetchAll());
-    window.addEventListener('focus', () => fetchAll());
+    grist.onRecords(() => { if (!formOpen) fetchAll(); });
+    window.addEventListener('focus', () => { if (!formOpen) fetchAll(); });
   } else {
     document.getElementById('loading').textContent = 'Connectez ce widget à Grist.';
   }
