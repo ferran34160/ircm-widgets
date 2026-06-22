@@ -8,7 +8,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
-.toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
 .tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
@@ -92,13 +92,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </style>
 </head>
 <body>
-<div class="toolbar">
-  <button class="tab active" data-f="toutes" onclick="setTab('toutes')">Toutes</button>
-  <button class="tab" data-f="En cours" onclick="setTab('En cours')">En cours</button>
-  <button class="tab" data-f="Envoyée PGM" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
-  <button class="tab" data-f="BC reçu" onclick="setTab('BC reçu')">BC reçu</button>
-  <button class="tab" data-f="libres" onclick="setTab('libres')">Articles libres</button>
-</div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
@@ -163,7 +156,6 @@ async function fetchAll() {
 
 function setTab(t) {
   tab = t;
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.f === t));
   selectedDA = null;
   selectedArts.clear();
   render();
@@ -227,6 +219,13 @@ function render() {
         </div>
       </div>
       <div class="panel">
+        <div class="toolbar">
+          <button class="tab ${tab==='toutes'?'active':''}" onclick="setTab('toutes')">Toutes</button>
+          <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
+          <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
+          <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
+          <button class="tab ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
+        </div>
         <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
         <div class="da-list">${listHtml}</div>
       </div>
@@ -359,7 +358,6 @@ async function assignArticles() {
 
 function openNewDA() {
   tab = 'nouvelle';
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   renderNewDA(document.getElementById('container'));
 }
 
