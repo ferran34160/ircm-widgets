@@ -165,21 +165,13 @@ function render() {
     if (a.date_livraison) totauxDA[key].recus += 1;
   });
 
-  // Només articles de DA amb statut "BC reçu", excloent els hors-livraison
+  // Tots els articles de DA "BC reçu" (excloent serveis) — sempre es mostren tots els de la DA
   let arts = articles.filter(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return false;
     if (estService(a)) return false;
-    const recu = !!a.date_livraison;
-    if (filter === 'recu') return recu;
-    if (filter === 'attente') return !recu;
     return true;
   });
-
-  if (arts.length === 0) {
-    container.innerHTML = '<div class="empty">Aucun article.</div>';
-    return;
-  }
 
   // Agrupar per DA
   const groups = {};
@@ -187,6 +179,19 @@ function render() {
     const key = a.demande_achat || 'sans';
     (groups[key] = groups[key] || []).push(a);
   });
+
+  // Filtrar a nivell de DA segons l'estat de complecció
+  Object.keys(groups).forEach(key => {
+    const t = totauxDA[key] || { total: 0, recus: 0 };
+    const complete = t.total > 0 && t.recus === t.total;
+    if (filter === 'recu' && !complete) delete groups[key];      // Reçus: només DA completes
+    if (filter === 'attente' && complete) delete groups[key];     // En attente: només DA amb pendents
+  });
+
+  if (Object.keys(groups).length === 0) {
+    container.innerHTML = '<div class="empty">Aucune DA.</div>';
+    return;
+  }
 
   // Ordenar DA per Num_DA
   const keys = Object.keys(groups).sort((a,b) => {
