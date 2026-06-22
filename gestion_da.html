@@ -17,13 +17,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-new:hover { background: #178A65; }
 .refresh { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .refresh { border-color: #444; } }
-.layout { display: grid; grid-template-columns: 320px 1fr; gap: 14px; align-items: start; }
-@media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+.layout { display: grid; grid-template-columns: auto 300px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
 .da-list { display: flex; flex-direction: column; gap: 6px; max-height: 640px; overflow-y: auto; }
-.new-da-card { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 10px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); }
+.new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
 .new-da-card:hover { background: #178A65; }
-.new-da-icon { width: 34px; height: 34px; border-radius: 9px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 300; flex-shrink: 0; }
+.new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
 .new-da-title { font-size: 14px; font-weight: 600; }
 .new-da-sub { font-size: 11px; opacity: 0.85; }
 .da-item { border: 1px solid #e5e5e5; border-radius: 9px; padding: 9px 11px; cursor: pointer; }
@@ -218,17 +218,17 @@ function render() {
   container.innerHTML = `
     <div class="layout">
       <div class="panel">
-        <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
-        <div class="da-list">
-          <div class="new-da-card" onclick="openNewDA()">
-            <div class="new-da-icon">+</div>
-            <div>
-              <div class="new-da-title">Nouvelle DA</div>
-              <div class="new-da-sub">Créer une demande d'achat</div>
-            </div>
+        <div class="new-da-card" onclick="openNewDA()">
+          <div class="new-da-icon">+</div>
+          <div>
+            <div class="new-da-title">Nouvelle DA</div>
+            <div class="new-da-sub">Créer une demande d'achat</div>
           </div>
-          ${listHtml}
         </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
+        <div class="da-list">${listHtml}</div>
       </div>
       <div class="panel">
         <div class="panel-title">Détail</div>
