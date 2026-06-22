@@ -29,6 +29,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-progress { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 8px; background: rgba(0,0,0,0.07); white-space: nowrap; }
 @media (prefers-color-scheme: dark) { .da-progress { background: rgba(255,255,255,0.12); } }
 .da-progress.complete { background: #1D9E75; color: #fff; }
+.da-days { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 7px; white-space: nowrap; margin-left: 6px; }
+.da-days.normal { background: rgba(0,0,0,0.06); color: #888; }
+.da-days.warn { background: #F0E2C8; color: #8A6D1F; }
+.da-days.urgent { background: #E24B4A; color: #fff; }
+@media (prefers-color-scheme: dark) { .da-days.normal { background: rgba(255,255,255,0.1); color: #aaa; } .da-days.warn { background: #4A3D1A; color: #E0C77C; } }
 .da-body { padding: 10px 14px; }
 .art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; background: #fff; }
 .art:last-child { margin-bottom: 0; }
@@ -83,6 +88,7 @@ let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente';
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+function daysSince(g){ const ms=toMs(g); if(!ms)return null; return Math.floor((Date.now()-ms)/(1000*60*60*24)); }
 function dateInput(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d))return ''; return d.toISOString().slice(0,10); }
 
 async function fetchAll() {
@@ -202,11 +208,26 @@ function render() {
     const numBC = da ? da.num_bc : '';
 
     const complete = totaux.recus === totaux.total && totaux.total > 0;
+    // Badge de dies d'espera (només si queden articles pendents)
+    const enAttente = totaux.total - totaux.recus;
+    let daysBadge = '';
+    if (enAttente > 0) {
+      const refDate = da && da.date_pgm ? da.date_pgm : (da ? da.date_da : null);
+      const days = daysSince(refDate);
+      if (days !== null) {
+        const daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
+        let dc = 'normal';
+        if (days > 21) dc = 'urgent';
+        else if (days > 10) dc = 'warn';
+        daysBadge = `<span class="da-days ${dc}">${daysText}</span>`;
+      }
+    }
+
     html += `<div class="da-group">
       <div class="da-head">
         <div class="da-head-top">
-          <span class="da-num">${numDA} <span class="da-num-date">/ Commande PGM du ${datePGM}</span></span>
-          <span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span>
+          <span class="da-num">${numDA} <span class="da-num-date">/ PGM du ${datePGM}</span></span>
+          <span style="display:flex; align-items:center;">${daysBadge}<span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span></span>
         </div>
         <div class="da-route">${contrat} <span class="da-arrow">→</span> ${fournisseur}${numBC ? ` <span class="da-bc">/ BC ${numBC}</span>` : ''}</div>
       </div>
