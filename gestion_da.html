@@ -181,6 +181,7 @@ function badgeClass(statut) {
 function render() {
   const container = document.getElementById('container');
 
+  if (tab === 'nouvelle') { renderNewDA(container); return; }
   if (tab === 'libres') { renderLibres(container); return; }
 
   // Llista de DA filtrada
@@ -452,8 +453,8 @@ function loadData() {
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
     fetchAll();
-    grist.onRecords(() => fetchAll());
-    window.addEventListener('focus', () => fetchAll());
+    grist.onRecords(() => { if (tab !== 'nouvelle') fetchAll(); });
+    window.addEventListener('focus', () => { if (tab !== 'nouvelle') fetchAll(); });
   } else {
     document.getElementById('container').innerHTML = '<div class="empty">Connectez à Grist.</div>';
   }
