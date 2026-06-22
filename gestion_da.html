@@ -47,7 +47,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-item-meta { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .da-item-foot { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; }
 .da-item-total { font-weight: 500; }
-.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; max-width: 540px; }
+.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; max-width: 640px; }
 @media (prefers-color-scheme: dark) { .detail { border-color: #383838; } }
 .detail-head { background: #eef2f6; padding: 11px 13px; }
 @media (prefers-color-scheme: dark) { .detail-head { background: #283038; } }
@@ -190,7 +190,7 @@ function render() {
     const sel = selectedDA === d.id ? 'sel' : '';
     const nb = nbProduits(d.id);
     listHtml += `
-      <div class="da-item ${sel}" onclick="selectDA(${d.id})">
+      <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
         <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
         <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
         <div class="da-item-foot"><span style="color:#999">${nb} art. · ${fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
@@ -270,7 +270,17 @@ function renderDetail(d) {
 
 function selectDA(id) {
   selectedDA = id;
-  render();
+  // Actualitzar selecció visual de la llista
+  document.querySelectorAll('.da-item').forEach(el => el.classList.remove('sel'));
+  const item = document.querySelector('.da-item[data-da="' + id + '"]');
+  if (item) item.classList.add('sel');
+  // Actualitzar el panell de detall directament
+  const d = das.find(x => x.id === id);
+  const panels = document.querySelectorAll('.layout .panel');
+  const detailPanel = panels[panels.length - 1];
+  if (detailPanel) {
+    detailPanel.innerHTML = '<div class="panel-title">Détail</div>' + renderDetail(d);
+  }
 }
 
 function renderLibres(container) {
