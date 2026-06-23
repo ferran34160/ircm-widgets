@@ -410,7 +410,6 @@ async function openAttachment(attId) {
 }
 
 function uploadFile(daId, field) {
-  // Crear un input file temporal
   const input = document.createElement('input');
   input.type = 'file';
   input.onchange = async () => {
@@ -420,17 +419,28 @@ function uploadFile(daId, field) {
       // 1. Obtenir un token amb permís d'escriptura
       const tokenInfo = await grist.docApi.getAccessToken({ readOnly: false });
 
-      // 2. Pujar el fitxer via l'API REST
+      // 2. Pujar el fitxer via XMLHttpRequest (evita bloqueig CORS de fetch en iframe)
       const formData = new FormData();
       formData.append('upload', file, file.name);
-      const response = await fetch(`${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`, {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      const url = `${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`;
+
+      const newId = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              resolve(result[0]);
+            } catch(e) { reject(new Error('Resposta invàlida del servidor')); }
+          } else {
+            reject(new Error(`${xhr.status} ${xhr.statusText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Error de xarxa (CORS o connexió)'));
+        xhr.send(formData);
       });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      const result = await response.json();
-      const newId = result[0];
 
       // 3. Llegir els IDs actuals d'aquest camp i afegir-hi el nou
       const da = das.find(x => x.id === daId);
