@@ -276,7 +276,7 @@ function renderFrame(centerAndRight) {
 
 // Contingut de la vista llista (columna llista + detall)
 function renderListContent() {
-  let list = das.slice();
+  let list = das.slice().filter(d => d.statut !== 'Annulée');
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
@@ -393,7 +393,7 @@ function renderDetail(d) {
           <span class="detail-num">${d.num_da}</span>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
-            <button class="btn-delete" onclick="toggleDelete(${d.id})">🗑 Supprimer</button>
+            <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
           </div>
         </div>
         <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'} · ${fmtDate(d.date_da)}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
@@ -409,11 +409,11 @@ function renderDetail(d) {
       </div>
       ${actionHtml}
       <div class="delete-confirm" id="del-confirm-${d.id}">
-        <div class="delete-confirm-title">⚠ Supprimer cette DA ?</div>
+        <div class="delete-confirm-title">⚠ Annuler cette DA ? (le numéro sera libéré)</div>
         <div class="delete-confirm-row">
-          <button class="btn-del-only" onclick="deleteDA(${d.id}, false)">DA seulement (articles → libres)</button>
-          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">DA + tous les articles</button>
-          <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Annuler</button>
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, false)">Annuler (articles → libres)</button>
+          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">Annuler (garder les articles)</button>
+          <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Retour</button>
         </div>
       </div>
     </div>`;
@@ -426,29 +426,35 @@ function toggleDelete(id) {
 
 async function deleteDA(id, withArticles) {
   try {
+    const da = das.find(x => x.id === id);
+    const arts = commandes.filter(c => c.demande_achat === id);
     const actions = [];
+
     if (withArticles) {
-      // Eliminar tots els articles de la DA
-      const arts = commandes.filter(c => c.demande_achat === id);
-      if (arts.length) {
-        actions.push(['BulkDeleteRecord', 'Commandes', arts.map(a => a.id)]);
-      }
+      // Articles restent rattachés mais marqués via la DA annulée (on les laisse)
+      // -> on garde le lien pour traçabilité
     } else {
-      // Desassignar articles (passen a lliures)
-      const arts = commandes.filter(c => c.demande_achat === id);
+      // Désassigner les articles (ils repassent en libres)
       if (arts.length) {
         actions.push(['BulkUpdateRecord', 'Commandes', arts.map(a => a.id), {
           Demande_achat: arts.map(() => null)
         }]);
       }
     }
-    // Eliminar la DA
-    actions.push(['BulkDeleteRecord', 'Demandes_achat', [id]]);
+
+    // Marquer la DA comme annulée + libérer le numéro (suffixe -ANN)
+    const numOrig = da ? String(da.num_da) : '';
+    const numAnn = numOrig.endsWith('-ANN') ? numOrig : numOrig + '-ANN';
+    actions.push(['UpdateRecord', 'Demandes_achat', id, {
+      Statut: 'Annulée',
+      Num_DA: numAnn,
+    }]);
+
     await grist.docApi.applyUserActions(actions);
     selectedDA = null;
     await fetchAll();
   } catch(e) {
-    alert('Erreur lors de la suppression : ' + e.message);
+    alert('Erreur lors de l\'annulation : ' + e.message);
   }
 }
 
@@ -607,9 +613,10 @@ function openNewDA() {
 }
 
 function nextNumDA() {
-  // Buscar el número més alt existent i sumar 1
+  // Buscar el número més alt existent i sumar 1 (ignorant les DA annulées)
   let maxN = 0;
   das.forEach(d => {
+    if (d.statut === 'Annulée' || String(d.num_da).endsWith('-ANN')) return;
     const m = String(d.num_da).match(/(\d+)/);
     if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
   });
