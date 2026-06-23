@@ -201,7 +201,7 @@ function render() {
         <div class="bc-form" id="bc-form-${d.id}">
           <div class="bc-form-row">
             <div class="bc-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
-            <div class="bc-field"><label>Date Order PGM</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_pgm)}"></div>
+            <div class="bc-field"><label>Date Order PGM</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_pgm) || new Date().toISOString().slice(0,10)}"></div>
           </div>
           <div class="bc-actions">
             <button class="bc-btn bc-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
