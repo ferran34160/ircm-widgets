@@ -417,18 +417,28 @@ function uploadFile(daId, field) {
     const file = input.files[0];
     if (!file) return;
     try {
-      // 1. Pujar el fitxer -> retorna [attachmentId]
-      const tokens = await grist.docApi.uploadAttachments([file]);
-      if (!tokens || !tokens.length) throw new Error('Upload échoué');
-      const newId = tokens[0];
+      // 1. Obtenir un token amb permís d'escriptura
+      const tokenInfo = await grist.docApi.getAccessToken({ readOnly: false });
 
-      // 2. Llegir els IDs actuals d'aquest camp i afegir-hi el nou
+      // 2. Pujar el fitxer via l'API REST
+      const formData = new FormData();
+      formData.append('upload', file, file.name);
+      const response = await fetch(`${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const result = await response.json();
+      const newId = result[0];
+
+      // 3. Llegir els IDs actuals d'aquest camp i afegir-hi el nou
       const da = das.find(x => x.id === daId);
       const fieldMap = { PJ: 'pj', BC: 'bc', DA: 'da', Autres: 'autres' };
       const current = attachIds(da[fieldMap[field]]);
       const updated = ['L', ...current, newId];
 
-      // 3. Guardar al camp de la DA
+      // 4. Guardar al camp de la DA
       await grist.docApi.applyUserActions([
         ['UpdateRecord', 'Demandes_achat', daId, { [field]: updated }]
       ]);
