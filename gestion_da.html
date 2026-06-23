@@ -412,7 +412,7 @@ function renderDetail(d) {
         <div class="delete-confirm-title">⚠ Annuler cette DA ? (le numéro sera libéré)</div>
         <div class="delete-confirm-row">
           <button class="btn-del-only" onclick="deleteDA(${d.id}, false)">Annuler (articles → libres)</button>
-          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">Annuler (garder les articles)</button>
+          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">Annuler DA + articles</button>
           <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Retour</button>
         </div>
       </div>
