@@ -73,6 +73,18 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .detail-action-row input { border-color: #444; } .detail-action { border-top-color: #333; } }
 .btn-pgm { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 7px; border: none; background: #378ADD; color: #fff; cursor: pointer; }
 .btn-pgm:hover { background: #2D72BD; }
+.detail-files { padding: 11px 13px; border-top: 1px solid #eee; }
+@media (prefers-color-scheme: dark) { .detail-files { border-top-color: #333; } }
+.detail-files-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
+.detail-files-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.file-cat { display: flex; gap: 4px; }
+.file-link { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #E6F1FB; color: #0C447C; text-decoration: none; border: 1px solid #C5DFF5; cursor: pointer; }
+.file-link:hover { background: #D5E8FA; }
+.file-empty { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #f2f2f0; color: #bbb; border: 1px dashed #ddd; }
+@media (prefers-color-scheme: dark) {
+  .file-link { background: #0C2D4D; color: #9FC6F0; border-color: #1A4570; }
+  .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
+}
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
 @media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
 .detail-total { font-weight: 600; font-size: 14px; }
@@ -114,6 +126,17 @@ function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currenc
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 
+function attachIds(v){
+  // Grist attachments via fetchTable: ['L', id1, id2, ...] o null/[]
+  if (!v) return [];
+  if (Array.isArray(v)) {
+    if (v[0] === 'L') return v.slice(1).filter(x => typeof x === 'number');
+    return v.filter(x => typeof x === 'number');
+  }
+  if (typeof v === 'number') return [v];
+  return [];
+}
+
 function resolveContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
 function resolveFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
 
@@ -147,6 +170,10 @@ async function fetchAll() {
       date_da:(d.Date_DA||[])[i],
       statut:(d.Statut||[])[i]||'',
       num_bc:(d.Num_BC||[])[i]||'',
+      pj:(d.PJ||[])[i]||null,
+      bc:(d.BC||[])[i]||null,
+      da:(d.DA||[])[i]||null,
+      autres:(d.Autres||[])[i]||null,
     }));
 
     commandes = (c.id||[]).map((id,i)=>({
@@ -288,6 +315,21 @@ function renderDetail(d) {
       </div>`;
   }
 
+  // Secció de fitxers adjunts
+  const fichiers = [
+    { label: 'PJ', ids: attachIds(d.pj) },
+    { label: 'BC', ids: attachIds(d.bc) },
+    { label: 'DA', ids: attachIds(d.da) },
+    { label: 'Autres', ids: attachIds(d.autres) },
+  ];
+  const filesHtml = fichiers.map(f => {
+    const has = f.ids.length > 0;
+    const links = has
+      ? f.ids.map((aid,idx) => `<a class="file-link" href="#" onclick="openAttachment(${aid}); return false;">${f.label}${f.ids.length>1?' '+(idx+1):''}</a>`).join('')
+      : `<span class="file-empty">${f.label}</span>`;
+    return `<div class="file-cat ${has?'has':''}">${links}</div>`;
+  }).join('');
+
   return `
     <div class="detail">
       <div class="detail-head">
@@ -302,8 +344,22 @@ function renderDetail(d) {
         <span style="color:#888">${footLabel}</span>
         <span class="detail-total">${fmt(total)}</span>
       </div>
+      <div class="detail-files">
+        <div class="detail-files-title">Documents</div>
+        <div class="detail-files-row">${filesHtml}</div>
+      </div>
       ${actionHtml}
     </div>`;
+}
+
+async function openAttachment(attId) {
+  try {
+    const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
+    const url = `${tokenInfo.baseUrl}/attachments/${attId}/download?auth=${tokenInfo.token}`;
+    window.open(url, '_blank');
+  } catch(e) {
+    alert('Impossible d\'ouvrir le fichier : ' + e.message);
+  }
 }
 
 async function envoyerPGM(id) {
