@@ -443,7 +443,7 @@ async function deleteDA(id, withArticles) {
       }
     }
     // Eliminar la DA
-    actions.push(['DeleteRecord', 'Demandes_achat', id]);
+    actions.push(['BulkDeleteRecord', 'Demandes_achat', [id]]);
     await grist.docApi.applyUserActions(actions);
     selectedDA = null;
     await fetchAll();
