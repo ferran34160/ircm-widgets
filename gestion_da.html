@@ -387,7 +387,7 @@ function renderDetail(d) {
 async function openAttachment(attId) {
   try {
     const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
-    const url = `${tokenInfo.baseUrl}/attachments/${attId}/download?auth=${tokenInfo.token}`;
+    const url = `${tokenInfo.baseUrl}/attachments/${attId}/download?auth=${tokenInfo.token}&inline=true`;
     window.open(url, '_blank');
   } catch(e) {
     alert('Impossible d\'ouvrir le fichier : ' + e.message);
