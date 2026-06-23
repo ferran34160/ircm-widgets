@@ -193,11 +193,11 @@ function render() {
     return;
   }
 
-  // Ordenar DA per Num_DA
+  // Ordenar DA per Date_OrderPGM (o Date_DA si no en té), les més antigues primer
   const keys = Object.keys(groups).sort((a,b) => {
-    const na = dasMap[a] ? dasMap[a].num_da : 'zzz';
-    const nb = dasMap[b] ? dasMap[b].num_da : 'zzz';
-    return String(na).localeCompare(String(nb), undefined, {numeric:true});
+    const ta = dasMap[a] ? (dasMap[a].date_pgm || dasMap[a].date_da || 0) : 0;
+    const tb = dasMap[b] ? (dasMap[b].date_pgm || dasMap[b].date_da || 0) : 0;
+    return ta - tb;
   });
 
   let html = '<div class="da-grid">';
