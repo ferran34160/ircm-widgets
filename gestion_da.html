@@ -22,7 +22,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .inner-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
 @media (max-width: 720px) { .inner-layout { grid-template-columns: 1fr; } }
 .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
-.four-filter { width: 100%; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; margin-bottom: 8px; }
+.filters-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.four-filter { flex: 1; min-width: 0; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; }
 @media (prefers-color-scheme: dark) { .four-filter { border-color: #444; } }
 .da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
 .new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
@@ -126,7 +127,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let das = [], commandes = [], contratNoms = {}, fourNoms = {};
 let contratsList = [], fournisseursList = [], lignesList = [];
-let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '';
+let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -265,6 +266,7 @@ function renderListContent() {
   let list = das.slice();
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
+  if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
   list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
   const nbLibres = commandes.filter(c => !c.demande_achat).length;
@@ -274,6 +276,12 @@ function renderListContent() {
     .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
   const fourOptions = '<option value="">Tous les fournisseurs</option>' +
     foursPresents.map(f => `<option value="${f.replace(/"/g,'&quot;')}" ${filterFour===f?'selected':''}>${f}</option>`).join('');
+
+  // Demandeurs presents en algun article
+  const demsPresents = [...new Set(commandes.flatMap(c => choixList(c.demandeur)))]
+    .filter(Boolean).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+  const demOptions = '<option value="">Tous les demandeurs</option>' +
+    demsPresents.map(x => `<option value="${x.replace(/"/g,'&quot;')}" ${filterDem===x?'selected':''}>${x}</option>`).join('');
 
   let listHtml = '';
   list.forEach(d => {
@@ -300,7 +308,10 @@ function renderListContent() {
     <div class="inner-layout">
       <div>
         <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
-        <select class="four-filter" onchange="setFilterFour(this.value)">${fourOptions}</select>
+        <div class="filters-row">
+          <select class="four-filter" onchange="setFilterFour(this.value)">${fourOptions}</select>
+          <select class="four-filter" onchange="setFilterDem(this.value)">${demOptions}</select>
+        </div>
         <div class="da-list">${listHtml}</div>
       </div>
       <div>
@@ -415,8 +426,20 @@ async function envoyerPGM(id) {
   }
 }
 
+function demandeursOfDA(daId) {
+  const set = new Set();
+  artsOf(daId).forEach(a => choixList(a.demandeur).forEach(x => set.add(x)));
+  return set;
+}
+
 function setFilterFour(v) {
   filterFour = v;
+  selectedDA = null;
+  render();
+}
+
+function setFilterDem(v) {
+  filterDem = v;
   selectedDA = null;
   render();
 }
