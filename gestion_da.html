@@ -22,7 +22,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .inner-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
 @media (max-width: 720px) { .inner-layout { grid-template-columns: 1fr; } }
 .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
-.da-list { display: flex; flex-direction: column; gap: 6px; max-height: 640px; overflow-y: auto; }
+.four-filter { width: 100%; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; margin-bottom: 8px; }
+@media (prefers-color-scheme: dark) { .four-filter { border-color: #444; } }
+.da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
 .new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
 .new-da-card:hover { background: #178A65; }
 .new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
@@ -62,6 +64,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .art { border-bottom-color: #2e2e2e; } }
 .art:last-child { border-bottom: none; }
 .art-name { word-break: break-word; }
+.art-main { display: flex; justify-content: space-between; gap: 10px; }
+.art-dem { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.dem-tag { font-size: 10px; padding: 1px 7px; border-radius: 5px; background: #EFEAF8; color: #5E3A9E; }
+@media (prefers-color-scheme: dark) { .dem-tag { background: #2E2440; color: #C4A8E8; } }
 .art-ref { color: #999; font-size: 11px; font-weight: 400; white-space: nowrap; }
 @media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
@@ -120,7 +126,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let das = [], commandes = [], contratNoms = {}, fourNoms = {};
 let contratsList = [], fournisseursList = [], lignesList = [];
-let tab = 'toutes', selectedDA = null, selectedArts = new Set();
+let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -184,6 +190,7 @@ async function fetchAll() {
       qte:(c.Quantite||[])[i]||1,
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       type_article:(c.Type_article||[])[i]||'Produit',
+      demandeur:(c.Demandeur||[])[i]||null,
     }));
 
     render();
@@ -197,6 +204,16 @@ function setTab(t) {
   selectedDA = null;
   selectedArts.clear();
   render();
+}
+
+function choixList(v) {
+  // Choix multiple via fetchTable: ['L', 'a', 'b'] o array simple
+  if (!v) return [];
+  if (Array.isArray(v)) {
+    if (v[0] === 'L') return v.slice(1);
+    return v;
+  }
+  return [String(v)];
 }
 
 function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
@@ -247,9 +264,16 @@ function renderFrame(centerAndRight) {
 function renderListContent() {
   let list = das.slice();
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
+  if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
   const nbLibres = commandes.filter(c => !c.demande_achat).length;
+
+  // Desplegable de proveïdors (només els que apareixen en alguna DA)
+  const foursPresents = [...new Set(das.map(d => d.fournisseur).filter(Boolean))]
+    .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+  const fourOptions = '<option value="">Tous les fournisseurs</option>' +
+    foursPresents.map(f => `<option value="${f.replace(/"/g,'&quot;')}" ${filterFour===f?'selected':''}>${f}</option>`).join('');
 
   let listHtml = '';
   list.forEach(d => {
@@ -276,6 +300,7 @@ function renderListContent() {
     <div class="inner-layout">
       <div>
         <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
+        <select class="four-filter" onchange="setFilterFour(this.value)">${fourOptions}</select>
         <div class="da-list">${listHtml}</div>
       </div>
       <div>
@@ -292,11 +317,18 @@ function renderDetail(d) {
   const nbProd = arts.filter(a=>a.type_article!=='Service').length;
   const nbServ = arts.filter(a=>a.type_article==='Service').length;
 
-  let artsHtml = arts.length ? arts.map(a => `
+  let artsHtml = arts.length ? arts.map(a => {
+    const dems = choixList(a.demandeur);
+    const demHtml = dems.length ? `<div class="art-dem">${dems.map(x=>`<span class="dem-tag">${x}</span>`).join('')}</div>` : '';
+    return `
     <div class="art ${a.type_article==='Service'?'svc':''}">
-      <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-      <span class="art-price">${fmt(a.montant)}</span>
-    </div>`).join('') : '<div class="empty">Aucun article.</div>';
+      <div class="art-main">
+        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+        <span class="art-price">${fmt(a.montant)}</span>
+      </div>
+      ${demHtml}
+    </div>`;
+  }).join('') : '<div class="empty">Aucun article.</div>';
 
   const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
 
@@ -381,6 +413,12 @@ async function envoyerPGM(id) {
   } catch(e) {
     if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
   }
+}
+
+function setFilterFour(v) {
+  filterFour = v;
+  selectedDA = null;
+  render();
 }
 
 function selectDA(id) {
