@@ -267,7 +267,7 @@ function renderDetail(d) {
 
   let artsHtml = arts.length ? arts.map(a => `
     <div class="art ${a.type_article==='Service'?'svc':''}">
-      <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+      <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
       <span class="art-price">${fmt(a.montant)}</span>
     </div>`).join('') : '<div class="empty">Aucun article.</div>';
 
