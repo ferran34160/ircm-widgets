@@ -88,6 +88,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .file-link { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #E6F1FB; color: #0C447C; text-decoration: none; border: 1px solid #C5DFF5; cursor: pointer; }
 .file-link:hover { background: #D5E8FA; }
 .file-empty { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #f2f2f0; color: #bbb; border: 1px dashed #ddd; }
+.file-add { font-size: 13px; line-height: 1; padding: 3px 8px; border-radius: 6px; background: #E1F5EE; color: #1D9E75; border: 1px solid #C6E8DA; cursor: pointer; font-weight: 600; }
+.file-add:hover { background: #1D9E75; color: #fff; }
+@media (prefers-color-scheme: dark) { .file-add { background: #16291F; color: #5FCFA0; border-color: #2C4A3B; } }
 @media (prefers-color-scheme: dark) {
   .file-link { background: #0C2D4D; color: #9FC6F0; border-color: #1A4570; }
   .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
@@ -360,17 +363,18 @@ function renderDetail(d) {
 
   // Secció de fitxers adjunts
   const fichiers = [
-    { label: 'PJ', ids: attachIds(d.pj) },
-    { label: 'BC', ids: attachIds(d.bc) },
-    { label: 'DA', ids: attachIds(d.da) },
-    { label: 'Autres', ids: attachIds(d.autres) },
+    { label: 'PJ', field: 'PJ', ids: attachIds(d.pj) },
+    { label: 'BC', field: 'BC', ids: attachIds(d.bc) },
+    { label: 'DA', field: 'DA', ids: attachIds(d.da) },
+    { label: 'Autres', field: 'Autres', ids: attachIds(d.autres) },
   ];
   const filesHtml = fichiers.map(f => {
     const has = f.ids.length > 0;
     const links = has
       ? f.ids.map((aid,idx) => `<a class="file-link" href="#" onclick="openAttachment(${aid}); return false;">${f.label}${f.ids.length>1?' '+(idx+1):''}</a>`).join('')
       : `<span class="file-empty">${f.label}</span>`;
-    return `<div class="file-cat ${has?'has':''}">${links}</div>`;
+    const addBtn = `<button class="file-add" title="Ajouter un fichier" onclick="uploadFile(${d.id}, '${f.field}')">+</button>`;
+    return `<div class="file-cat ${has?'has':''}">${links}${addBtn}</div>`;
   }).join('');
 
   return `
@@ -403,6 +407,38 @@ async function openAttachment(attId) {
   } catch(e) {
     alert('Impossible d\'ouvrir le fichier : ' + e.message);
   }
+}
+
+function uploadFile(daId, field) {
+  // Crear un input file temporal
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      // 1. Pujar el fitxer -> retorna [attachmentId]
+      const tokens = await grist.docApi.uploadAttachments([file]);
+      if (!tokens || !tokens.length) throw new Error('Upload échoué');
+      const newId = tokens[0];
+
+      // 2. Llegir els IDs actuals d'aquest camp i afegir-hi el nou
+      const da = das.find(x => x.id === daId);
+      const fieldMap = { PJ: 'pj', BC: 'bc', DA: 'da', Autres: 'autres' };
+      const current = attachIds(da[fieldMap[field]]);
+      const updated = ['L', ...current, newId];
+
+      // 3. Guardar al camp de la DA
+      await grist.docApi.applyUserActions([
+        ['UpdateRecord', 'Demandes_achat', daId, { [field]: updated }]
+      ]);
+      await fetchAll();
+      selectDA(daId);
+    } catch(e) {
+      alert('Erreur lors de l\'envoi : ' + e.message);
+    }
+  };
+  input.click();
 }
 
 async function envoyerPGM(id) {
