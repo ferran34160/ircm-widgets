@@ -419,22 +419,29 @@ function uploadFile(daId, field) {
     if (!file) return;
     try {
       const tokenInfo = await grist.docApi.getAccessToken({ readOnly: false });
-      const formData = new FormData();
-      formData.append('upload', file, file.name);
       const targetUrl = `${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`;
       const proxyUrl = `${CORS_PROXY}/?target=${encodeURIComponent(targetUrl)}`;
+
+      // Enviar el fitxer com a binari raw amb nom al Content-Disposition
+      const arrayBuffer = await file.arrayBuffer();
       const response = await fetch(proxyUrl, {
         method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${file.name}"`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: arrayBuffer,
       });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       const result = await response.json();
       const newId = result[0];
+
       const da = das.find(x => x.id === daId);
       const fieldMap = { PJ: 'pj', BC: 'bc', DA: 'da', Autres: 'autres' };
       const current = attachIds(da[fieldMap[field]]);
       const updated = ['L', ...current, newId];
+
       await grist.docApi.applyUserActions([
         ['UpdateRecord', 'Demandes_achat', daId, { [field]: updated }]
       ]);
