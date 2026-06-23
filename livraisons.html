@@ -258,7 +258,7 @@ function render() {
           <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
           <div class="form" id="form-${a.id}">
             <div class="form-row">
-              <div class="form-field"><label>Date livraison</label><input type="date" id="date-${a.id}" value="${dateInput(a.date_livraison)}"></div>
+              <div class="form-field"><label>Date livraison</label><input type="date" id="date-${a.id}" value="${dateInput(a.date_livraison) || new Date().toISOString().slice(0,10)}"></div>
               <div class="form-field"><label>Lieu stockage</label><input type="text" id="lieu-${a.id}" value="${a.lieu.replace(/"/g,'&quot;')}"></div>
             </div>
             <div class="form-row">
