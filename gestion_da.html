@@ -119,6 +119,19 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .msg { text-align: center; padding: 9px; border-radius: 8px; margin-top: 10px; font-size: 12px; display: none; }
 .msg.ok { background: #E1F5EE; color: #085041; display: block; }
 .msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
+.btn-delete { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
+.btn-delete:hover { background: #E24B4A; color: #fff; }
+.delete-confirm { padding: 11px 13px; border-top: 1px solid #eee; display: none; }
+.delete-confirm.open { display: block; }
+@media (prefers-color-scheme: dark) { .delete-confirm { border-top-color: #333; } }
+.delete-confirm-title { font-size: 11px; color: #E24B4A; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; }
+.delete-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-del-only { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: none; background: #E24B4A; color: #fff; cursor: pointer; }
+.btn-del-only:hover { background: #c73e3d; }
+.btn-del-all { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
+.btn-del-all:hover { background: #FCEBEB; }
+.btn-del-cancel { font-size: 12px; padding: 7px 14px; border-radius: 7px; border: 1px solid #ccc; color: inherit; background: none; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .btn-del-cancel { border-color: #444; } }
 </style>
 </head>
 <body>
@@ -378,7 +391,10 @@ function renderDetail(d) {
       <div class="detail-head">
         <div class="detail-head-top">
           <span class="detail-num">${d.num_da}</span>
-          <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+            <button class="btn-delete" onclick="toggleDelete(${d.id})">🗑 Supprimer</button>
+          </div>
         </div>
         <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'} · ${fmtDate(d.date_da)}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
       </div>
@@ -392,7 +408,48 @@ function renderDetail(d) {
         <div class="detail-files-row">${filesHtml}</div>
       </div>
       ${actionHtml}
+      <div class="delete-confirm" id="del-confirm-${d.id}">
+        <div class="delete-confirm-title">⚠ Supprimer cette DA ?</div>
+        <div class="delete-confirm-row">
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, false)">DA seulement (articles → libres)</button>
+          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">DA + tous les articles</button>
+          <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Annuler</button>
+        </div>
+      </div>
     </div>`;
+}
+
+function toggleDelete(id) {
+  const panel = document.getElementById('del-confirm-' + id);
+  if (panel) panel.classList.toggle('open');
+}
+
+async function deleteDA(id, withArticles) {
+  try {
+    const actions = [];
+    if (withArticles) {
+      // Eliminar tots els articles de la DA
+      const arts = commandes.filter(c => c.demande_achat === id);
+      if (arts.length) {
+        actions.push(['BulkDeleteRecord', 'Commandes', arts.map(a => a.id)]);
+      }
+    } else {
+      // Desassignar articles (passen a lliures)
+      const arts = commandes.filter(c => c.demande_achat === id);
+      if (arts.length) {
+        actions.push(['BulkUpdateRecord', 'Commandes', arts.map(a => a.id), {
+          Demande_achat: arts.map(() => null)
+        }]);
+      }
+    }
+    // Eliminar la DA
+    actions.push(['DeleteRecord', 'Demandes_achat', id]);
+    await grist.docApi.applyUserActions(actions);
+    selectedDA = null;
+    await fetchAll();
+  } catch(e) {
+    alert('Erreur lors de la suppression : ' + e.message);
+  }
 }
 
 async function openAttachment(attId) {
