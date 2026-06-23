@@ -17,8 +17,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-new:hover { background: #178A65; }
 .refresh { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .refresh { border-color: #444; } }
-.layout { display: grid; grid-template-columns: auto 300px 1fr; gap: 14px; align-items: start; }
+.layout { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
 @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.inner-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 720px) { .inner-layout { grid-template-columns: 1fr; } }
 .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
 .da-list { display: flex; flex-direction: column; gap: 6px; max-height: 640px; overflow-y: auto; }
 .new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
@@ -62,6 +64,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .art-name { word-break: break-word; }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.detail-action { padding: 13px; border-top: 1px solid #eee; }
+.detail-action-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
+.detail-action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.detail-action-row input { font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .detail-action-row input { border-color: #444; } .detail-action { border-top-color: #333; } }
+.btn-pgm { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 7px; border: none; background: #378ADD; color: #fff; cursor: pointer; }
+.btn-pgm:hover { background: #2D72BD; }
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
 @media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
 .detail-total { font-weight: 600; font-size: 14px; }
@@ -173,12 +182,40 @@ function badgeClass(statut) {
 }
 
 function render() {
+  if (tab === 'nouvelle') { renderFrame(renderNewDAContent()); return; }
+  if (tab === 'libres') { renderFrame(renderLibresContent()); return; }
+  renderFrame(renderListContent());
+}
+
+// Marc comú: botó Nouvelle DA (esquerra) + filtres (a sobre de la columna central)
+function renderFrame(centerAndRight) {
   const container = document.getElementById('container');
+  container.innerHTML = `
+    <div class="layout">
+      <div class="panel">
+        <div class="new-da-card" onclick="openNewDA()">
+          <div class="new-da-icon">+</div>
+          <div>
+            <div class="new-da-title">Nouvelle DA</div>
+            <div class="new-da-sub">Créer une demande d'achat</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="grid-column: span 2;">
+        <div class="toolbar">
+          <button class="tab ${tab==='toutes'?'active':''}" onclick="setTab('toutes')">Toutes</button>
+          <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
+          <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
+          <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
+          <button class="tab ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
+        </div>
+        <div class="frame-content">${centerAndRight}</div>
+      </div>
+    </div>`;
+}
 
-  if (tab === 'nouvelle') { renderNewDA(container); return; }
-  if (tab === 'libres') { renderLibres(container); return; }
-
-  // Llista de DA filtrada
+// Contingut de la vista llista (columna llista + detall)
+function renderListContent() {
   let list = das.slice();
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
@@ -198,7 +235,6 @@ function render() {
   });
   if (!listHtml) listHtml = '<div class="empty">Aucune DA.</div>';
 
-  // Detall
   let detailHtml;
   if (selectedDA) {
     const d = das.find(x => x.id === selectedDA);
@@ -207,29 +243,13 @@ function render() {
     detailHtml = '<div class="empty">Sélectionnez une DA pour voir le détail.</div>';
   }
 
-  container.innerHTML = `
-    <div class="layout">
-      <div class="panel">
-        <div class="new-da-card" onclick="openNewDA()">
-          <div class="new-da-icon">+</div>
-          <div>
-            <div class="new-da-title">Nouvelle DA</div>
-            <div class="new-da-sub">Créer une demande d'achat</div>
-          </div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="toolbar">
-          <button class="tab ${tab==='toutes'?'active':''}" onclick="setTab('toutes')">Toutes</button>
-          <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
-          <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
-          <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
-          <button class="tab ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
-        </div>
+  return `
+    <div class="inner-layout">
+      <div>
         <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
         <div class="da-list">${listHtml}</div>
       </div>
-      <div class="panel">
+      <div>
         <div class="panel-title">Détail</div>
         ${detailHtml}
       </div>
@@ -251,6 +271,21 @@ function renderDetail(d) {
 
   const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
 
+  // Acció: passar a Envoyée PGM (només si està En cours i té articles)
+  const today = new Date().toISOString().slice(0,10);
+  let actionHtml = '';
+  if (d.statut === 'En cours' && arts.length > 0) {
+    actionHtml = `
+      <div class="detail-action">
+        <div class="detail-action-title">Envoyer à PGM</div>
+        <div class="detail-action-row">
+          <input type="date" id="pgm-date" value="${today}">
+          <button class="btn-pgm" onclick="envoyerPGM(${d.id})">Passer à « Envoyée PGM »</button>
+        </div>
+        <div class="msg" id="pgm-msg"></div>
+      </div>`;
+  }
+
   return `
     <div class="detail">
       <div class="detail-head">
@@ -265,7 +300,29 @@ function renderDetail(d) {
         <span style="color:#888">${footLabel}</span>
         <span class="detail-total">${fmt(total)}</span>
       </div>
+      ${actionHtml}
     </div>`;
+}
+
+async function envoyerPGM(id) {
+  const dateVal = document.getElementById('pgm-date').value;
+  const msg = document.getElementById('pgm-msg');
+  let datePgm = null;
+  if (dateVal) datePgm = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
+
+  try {
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', id, {
+        Statut: 'Envoyée PGM',
+        Date_OrderPGM: datePgm,
+      }]
+    ]);
+    await fetchAll();
+    // Re-render del detall amb el nou estat
+    selectDA(id);
+  } catch(e) {
+    if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
+  }
 }
 
 function selectDA(id) {
@@ -274,16 +331,15 @@ function selectDA(id) {
   document.querySelectorAll('.da-item').forEach(el => el.classList.remove('sel'));
   const item = document.querySelector('.da-item[data-da="' + id + '"]');
   if (item) item.classList.add('sel');
-  // Actualitzar el panell de detall directament
+  // Actualitzar el panell de detall directament (segona columna de inner-layout)
   const d = das.find(x => x.id === id);
-  const panels = document.querySelectorAll('.layout .panel');
-  const detailPanel = panels[panels.length - 1];
-  if (detailPanel) {
-    detailPanel.innerHTML = '<div class="panel-title">Détail</div>' + renderDetail(d);
+  const inner = document.querySelector('.inner-layout');
+  if (inner && inner.children[1]) {
+    inner.children[1].innerHTML = '<div class="panel-title">Détail</div>' + renderDetail(d);
   }
 }
 
-function renderLibres(container) {
+function renderLibresContent() {
   const libres = commandes.filter(c => !c.demande_achat);
   // DA en cours per assignar
   const dasEnCours = das.filter(d => d.statut === 'En cours')
@@ -306,7 +362,7 @@ function renderLibres(container) {
     options += `<option value="${d.id}">${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
   });
 
-  container.innerHTML = `
+  return `
     <div style="max-width:560px;">
       <div class="panel-title">Assigner les articles libres à une DA en cours</div>
       <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
@@ -317,7 +373,7 @@ function renderLibres(container) {
         <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
       ${artsHtml}
-      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 || !document.getElementById('assign-da')?.value ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
       <div class="msg" id="msg"></div>
     </div>`;
 }
@@ -325,15 +381,15 @@ function renderLibres(container) {
 function toggleArt(id) {
   if (selectedArts.has(id)) selectedArts.delete(id);
   else selectedArts.add(id);
-  renderLibres(document.getElementById('container'));
+  render();
 }
 function selectAllLibres() {
   commandes.filter(c => !c.demande_achat).forEach(c => selectedArts.add(c.id));
-  renderLibres(document.getElementById('container'));
+  render();
 }
 function deselectAllLibres() {
   selectedArts.clear();
-  renderLibres(document.getElementById('container'));
+  render();
 }
 function onAssignDAChange() {
   const btn = document.getElementById('btn-assign');
@@ -368,7 +424,8 @@ async function assignArticles() {
 
 function openNewDA() {
   tab = 'nouvelle';
-  renderNewDA(document.getElementById('container'));
+  selectedDA = null;
+  render();
 }
 
 function nextNumDA() {
@@ -382,7 +439,7 @@ function nextNumDA() {
   return 'DA-' + String(next).padStart(3, '0');
 }
 
-function renderNewDA(container) {
+function renderNewDAContent() {
   const contratsOpts = '<option value="">— Choisir —</option>' +
     contratsList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
       .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
@@ -391,7 +448,7 @@ function renderNewDA(container) {
       .map(f => `<option value="${f.id}">${f.nom}</option>`).join('');
   const today = new Date().toISOString().slice(0,10);
 
-  container.innerHTML = `
+  return `
     <div style="max-width:380px;">
       <div class="panel-title">Nouvelle demande d'achat</div>
       <div style="border:1px solid #e5e5e5; border-radius:11px; padding:16px;">
