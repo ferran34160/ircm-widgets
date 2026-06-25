@@ -73,6 +73,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.art-devise { font-size: 10px; color: #B8860B; font-style: italic; margin-top: 2px; }
+@media (prefers-color-scheme: dark) { .art-devise { color: #E0C060; } }
 .detail-action { padding: 13px; border-top: 1px solid #eee; }
 .detail-action-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
 .detail-action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -205,6 +207,9 @@ async function fetchAll() {
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       type_article:(c.Type_article||[])[i]||'Produit',
       demandeur:(c.Demandeur||[])[i]||null,
+      devise:(c.Devise||[])[i]||'EUR',
+      prix:(c.Prix_unitaire_HT||[])[i]||0,
+      taux:(c.Taux_change||[])[i]||1,
     }));
 
     render();
@@ -344,12 +349,23 @@ function renderDetail(d) {
   let artsHtml = arts.length ? arts.map(a => {
     const dems = choixList(a.demandeur);
     const demHtml = dems.length ? `<div class="art-dem">${dems.map(x=>`<span class="dem-tag">${x}</span>`).join('')}</div>` : '';
+    let deviseHtml = '';
+    if (a.devise && a.devise !== 'EUR') {
+      const origTotal = (a.prix || 0) * (a.qte || 1);
+      const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
+      const sym = symbols[a.devise] || (a.devise + ' ');
+      const origStr = a.devise === 'USD' || a.devise === 'GBP'
+        ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
+        : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + a.devise;
+      deviseHtml = `<div class="art-devise">${origStr} → ${fmt(a.montant)} (taux ${a.taux}). Valeur estimée en EUR.</div>`;
+    }
     return `
     <div class="art ${a.type_article==='Service'?'svc':''}">
       <div class="art-main">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
         <span class="art-price">${fmt(a.montant)}</span>
       </div>
+      ${deviseHtml}
       ${demHtml}
     </div>`;
   }).join('') : '<div class="empty">Aucun article.</div>';
