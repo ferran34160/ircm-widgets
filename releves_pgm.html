@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saisie Relevés PGM</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.title { font-size: 15px; font-weight: 600; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.ctrl-field { display: flex; flex-direction: column; gap: 2px; }
+.ctrl-field label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
+select, input[type=date] { font-size: 13px; padding: 6px 9px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { select, input[type=date] { border-color: #444; } }
+.table-wrap { border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .table-wrap { border-color: #383838; } }
+table { width: 100%; border-collapse: collapse; }
+th { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #888; text-align: left; padding: 9px 11px; background: #f6f7f8; border-bottom: 1px solid #e5e5e5; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { th { background: #242424; border-bottom-color: #383838; } }
+th.num, td.num { text-align: right; }
+td { padding: 7px 11px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+@media (prefers-color-scheme: dark) { td { border-bottom-color: #2a2a2a; } }
+tr:last-child td { border-bottom: none; }
+.cat-row td { background: #fafafa; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #666; padding: 6px 11px; }
+@media (prefers-color-scheme: dark) { .cat-row td { background: #202020; color: #aaa; } }
+.lb-label { font-weight: 500; }
+.lb-sub { font-size: 11px; color: #999; }
+.dispo-actuel { font-variant-numeric: tabular-nums; color: #555; }
+@media (prefers-color-scheme: dark) { .dispo-actuel { color: #bbb; } }
+td input.money { width: 110px; font-size: 12px; padding: 5px 7px; border: 1px solid #ccc; border-radius: 5px; text-align: right; background: inherit; color: inherit; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) { td input.money { border-color: #444; } }
+td input.money:focus { outline: none; border-color: #378ADD; }
+.ecart { font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.ecart.zero { color: #aaa; }
+.ecart.pos { color: #1D9E75; }
+.ecart.neg { color: #E24B4A; }
+.foot-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 12px; flex-wrap: wrap; }
+.foot-info { font-size: 12px; color: #888; }
+.btn-save { font-size: 13px; font-weight: 500; padding: 9px 20px; background: #1D9E75; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+.btn-save:hover { background: #178A65; }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.msg { font-size: 12px; padding: 7px 12px; border-radius: 7px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: inline-block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: inline-block; }
+.loading { text-align: center; padding: 40px; color: #888; }
+.last-releve { font-size: 11px; color: #B8860B; font-style: italic; }
+@media (prefers-color-scheme: dark) { .last-releve { color: #E0C060; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Saisie d'un relevé PGM</div>
+  <div class="controls">
+    <div class="ctrl-field">
+      <label>Contrat</label>
+      <select id="contrat-select"><option value="">Tous</option></select>
+    </div>
+    <div class="ctrl-field">
+      <label>Date du relevé</label>
+      <input type="date" id="date-releve">
+    </div>
+  </div>
+</div>
+
+<div id="container">
+  <div class="loading" id="loading">Chargement…</div>
+</div>
+
+<script>
+let lignes = [], releves = [], contratNoms = {};
+
+function fmt(v) {
+  if (v == null || v === '') return '—';
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+}
+function fmtSign(v) {
+  const s = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format(v);
+  return s;
+}
+function toMs(g) { if (!g) return 0; if (g > 1e15) return g/1000; if (g > 1e11) return g; return g*1000; }
+function fmtDate(g) {
+  const ms = toMs(g); if (!ms) return '';
+  const d = new Date(ms); if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
+  return d.toLocaleDateString('fr-FR');
+}
+function dateToGrist(dateStr) {
+  if (!dateStr) return null;
+  return Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
+}
+function resolveRef(v) {
+  if (v == null) return null;
+  if (Array.isArray(v)) return v[1];
+  return v;
+}
+
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label) {
+  for (const k of CAT_ORDER) if (label && label.includes(k)) return k;
+  return 'Autre';
+}
+
+async function fetchAll() {
+  try {
+    const [lb, rv, ct] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Releves_PGM'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('#'+id); });
+
+    lignes = (lb.id||[]).map((id,i) => ({
+      id,
+      label:     (lb.Label||[])[i] || '',
+      contrat:   resolveRef((lb.Contrat||[])[i]),
+      disponible:(lb.Disponible||[])[i] || 0,
+    })).filter(l => l.label);
+
+    releves = (rv.id||[]).map((id,i) => ({
+      id,
+      ligne:      resolveRef((rv.Ligne_budgetaire||[])[i]),
+      date:       (rv.Date_releve||[])[i],
+      officiel:   (rv.Disponible_officiel||[])[i],
+      reste:      (rv.Reste_a_notifier||[])[i],
+      notes:      (rv.Notes||[])[i] || '',
+    }));
+
+    // Omplir selector de contrats
+    const contratsIds = [...new Set(lignes.map(l => l.contrat))].filter(Boolean);
+    const contratsList = contratsIds.map(id => ({ id, nom: contratNoms[id] || ('#'+id) }))
+      .sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
+    const sel = document.getElementById('contrat-select');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tous</option>' +
+      contratsList.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    sel.value = cur;
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="loading">Erreur: ' + e.message + '</div>';
+  }
+}
+
+// Trobar el relevé existent per (ligne, date)
+function findReleve(ligneId, dateGrist) {
+  return releves.find(r => r.ligne === ligneId && toMs(r.date) === toMs(dateGrist));
+}
+// Últim relevé d'una línia (per mostrar referència)
+function lastReleve(ligneId) {
+  const rs = releves.filter(r => r.ligne === ligneId);
+  if (!rs.length) return null;
+  return rs.sort((a,b) => toMs(b.date) - toMs(a.date))[0];
+}
+
+function render() {
+  const container = document.getElementById('container');
+  const contratFilter = document.getElementById('contrat-select').value;
+  const dateStr = document.getElementById('date-releve').value;
+  const dateGrist = dateToGrist(dateStr);
+
+  let list = lignes.slice();
+  if (contratFilter) list = list.filter(l => String(l.contrat) === String(contratFilter));
+
+  if (!list.length) {
+    container.innerHTML = '<div class="loading">Aucune ligne budgétaire.</div>';
+    return;
+  }
+
+  // Agrupar per contracte
+  const groups = {};
+  list.forEach(l => {
+    const cn = contratNoms[l.contrat] || '—';
+    if (!groups[cn]) groups[cn] = [];
+    groups[cn].push(l);
+  });
+
+  let html = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Ligne budgétaire</th>
+      <th class="num">Disponible (système)</th>
+      <th class="num">Disponible officiel</th>
+      <th class="num">Reste à notifier</th>
+      <th class="num">Écart</th>
+    </tr></thead><tbody>`;
+
+  Object.keys(groups).sort((a,b) => a.localeCompare(b,'fr')).forEach(cn => {
+    html += `<tr class="cat-row"><td colspan="5">${cn}</td></tr>`;
+    groups[cn].forEach(l => {
+      const existing = dateGrist ? findReleve(l.id, dateGrist) : null;
+      const last = lastReleve(l.id);
+      const offVal = existing ? existing.officiel : '';
+      const resVal = existing ? existing.reste : '';
+
+      const parts = l.label.split('|');
+      const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+
+      const lastHtml = (last && (!existing))
+        ? `<div class="last-releve">dernier : ${fmt(last.officiel)} au ${fmtDate(last.date)}</div>`
+        : '';
+
+      html += `<tr data-ligne="${l.id}">
+        <td>
+          <div class="lb-label">${sub}</div>
+          ${lastHtml}
+        </td>
+        <td class="num dispo-actuel" data-dispo="${l.disponible}">${fmt(l.disponible)}</td>
+        <td class="num"><input class="money off" type="text" inputmode="decimal" value="${offVal !== '' && offVal != null ? offVal : ''}" oninput="onInput(${l.id})"></td>
+        <td class="num"><input class="money res" type="text" inputmode="decimal" value="${resVal !== '' && resVal != null ? resVal : ''}"></td>
+        <td class="num"><span class="ecart zero" id="ecart-${l.id}">—</span></td>
+      </tr>`;
+    });
+  });
+
+  html += `</tbody></table></div>
+    <div class="foot-bar">
+      <span class="foot-info" id="foot-info"></span>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span class="msg" id="msg"></span>
+        <button class="btn-save" id="btn-save" onclick="saveReleve()">Enregistrer le relevé</button>
+      </div>
+    </div>`;
+
+  container.innerHTML = html;
+
+  // Calcular écarts inicials
+  list.forEach(l => updateEcart(l.id));
+  updateFootInfo();
+}
+
+function parseNum(str) {
+  if (str == null) return null;
+  str = String(str).trim().replace(/\s/g, '').replace('€', '').replace(',', '.');
+  if (str === '') return null;
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
+function onInput(ligneId) {
+  updateEcart(ligneId);
+  updateFootInfo();
+}
+
+function updateEcart(ligneId) {
+  const row = document.querySelector(`tr[data-ligne="${ligneId}"]`);
+  if (!row) return;
+  const dispo = parseFloat(row.querySelector('.dispo-actuel').dataset.dispo) || 0;
+  const off = parseNum(row.querySelector('.off').value);
+  const span = document.getElementById('ecart-' + ligneId);
+  if (off == null) {
+    span.textContent = '—';
+    span.className = 'ecart zero';
+    return;
+  }
+  const ecart = off - dispo;
+  span.textContent = fmtSign(ecart);
+  if (Math.abs(ecart) < 0.005) span.className = 'ecart zero';
+  else if (ecart > 0) span.className = 'ecart pos';
+  else span.className = 'ecart neg';
+}
+
+function updateFootInfo() {
+  const rows = document.querySelectorAll('tr[data-ligne]');
+  let filled = 0;
+  rows.forEach(r => { if (parseNum(r.querySelector('.off').value) != null) filled++; });
+  const info = document.getElementById('foot-info');
+  if (info) info.textContent = `${filled} ligne(s) renseignée(s) sur ${rows.length}`;
+}
+
+async function saveReleve() {
+  const dateStr = document.getElementById('date-releve').value;
+  const dateGrist = dateToGrist(dateStr);
+  if (!dateGrist) { showMsg('Choisissez une date.', 'err'); return; }
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+
+  const adds = [], updates = [];
+  document.querySelectorAll('tr[data-ligne]').forEach(row => {
+    const ligneId = parseInt(row.dataset.ligne, 10);
+    const off = parseNum(row.querySelector('.off').value);
+    const res = parseNum(row.querySelector('.res').value);
+    // Només guardar si almenys un camp està informat
+    if (off == null && res == null) return;
+
+    const existing = findReleve(ligneId, dateGrist);
+    const fields = {
+      Ligne_budgetaire: ligneId,
+      Date_releve: dateGrist,
+      Disponible_officiel: off,
+      Reste_a_notifier: res,
+    };
+    if (existing) {
+      updates.push(['UpdateRecord', 'Releves_PGM', existing.id, {
+        Disponible_officiel: off,
+        Reste_a_notifier: res,
+      }]);
+    } else {
+      adds.push(['AddRecord', 'Releves_PGM', null, fields]);
+    }
+  });
+
+  if (!adds.length && !updates.length) {
+    showMsg('Aucune ligne à enregistrer.', 'err');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    await grist.docApi.applyUserActions([...adds, ...updates]);
+    showMsg(`${adds.length} créé(s), ${updates.length} mis à jour.`, 'ok');
+    await fetchAll();
+  } catch(e) {
+    showMsg('Erreur : ' + e.message, 'err');
+  }
+  btn.disabled = false;
+}
+
+function showMsg(text, cls) {
+  const msg = document.getElementById('msg');
+  if (!msg) return;
+  msg.textContent = text;
+  msg.className = 'msg ' + cls;
+  if (cls === 'ok') setTimeout(() => { msg.className = 'msg'; }, 4000);
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    // Data per defecte: avui
+    document.getElementById('date-releve').value = new Date().toISOString().slice(0,10);
+    fetchAll();
+    grist.onRecords(() => {});
+    document.getElementById('contrat-select').addEventListener('change', render);
+    document.getElementById('date-releve').addEventListener('change', render);
+  } else {
+    document.getElementById('loading').textContent = 'Connectez ce widget à Grist.';
+  }
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
