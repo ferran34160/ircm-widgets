@@ -95,6 +95,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
 }
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
+.total-devise { font-size: 11px; color: #B8860B; font-style: italic; text-align: right; padding: 4px 13px 8px; background: #fafafa; }
+@media (prefers-color-scheme: dark) { .total-devise { color: #E0C060; background: #242424; } }
 @media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
 .detail-total { font-weight: 600; font-size: 14px; }
 .empty { text-align: center; padding: 40px 20px; color: #aaa; font-size: 13px; }
@@ -372,6 +374,20 @@ function renderDetail(d) {
 
   const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
 
+  // Divisa de la DA (si tots els articles són en la mateixa devise non-EUR)
+  const devises = [...new Set(arts.map(a => a.devise || 'EUR'))];
+  const daDevise = devises.length === 1 ? devises[0] : 'EUR';
+  let totalDeviseHtml = '';
+  if (daDevise !== 'EUR' && arts.length) {
+    const origTotal = arts.reduce((s,a) => s + (a.prix||0)*(a.qte||1), 0);
+    const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
+    const sym = symbols[daDevise] || (daDevise + ' ');
+    const origStr = (daDevise === 'USD' || daDevise === 'GBP')
+      ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
+      : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + daDevise;
+    totalDeviseHtml = `<div class="total-devise">${origStr} → ${fmt(total)}. Valeur estimée en EUR.</div>`;
+  }
+
   // Acció: passar a Envoyée PGM (només si està En cours i té articles)
   const today = new Date().toISOString().slice(0,10);
   let actionHtml = '';
@@ -419,6 +435,7 @@ function renderDetail(d) {
         <span style="color:#888">${footLabel}</span>
         <span class="detail-total">${fmt(total)}</span>
       </div>
+      ${totalDeviseHtml}
       <div class="detail-files">
         <div class="detail-files-title">Documents</div>
         <div class="detail-files-row">${filesHtml}</div>
