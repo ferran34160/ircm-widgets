@@ -100,6 +100,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
 }
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
+.detail-dates { font-size: 11px; color: #999; margin-top: 3px; }
 .total-devise { font-size: 11px; color: #B8860B; font-style: italic; text-align: right; padding: 4px 13px 8px; background: #fafafa; }
 .da-item-livr { margin-top: 5px; }
 .da-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; }
@@ -203,6 +204,7 @@ async function fetchAll() {
       contrat:resolveContrat((d.Contrat||[])[i]),
       fournisseur:resolveFour((d.Fournisseur||[])[i]),
       date_da:(d.Date_DA||[])[i],
+      date_pgm:(d.Date_OrderPGM||[])[i],
       statut:(d.Statut||[])[i]||'',
       num_bc:(d.Num_BC||[])[i]||'',
       pj:(d.PJ||[])[i]||null,
@@ -331,7 +333,7 @@ function renderListContent() {
       <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
         <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
         <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
-        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
+        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${(d.statut==='Envoyée PGM'||d.statut==='BC reçu') ? 'PGM '+fmtDate(d.date_pgm) : fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
         ${livrBadge ? `<div class="da-item-livr">${livrBadge}</div>` : ''}
       </div>`;
   });
@@ -453,7 +455,8 @@ function renderDetail(d) {
             <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
           </div>
         </div>
-        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'} · ${fmtDate(d.date_da)}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+        <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
       </div>
       <div class="detail-arts">${artsHtml}</div>
       <div class="detail-foot">
