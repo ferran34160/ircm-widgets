@@ -108,12 +108,19 @@ function render(data) {
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, lignes: [] };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, lignes: [], a_annualisee: false };
     }
-    contrats[d.contrat].disponible += d.disponible;
-    contrats[d.contrat].releve += d.montant_releve;
-    contrats[d.contrat].lignes.push(d);
-    if (!contrats[d.contrat].date_fin && d.date_fin) contrats[d.contrat].date_fin = d.date_fin;
+    const c = contrats[d.contrat];
+    c.disponible += d.disponible;
+    c.releve += d.montant_releve;
+    c.lignes.push(d);
+    if (d.annualisee) c.a_annualisee = true;
+    // Data de fi del contracte = la MÉS PROPERA entre les seves línies
+    const dEff = parseDate(d.date_fin);
+    if (dEff) {
+      const cur = parseDate(c.date_fin);
+      if (!cur || dEff < cur) c.date_fin = d.date_fin;
+    }
   });
 
   let list = Object.values(contrats);
@@ -157,9 +164,10 @@ function render(data) {
     cats.forEach(l => {
       const parts = l.label.split('|');
       const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+      const annMark = l.annualisee ? ' <span title="Annualisé" style="opacity:0.7">⏱</span>' : '';
       catsHtml += `
         <div class="cat-row">
-          <span class="cat-label">${sub}</span>
+          <span class="cat-label">${sub}${annMark}</span>
           <span class="cat-val" style="${l.disponible < 0 ? 'color:#E24B4A' : ''}">${fmt(l.disponible)}</span>
         </div>`;
     });
@@ -169,7 +177,7 @@ function render(data) {
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
-            <p class="c-fin">Fin : ${finStr}</p>
+            <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
           <span class="c-chevron">▼</span>
         </div>
@@ -184,18 +192,57 @@ function render(data) {
   container.innerHTML = html;
 }
 
+function toMs(g) { if (!g) return 0; if (g > 1e15) return g/1000; if (g > 1e11) return g; return g*1000; }
+
+// Mapa: ligneId -> {annualise, date_limite} del darrer relevé d'aquesta línia
+let limitesParLigne = {};
+
+async function loadReleves() {
+  try {
+    const rv = await grist.docApi.fetchTable('Releves_PGM');
+    const byLigne = {};
+    (rv.id||[]).forEach((id,i) => {
+      let lg = (rv.Ligne_budgetaire||[])[i];
+      if (Array.isArray(lg)) lg = lg[1];
+      if (lg == null) return;
+      const dateMs = toMs((rv.Date_releve||[])[i]);
+      const ann = (rv.Annualise||[])[i] || false;
+      const dlim = (rv.Date_limite||[])[i] || null;
+      if (!byLigne[lg] || dateMs > byLigne[lg].dateMs) {
+        byLigne[lg] = { dateMs, annualise: ann, date_limite: dlim };
+      }
+    });
+    limitesParLigne = byLigne;
+  } catch(e) {
+    limitesParLigne = {};
+  }
+}
+
 function loadData() {
   if (window.grist) {
-    grist.ready({ requiredAccess: 'read table' });
-    grist.onRecords((records) => {
-      allData = records.map(r => ({
-        label:         r.Label || '',
-        contrat:       r.Contrat || '',
-        date_fin:      r.Date_fin_contrat,
-        disponible:    r.Disponible || 0,
-        budget_ajuste: r.Budget_ajuste || 0,
-        montant_releve: r.Montant_dernier_releve || 0,
-      })).filter(d => d.label);
+    grist.ready({ requiredAccess: 'full' });
+    grist.onRecords(async (records) => {
+      await loadReleves();
+      allData = records.map(r => {
+        const lim = limitesParLigne[r.id];
+        // Si la línia és annualisée amb data límit, usar-la com a data d'échéance efectiva
+        let dateEff = r.Date_fin_contrat;
+        let annualisee = false;
+        if (lim && lim.annualise && lim.date_limite) {
+          dateEff = lim.date_limite;
+          annualisee = true;
+        }
+        return {
+          label:         r.Label || '',
+          contrat:       r.Contrat || '',
+          date_fin:      dateEff,
+          date_fin_reelle: r.Date_fin_contrat,
+          annualisee:    annualisee,
+          disponible:    r.Disponible || 0,
+          budget_ajuste: r.Budget_ajuste || 0,
+          montant_releve: r.Montant_dernier_releve || 0,
+        };
+      }).filter(d => d.label);
 
       // Omplir el filtre de categories (ordenades)
       const catsPresents = [...new Set(allData.map(d => getCat(d.label)))]
