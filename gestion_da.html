@@ -73,6 +73,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.art-right { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.art-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
+.art-livr.recu { background: #E1F5EE; color: #1D9E75; }
+.art-livr.attente { background: rgba(0,0,0,0.06); color: #999; }
+@media (prefers-color-scheme: dark) { .art-livr.recu { background: #16291F; color: #5FCFA0; } .art-livr.attente { background: rgba(255,255,255,0.08); color: #888; } }
 .art-devise { font-size: 10px; color: #B8860B; font-style: italic; margin-top: 2px; }
 @media (prefers-color-scheme: dark) { .art-devise { color: #E0C060; } }
 .detail-action { padding: 13px; border-top: 1px solid #eee; }
@@ -96,6 +101,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 }
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
 .total-devise { font-size: 11px; color: #B8860B; font-style: italic; text-align: right; padding: 4px 13px 8px; background: #fafafa; }
+.da-item-livr { margin-top: 5px; }
+.da-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; }
+.da-livr.all { background: #E1F5EE; color: #1D9E75; }
+.da-livr.partial { background: #FBF3E0; color: #BA7517; }
+.da-livr.none { background: rgba(0,0,0,0.06); color: #999; }
+@media (prefers-color-scheme: dark) { .da-livr.all { background: #16291F; color: #5FCFA0; } .da-livr.partial { background: #332B16; color: #E0C060; } .da-livr.none { background: rgba(255,255,255,0.08); color: #888; } }
 @media (prefers-color-scheme: dark) { .total-devise { color: #E0C060; background: #242424; } }
 @media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
 .detail-total { font-weight: 600; font-size: 14px; }
@@ -212,6 +223,7 @@ async function fetchAll() {
       devise:(c.Devise||[])[i]||'EUR',
       prix:(c.Prix_unitaire_HT||[])[i]||0,
       taux:(c.Taux_change||[])[i]||1,
+      statut_livr:(c.Statut_livraison||[])[i]||'',
     }));
 
     render();
@@ -307,11 +319,20 @@ function renderListContent() {
   list.forEach(d => {
     const sel = selectedDA === d.id ? 'sel' : '';
     const nb = nbProduits(d.id);
+    const dArts = artsOf(d.id);
+    const nbRecus = dArts.filter(a => a.statut_livr === 'Reçu').length;
+    let livrBadge = '';
+    if (dArts.length && (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu')) {
+      const tous = nbRecus === dArts.length;
+      const cls = tous ? 'all' : (nbRecus > 0 ? 'partial' : 'none');
+      livrBadge = `<span class="da-livr ${cls}">${nbRecus}/${dArts.length} livrés</span>`;
+    }
     listHtml += `
       <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
         <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
         <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
         <div class="da-item-foot"><span style="color:#999">${nb} art. · ${fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
+        ${livrBadge ? `<div class="da-item-livr">${livrBadge}</div>` : ''}
       </div>`;
   });
   if (!listHtml) listHtml = '<div class="empty">Aucune DA.</div>';
@@ -361,11 +382,13 @@ function renderDetail(d) {
         : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + a.devise;
       deviseHtml = `<div class="art-devise">${origStr} → ${fmt(a.montant)} (taux ${a.taux}). Valeur estimée en EUR.</div>`;
     }
+    const livr = a.statut_livr === 'Reçu';
+    const livrHtml = `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré':'⏳ En attente'}</span>`;
     return `
     <div class="art ${a.type_article==='Service'?'svc':''}">
       <div class="art-main">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-        <span class="art-price">${fmt(a.montant)}</span>
+        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
       </div>
       ${deviseHtml}
       ${demHtml}
