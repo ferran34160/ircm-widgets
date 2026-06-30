@@ -685,12 +685,11 @@ async function assignArticles() {
     await grist.docApi.applyUserActions([
       ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(()=>Number(daId)) }]
     ]);
-    const da = das.find(x => x.id == daId);
-    msg.className = 'msg ok';
-    msg.textContent = `${ids.length} article(s) assigné(s) à ${da ? da.num_da : ''}`;
     selectedArts.clear();
+    // Passar a la vista "En cours" i seleccionar la DA on s'han assignat
+    tab = 'En cours';
+    selectedDA = Number(daId);
     await fetchAll();
-    setTimeout(() => { if(document.getElementById('msg')){} }, 100);
   } catch(e) {
     msg.className = 'msg err';
     msg.textContent = 'Erreur : ' + e.message;
