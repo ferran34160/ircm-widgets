@@ -98,7 +98,7 @@ async function fetchAll() {
     das = {};
     (d.id||[]).forEach((id,i)=>{ das[id]={
       ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
-      date_pgm:toMs((d.Date_OrderPGM||[])[i]),
+      date_bc:toMs((d.Date_reception_BC||[])[i]),
     };});
 
     commandes = (c.id||[]).map((id,i)=>({
@@ -145,14 +145,14 @@ function calcEcart(ligne) {
   const t0 = precedent.date, t1 = dernier.date;
 
   // Operacions entre els dos relevés (t0 < date <= t1)
-  // Commandes via DA d'aquesta línia, Statut tractat, Date_OrderPGM dins l'interval
+  // Commandes via DA d'aquesta línia, Statut tractat, Date_reception_BC dins l'interval
   let cmd = 0;
   commandes.forEach(c => {
     if (!c.demande_achat) return;
     const da = das[c.demande_achat];
     if (!da || da.ligne !== ligne.id) return;
     if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return;
-    if (da.date_pgm > t0 && da.date_pgm <= t1) cmd += c.montant;
+    if (da.date_bc > t0 && da.date_bc <= t1) cmd += c.montant;
   });
 
   let tEnt = 0, tSort = 0;
