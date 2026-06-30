@@ -44,6 +44,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .art-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .art-name { font-size: 13px; font-weight: 500; }
 .art-ref { font-size: 11px; color: #888; margin-top: 1px; }
+.art-dem { font-size: 11px; color: #378ADD; margin-top: 3px; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .art-dem { color: #6FB0EC; } }
 .art-status { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 7px; white-space: nowrap; }
 .art-status.recu { background: #1D9E75; color: #fff; }
 .art-status.attente { background: #F0E2C8; color: #8A6D1F; }
@@ -128,6 +130,7 @@ async function fetchAll() {
       recu_par:(c.Recu_par||[])[i]||'',
       notes:(c.Notes_livraison||[])[i]||'',
       type_article:(c.Type_article||[])[i]||'Produit',
+      demandeur:(c.Demandeur||[])[i]||null,
     }));
 
     render();
@@ -147,7 +150,16 @@ function render() {
 
   // Detecció de conceptes que no són productes físics
   const MOTS_CLES = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', "frais d'envoi", 'envoi'];
-  function estService(a) {
+  function fmtDemandeur(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) {
+    // Choice List: ['L', 'Nom1', 'Nom2', ...]
+    const noms = v.slice(1).filter(Boolean);
+    return noms.join(', ');
+  }
+  return String(v);
+}
+function estService(a) {
     if (a.type_article === 'Service') return true;
     const des = (a.designation || '').toLowerCase();
     return MOTS_CLES.some(m => des.includes(m));
@@ -246,6 +258,7 @@ function render() {
             <div>
               <div class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</div>
               <div class="art-ref">${a.ref ? 'Réf: ' + a.ref + ' · ' : ''}${fmt(a.montant)}</div>
+              ${fmtDemandeur(a.demandeur) ? `<div class="art-dem">👤 ${fmtDemandeur(a.demandeur)}</div>` : ''}
             </div>
             <span class="art-status ${recu ? 'recu' : 'attente'}">${recu ? '✓ Reçu' : 'En attente'}</span>
           </div>
