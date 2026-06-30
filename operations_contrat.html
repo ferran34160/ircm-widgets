@@ -146,7 +146,7 @@ async function fetchAll() {
     das = {};
     (d.id||[]).forEach((id,i) => { das[id] = {
       num_da:(d.Num_DA||[])[i]||('DA#'+id), statut:(d.Statut||[])[i]||'',
-      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], fournisseur:resolFour((d.Fournisseur||[])[i]),
+      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], date_bc:(d.Date_reception_BC||[])[i], fournisseur:resolFour((d.Fournisseur||[])[i]),
       ligne:(d.Ligne_budgetaire||[])[i],
     };});
     commandes = (c.id||[]).map((id,i) => ({
@@ -236,11 +236,11 @@ function render() {
     const dateReleve = dernierReleve[ligne.id] || 0;
     // Per transferts/mouvements: posterior al relevé si la seva data > date_releve
     const apresReleve = (dateMs) => periode === 'tout' || !dateReleve || (dateMs && dateMs > dateReleve);
-    // Per comandes: ja està al relevé NOMÉS si Date_OrderPGM existeix i és <= date_releve
+    // Per comandes: ja està al relevé NOMÉS si Date_reception_BC existeix i és <= date_releve
     const commandeApresReleve = (da) => {
       if (periode === 'tout' || !dateReleve) return true;
-      const pgm = toMs(da.date_pgm);
-      const dejaAuReleve = pgm && pgm <= dateReleve;
+      const bc = toMs(da.date_bc);
+      const dejaAuReleve = bc && bc <= dateReleve;
       return !dejaAuReleve;
     };
 
