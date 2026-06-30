@@ -122,7 +122,7 @@ async function fetchAll() {
       date_da:     (d.Date_DA||[])[i],
       statut:      (d.Statut||[])[i] || '',
       num_bc:      (d.Num_BC||[])[i] || '',
-      date_pgm:    (d.Date_OrderPGM||[])[i],
+      date_reception_bc: (d.Date_reception_BC||[])[i],
     })).filter(x => x.num_da && x.statut === 'Envoyée PGM');
 
     commandes = (c.id||[]).map((id,i) => ({
@@ -201,7 +201,7 @@ function render() {
         <div class="bc-form" id="bc-form-${d.id}">
           <div class="bc-form-row">
             <div class="bc-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
-            <div class="bc-field"><label>Date Order PGM</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_pgm) || new Date().toISOString().slice(0,10)}"></div>
+            <div class="bc-field"><label>Date réception BC</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_reception_bc) || new Date().toISOString().slice(0,10)}"></div>
           </div>
           <div class="bc-actions">
             <button class="bc-btn bc-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
@@ -229,16 +229,16 @@ async function saveBC(id) {
 
   if (!numBC) { alert('Veuillez saisir le N° BC.'); return; }
 
-  let datePgm = null;
+  let dateBC = null;
   if (dateVal) {
-    datePgm = Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000);
+    dateBC = Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000);
   }
 
   try {
     await grist.docApi.applyUserActions([
       ['UpdateRecord', 'Demandes_achat', id, {
         Num_BC: numBC,
-        Date_OrderPGM: datePgm,
+        Date_reception_BC: dateBC,
         Statut: 'BC reçu',
       }]
     ]);
