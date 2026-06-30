@@ -11,6 +11,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
 .tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
+.tab-libres { border-color: #9C6ADE; color: #9C6ADE; }
+.tab-libres:hover { background: rgba(156,106,222,0.1); }
+.tab-libres.active { background: #9C6ADE; color: #fff; border-color: #9C6ADE; }
+.bc-search { margin-left: auto; }
+.bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 130px; }
+.bc-search input:focus { outline: none; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
 @media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
 .spacer { flex: 1; }
 .btn-new { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; border: none; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
@@ -156,7 +163,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let das = [], commandes = [], contratNoms = {}, fourNoms = {};
 let contratsList = [], fournisseursList = [], lignesList = [];
-let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '';
+let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -288,7 +295,10 @@ function renderFrame(centerAndRight) {
           <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
           <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
           <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
-          <button class="tab ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
+          <div class="bc-search">
+            <input type="text" id="bc-search-input" placeholder="🔍 N° BC…" value="${searchBC.replace(/"/g,'&quot;')}" oninput="onSearchBC(this.value)">
+          </div>
+          <button class="tab tab-libres ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
         </div>
         <div class="frame-content">${centerAndRight}</div>
       </div>
@@ -301,6 +311,10 @@ function renderListContent() {
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
+  if (searchBC.trim()) {
+    const q = searchBC.trim().toLowerCase();
+    list = list.filter(d => (d.num_bc || '').toLowerCase().includes(q));
+  }
   list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
   const nbLibres = commandes.filter(c => !c.demande_achat).length;
@@ -560,6 +574,14 @@ function demandeursOfDA(daId) {
 
 function setFilterFour(v) {
   filterFour = v;
+}
+function onSearchBC(v) {
+  searchBC = v;
+  if (v.trim() && tab === 'libres') { tab = 'toutes'; }
+  // Re-renderitzar mantenint el focus a l'input
+  renderFrame(renderListContent());
+  const inp = document.getElementById('bc-search-input');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   selectedDA = null;
   render();
 }
