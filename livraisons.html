@@ -115,7 +115,7 @@ async function fetchAll() {
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
       fournisseur:resolFour((d.Fournisseur||[])[i]),
       contrat:resolContrat((d.Contrat||[])[i]),
-      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
+      date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], date_bc:(d.Date_reception_BC||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
     };});
 
     articles = (c.id||[]).map((id,i)=>({
@@ -205,10 +205,10 @@ function estService(a) {
     return;
   }
 
-  // Ordenar DA per Date_OrderPGM (o Date_DA si no en té), les més antigues primer
+  // Ordenar DA per Date_reception_BC (o PGM/DA si no en té), les més antigues primer
   const keys = Object.keys(groups).sort((a,b) => {
-    const ta = dasMap[a] ? (dasMap[a].date_pgm || dasMap[a].date_da || 0) : 0;
-    const tb = dasMap[b] ? (dasMap[b].date_pgm || dasMap[b].date_da || 0) : 0;
+    const ta = dasMap[a] ? (dasMap[a].date_bc || dasMap[a].date_pgm || dasMap[a].date_da || 0) : 0;
+    const tb = dasMap[b] ? (dasMap[b].date_bc || dasMap[b].date_pgm || dasMap[b].date_da || 0) : 0;
     return ta - tb;
   });
 
@@ -219,7 +219,7 @@ function estService(a) {
     const totaux = totauxDA[key] || { total: arts.length, recus: 0 };
 
     const numDA = da ? da.num_da : 'Sans DA';
-    const datePGM = da && da.date_pgm ? fmtDate(da.date_pgm) : (da ? fmtDate(da.date_da) : '');
+    const dateBC = da && da.date_bc ? fmtDate(da.date_bc) : '';
     const fournisseur = da ? (da.fournisseur || '—') : '—';
     const contrat = da ? (da.contrat || '—') : '—';
     const numBC = da ? da.num_bc : '';
@@ -229,7 +229,7 @@ function estService(a) {
     const enAttente = totaux.total - totaux.recus;
     let daysBadge = '';
     if (enAttente > 0) {
-      const refDate = da && da.date_pgm ? da.date_pgm : (da ? da.date_da : null);
+      const refDate = da && da.date_bc ? da.date_bc : null;
       const days = daysSince(refDate);
       if (days !== null) {
         const daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
@@ -243,7 +243,7 @@ function estService(a) {
     html += `<div class="da-group">
       <div class="da-head">
         <div class="da-head-top">
-          <span class="da-num">${numDA} <span class="da-num-date">/ PGM du ${datePGM}</span></span>
+          <span class="da-num">${numDA}${dateBC ? ` <span class="da-num-date">/ BC reçu le ${dateBC}</span>` : ''}</span>
           <span style="display:flex; align-items:center;">${daysBadge}<span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span></span>
         </div>
         <div class="da-route">${contrat} <span class="da-arrow">→</span> ${fournisseur}${numBC ? ` <span class="da-bc">/ BC ${numBC}</span>` : ''}</div>
