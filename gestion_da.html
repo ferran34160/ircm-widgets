@@ -214,6 +214,7 @@ async function fetchAll() {
       fournisseur:resolveFour((d.Fournisseur||[])[i]),
       date_da:(d.Date_DA||[])[i],
       date_pgm:(d.Date_OrderPGM||[])[i],
+      date_bc:(d.Date_reception_BC||[])[i],
       statut:(d.Statut||[])[i]||'',
       num_bc:(d.Num_BC||[])[i]||'',
       pj:(d.PJ||[])[i]||null,
@@ -325,7 +326,11 @@ function renderListContent() {
     const q = searchBC.trim().toLowerCase();
     list = list.filter(d => (d.num_bc || '').toLowerCase().includes(q));
   }
-  list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+  const dateRef = (d) => {
+    if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') return toMs(d.date_bc) || toMs(d.date_da);
+    return toMs(d.date_da);
+  };
+  list.sort((a,b) => dateRef(b) - dateRef(a));
 
   const nbLibres = commandes.filter(c => !c.demande_achat).length;
 
