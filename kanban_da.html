@@ -34,6 +34,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .art-line { color: #aaa; } }
 .art-name { word-break: break-word; }
 .art-line.art-service { font-style: italic; opacity: 0.65; font-size: 10px; }
+.art-dem { color: #378ADD; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .art-dem { color: #6FB0EC; } }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .da-foot { display: flex; align-items: center; justify-content: space-between; padding: 8px 13px; border-top: 1px solid #eee; }
 .da-foot-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
@@ -132,6 +134,7 @@ async function fetchAll() {
       qte:           (c.Quantite||[])[i] || 1,
       montant:       (c.Montant2||[])[i] || ((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       type_article:  (c.Type_article||[])[i] || 'Produit',
+      demandeur:     (c.Demandeur||[])[i] || null,
     }));
 
     render();
@@ -140,6 +143,11 @@ async function fetchAll() {
   }
 }
 
+function fmtDemandeur(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.slice(1).filter(Boolean).join(', ');
+  return String(v);
+}
 function resolveContrat(v) {
   if (v == null) return '';
   if (typeof v === 'number') return contratNoms[v] || ('#'+v);
@@ -180,7 +188,7 @@ function render() {
     }
 
     const artsHtml = arts.length
-      ? arts.map(a => `<div class="art-line ${a.type_article === 'Service' ? 'art-service' : ''}"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</span><span class="art-price">${fmt(a.montant)}</span></div>`).join('')
+      ? arts.map(a => { const dem = fmtDemandeur(a.demandeur); return `<div class="art-line ${a.type_article === 'Service' ? 'art-service' : ''}"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}${dem ? ` <span class="art-dem">· ${dem}</span>` : ''}</span><span class="art-price">${fmt(a.montant)}</span></div>`; }).join('')
       : '<div class="art-line"><span class="art-name" style="font-style:italic; color:#bbb;">Aucun article assigné</span></div>';
 
     html += `
