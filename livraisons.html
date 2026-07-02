@@ -148,19 +148,11 @@ function setFilter(f) {
   render();
 }
 
-function render() {
-  fillDemFilter();
-  const container = document.getElementById('container');
+const MOTS_CLES = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', "frais d'envoi", 'envoi'];
 
-  // Detecció de conceptes que no són productes físics
-  const MOTS_CLES = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', "frais d'envoi", 'envoi'];
-  function fmtDemandeur(v) {
+function fmtDemandeur(v) {
   if (v == null) return '';
-  if (Array.isArray(v)) {
-    // Choice List: ['L', 'Nom1', 'Nom2', ...]
-    const noms = v.slice(1).filter(Boolean);
-    return noms.join(', ');
-  }
+  if (Array.isArray(v)) return v.slice(1).filter(Boolean).join(', ');
   return String(v);
 }
 function onDemChange(v) { filterDem = v; render(); }
@@ -180,10 +172,14 @@ function fillDemFilter() {
 }
 
 function estService(a) {
-    if (a.type_article === 'Service') return true;
-    const des = (a.designation || '').toLowerCase();
-    return MOTS_CLES.some(m => des.includes(m));
-  }
+  if (a.type_article === 'Service') return true;
+  const des = (a.designation || '').toLowerCase();
+  return MOTS_CLES.some(m => des.includes(m));
+}
+
+function render() {
+  fillDemFilter();
+  const container = document.getElementById('container');
 
   // Total real de productes per DA (tots, excloent serveis) — independent del filtre
   const totauxDA = {};
