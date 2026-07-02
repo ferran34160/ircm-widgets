@@ -29,6 +29,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .row { display: grid; gap: 12px; }
 .row-2 { grid-template-columns: 1fr 1fr; }
 .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.row-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 .hint { font-size: 10px; color: #bbb; margin-top: 1px; }
 .dem-box { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid #d5d5d5; border-radius: 8px; min-height: 40px; align-content: flex-start; background: #fff; }
 @media (prefers-color-scheme: dark) { .dem-box { background: #2a2a2a; border-color: #444; } }
@@ -83,18 +84,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
         <div class="field"><label>Référence fournisseur</label><input type="text" id="p-ref" autocomplete="off"></div>
         <div class="field"><label>Code GHP</label><input type="text" id="p-ghp" autocomplete="off"></div>
       </div>
-      <div class="row row-3">
+      <div class="row row-4">
         <div class="field"><label>Prix unitaire HT</label><input type="text" id="p-prix" inputmode="decimal" autocomplete="off"></div>
         <div class="field"><label>Quantité</label><input type="text" id="p-qte" inputmode="decimal" value="1" autocomplete="off"></div>
-        <div class="field"><label>Type</label>
-          <select id="p-type"><option value="Produit">Produit</option><option value="Service">Service</option></select>
-        </div>
-      </div>
-      <div class="row row-2">
         <div class="field"><label>Devise</label>
           <select id="p-devise" onchange="onDeviseChange()"><option value="EUR">EUR</option><option value="USD">USD</option></select>
         </div>
-        <div class="field"><label>Taux de change (→ EUR)</label><input type="text" id="p-taux" inputmode="decimal" value="1" autocomplete="off"><div class="hint">1 pour EUR</div></div>
+        <div class="field"><label>Taux (→ EUR)</label><input type="text" id="p-taux" inputmode="decimal" value="1" autocomplete="off"></div>
       </div>
       <div class="field"><label>Demandeur(s)</label><div class="dem-box" id="dem-box-p"></div></div>
 
@@ -230,7 +226,6 @@ function resetProduit() {
   document.getElementById('p-qte').value = '1';
   document.getElementById('p-taux').value = '1';
   document.getElementById('p-devise').value = 'EUR';
-  document.getElementById('p-type').value = 'Produit';
   selP.clear(); renderDems();
   document.getElementById('frais-list').innerHTML = '';
 }
@@ -247,8 +242,6 @@ async function submitProduit() {
   const qte    = parseNum(document.getElementById('p-qte').value) || 1;
   const devise = document.getElementById('p-devise').value;
   const taux   = parseNum(document.getElementById('p-taux').value) || 1;
-  const type   = document.getElementById('p-type').value;
-
   if (!desig) { showMsg('p','La désignation est obligatoire.', 'err'); return; }
   if (prix == null) { showMsg('p','Le prix unitaire est obligatoire.', 'err'); return; }
 
@@ -267,7 +260,7 @@ async function submitProduit() {
   actions.push(['AddRecord', 'Commandes', null, {
     Reference_fournisseur: ref, Code_GHP: ghp, Designation2: desig,
     Prix_unitaire_HT: prix, Quantite: qte, Devise: devise, Taux_change: taux,
-    Taux_TVA: 0.2, Type_article: type, Demandeur: demValue,
+    Taux_TVA: 0.2, Type_article: 'Produit', Demandeur: demValue,
   }]);
   frais.forEach(f => {
     actions.push(['AddRecord', 'Commandes', null, {
