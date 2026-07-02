@@ -12,6 +12,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .title { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
 .count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
+#dem-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { #dem-filter { border-color: #444; } }
 @media (prefers-color-scheme: dark) { .count { background: rgba(255,255,255,0.12); } }
 .da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
 .da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
@@ -68,13 +70,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <body>
 <div class="header">
   <div class="title"><span class="title-dot"></span>DA envoyées à PGM <span class="count" id="count">0</span></div>
+  <select id="dem-filter" onchange="onDemChange(this.value)"><option value="">Tous les demandeurs</option></select>
 </div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
 </div>
 
 <script>
-let das = [], commandes = [], contratNoms = {}, fourNoms = {};
+let das = [], commandes = [], contratNoms = {}, fourNoms = {}, filterDem = '';
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
@@ -152,6 +155,22 @@ async function fetchAll() {
   }
 }
 
+function onDemChange(v) { filterDem = v; render(); }
+
+function fillDemFilter() {
+  const dems = new Set();
+  commandes.forEach(a => {
+    if (Array.isArray(a.demandeur)) a.demandeur.slice(1).forEach(x => x && dems.add(x));
+    else if (a.demandeur) dems.add(a.demandeur);
+  });
+  const sel = document.getElementById('dem-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous les demandeurs</option>' +
+    [...dems].sort((a,b)=>a.localeCompare(b,'fr')).map(d => `<option value="${d.replace(/"/g,'&quot;')}">${d}</option>`).join('');
+  sel.value = cur;
+}
+
 function resolveContrat(v) {
   if (v == null) return '';
   if (typeof v === 'number') return contratNoms[v] || ('#'+v);
@@ -167,9 +186,22 @@ function resolveFour(v) {
 
 function render() {
   const container = document.getElementById('container');
+  fillDemFilter();
+
+  // Filtrar DA que tinguin almenys un article del demandeur seleccionat
+  let baseDas = das;
+  if (filterDem) {
+    baseDas = das.filter(d => {
+      const arts = commandes.filter(c => c.demande_achat === d.id);
+      return arts.some(a => {
+        const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
+        return dems.includes(filterDem);
+      });
+    });
+  }
 
   // Ordenar per data ascendent (les més antigues primer = més temps esperant)
-  const sorted = [...das].sort((a,b) => toMs(a.date_da) - toMs(b.date_da));
+  const sorted = [...baseDas].sort((a,b) => toMs(a.date_da) - toMs(b.date_da));
 
   document.getElementById('count').textContent = sorted.length;
 
