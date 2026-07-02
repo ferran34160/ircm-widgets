@@ -13,6 +13,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filters { display: flex; gap: 6px; }
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
+#dem-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { #dem-filter { border-color: #444; } }
 @media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
 .da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
 .da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
@@ -80,12 +82,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <button class="filter-btn" data-f="tous" onclick="setFilter('tous')">Tous</button>
     <button class="filter-btn active" data-f="attente" onclick="setFilter('attente')">En attente</button>
     <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
+    <select id="dem-filter" onchange="onDemChange(this.value)"><option value="">Tous les demandeurs</option></select>
   </div>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente';
+let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente', filterDem = '';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -146,6 +149,7 @@ function setFilter(f) {
 }
 
 function render() {
+  fillDemFilter();
   const container = document.getElementById('container');
 
   // Detecció de conceptes que no són productes físics
@@ -159,6 +163,22 @@ function render() {
   }
   return String(v);
 }
+function onDemChange(v) { filterDem = v; render(); }
+
+function fillDemFilter() {
+  const dems = new Set();
+  articles.forEach(a => {
+    if (Array.isArray(a.demandeur)) a.demandeur.slice(1).forEach(x => x && dems.add(x));
+    else if (a.demandeur) dems.add(a.demandeur);
+  });
+  const sel = document.getElementById('dem-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous les demandeurs</option>' +
+    [...dems].sort((a,b)=>a.localeCompare(b,'fr')).map(d => `<option value="${d.replace(/"/g,'&quot;')}">${d}</option>`).join('');
+  sel.value = cur;
+}
+
 function estService(a) {
     if (a.type_article === 'Service') return true;
     const des = (a.designation || '').toLowerCase();
@@ -182,6 +202,10 @@ function estService(a) {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return false;
     if (estService(a)) return false;
+    if (filterDem) {
+      const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
+      if (!dems.includes(filterDem)) return false;
+    }
     return true;
   });
 
