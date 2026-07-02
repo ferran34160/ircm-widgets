@@ -8,100 +8,116 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; font-size: 13px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
-.title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; max-width: 640px; }
-.field { display: flex; flex-direction: column; gap: 3px; }
-.field.full { grid-column: span 2; }
-.field label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #999; font-weight: 500; }
-.field input, .field select { font-size: 13px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; }
-.field input:focus, .field select:focus { outline: none; border-color: #378ADD; }
-@media (prefers-color-scheme: dark) { .field input, .field select { border-color: #444; } }
-.dem-box { border: 1px solid #ccc; border-radius: 7px; padding: 6px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 38px; align-content: flex-start; }
-@media (prefers-color-scheme: dark) { .dem-box { border-color: #444; } }
-.dem-chip { font-size: 12px; padding: 3px 8px; border-radius: 12px; background: #EAF3FB; color: #0C447C; cursor: pointer; border: 1px solid transparent; }
+.title { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 9px; height: 9px; border-radius: 50%; background: #1D9E75; }
+.subtitle { font-size: 12px; color: #999; margin-bottom: 18px; }
+.card { max-width: 660px; background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; padding: 18px; }
+@media (prefers-color-scheme: dark) { .card { background: #202020; border-color: #353535; } }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 13px; }
+.field label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #999; font-weight: 600; }
+.field input, .field select { font-size: 13px; padding: 8px 10px; border: 1px solid #d5d5d5; border-radius: 8px; background: #fff; color: inherit; transition: border-color .12s; }
+.field input:focus, .field select:focus { outline: none; border-color: #1D9E75; box-shadow: 0 0 0 3px rgba(29,158,117,0.1); }
+@media (prefers-color-scheme: dark) { .field input, .field select { background: #2a2a2a; border-color: #444; } }
+.field-desig input { font-size: 14px; font-weight: 500; }
+.row { display: grid; gap: 12px; }
+.row-2 { grid-template-columns: 1fr 1fr; }
+.row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.hint { font-size: 10px; color: #bbb; margin-top: 1px; }
+.dem-box { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid #d5d5d5; border-radius: 8px; min-height: 40px; align-content: flex-start; background: #fff; }
+@media (prefers-color-scheme: dark) { .dem-box { background: #2a2a2a; border-color: #444; } }
+.dem-chip { font-size: 12px; padding: 4px 10px; border-radius: 13px; background: #EAF3FB; color: #0C447C; cursor: pointer; user-select: none; transition: all .1s; }
+.dem-chip:hover { filter: brightness(0.96); }
 .dem-chip.sel { background: #378ADD; color: #fff; }
 @media (prefers-color-scheme: dark) { .dem-chip { background: #223a52; color: #9FC6EE; } .dem-chip.sel { background: #378ADD; color: #fff; } }
-.frais-section { max-width: 640px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed #d5d5d5; }
-@media (prefers-color-scheme: dark) { .frais-section { border-top-color: #444; } }
-.frais-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.frais-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #888; }
-.frais-row { display: grid; grid-template-columns: 1fr 130px 32px; gap: 8px; margin-bottom: 8px; align-items: center; }
-.frais-row input { font-size: 13px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; }
-@media (prefers-color-scheme: dark) { .frais-row input { border-color: #444; } }
-.frais-del { background: none; border: none; color: #E24B4A; cursor: pointer; font-size: 18px; padding: 0; }
-.btn { font-size: 13px; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
-.btn-add-frais { background: none; border: 1px dashed #378ADD; color: #378ADD; padding: 6px 12px; font-size: 12px; }
+.divider { height: 1px; background: #e5e5e5; margin: 6px 0 14px; }
+@media (prefers-color-scheme: dark) { .divider { background: #383838; } }
+.frais-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #888; margin-bottom: 10px; }
+.frais-row { display: grid; grid-template-columns: 1fr 140px 34px; gap: 8px; margin-bottom: 8px; align-items: center; }
+.frais-row input { font-size: 13px; padding: 8px 10px; border: 1px solid #d5d5d5; border-radius: 8px; background: #fff; color: inherit; }
+.frais-row input:focus { outline: none; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .frais-row input { background: #2a2a2a; border-color: #444; } }
+.frais-del { background: none; border: none; color: #E24B4A; cursor: pointer; font-size: 20px; line-height: 1; padding: 0; border-radius: 6px; }
+.frais-del:hover { background: rgba(226,75,74,0.1); }
+.btn { font-size: 13px; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-add-frais { background: none; border: 1px dashed #378ADD; color: #378ADD; padding: 7px 13px; font-size: 12px; }
 .btn-add-frais:hover { background: rgba(55,138,221,0.08); }
-.actions { max-width: 640px; margin-top: 20px; display: flex; align-items: center; gap: 12px; }
-.btn-submit { background: #1D9E75; color: #fff; }
+.actions { max-width: 660px; margin-top: 16px; display: flex; align-items: center; gap: 12px; }
+.btn-submit { background: #1D9E75; color: #fff; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
 .btn-submit:hover { background: #178A65; }
 .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-reset { background: rgba(0,0,0,0.07); color: inherit; }
-@media (prefers-color-scheme: dark) { .btn-reset { background: rgba(255,255,255,0.1); } }
-.msg { font-size: 12px; padding: 7px 12px; border-radius: 7px; display: none; }
+.btn-reset { background: rgba(0,0,0,0.06); color: inherit; }
+.btn-reset:hover { background: rgba(0,0,0,0.1); }
+@media (prefers-color-scheme: dark) { .btn-reset { background: rgba(255,255,255,0.1); } .btn-reset:hover { background: rgba(255,255,255,0.15); } }
+.msg { font-size: 12px; padding: 8px 13px; border-radius: 8px; display: none; }
 .msg.ok { background: #E1F5EE; color: #085041; display: inline-block; }
 .msg.err { background: #FCEBEB; color: #A32D2D; display: inline-block; }
-.hint { font-size: 11px; color: #aaa; margin-top: 2px; }
-datalist { color: inherit; }
 </style>
 </head>
 <body>
-<div class="title">Saisie d'une commande</div>
+<div class="title"><span class="title-dot"></span>Saisie d'une commande</div>
+<div class="subtitle">La commande sera créée libre, à assigner ensuite à une DA.</div>
 
-<div class="form-grid">
-  <div class="field">
-    <label>Référence fournisseur</label>
-    <input type="text" id="f-ref">
-  </div>
-  <div class="field">
-    <label>Code GHP</label>
-    <input type="text" id="f-ghp" list="ghp-list">
-    <datalist id="ghp-list"></datalist>
-  </div>
-  <div class="field full">
+<div class="card">
+  <div class="field field-desig">
     <label>Désignation</label>
-    <input type="text" id="f-desig">
+    <input type="text" id="f-desig" placeholder="Nom de l'article ou du service">
   </div>
-  <div class="field">
-    <label>Prix unitaire HT</label>
-    <input type="text" id="f-prix" inputmode="decimal">
+
+  <div class="row row-2">
+    <div class="field">
+      <label>Référence fournisseur</label>
+      <input type="text" id="f-ref">
+    </div>
+    <div class="field">
+      <label>Code GHP</label>
+      <input type="text" id="f-ghp" autocomplete="off">
+    </div>
   </div>
-  <div class="field">
-    <label>Quantité</label>
-    <input type="text" id="f-qte" inputmode="decimal" value="1">
+
+  <div class="row row-3">
+    <div class="field">
+      <label>Prix unitaire HT</label>
+      <input type="text" id="f-prix" inputmode="decimal" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Quantité</label>
+      <input type="text" id="f-qte" inputmode="decimal" value="1" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Type d'article</label>
+      <select id="f-type">
+        <option value="Produit">Produit</option>
+        <option value="Service">Service</option>
+      </select>
+    </div>
   </div>
-  <div class="field">
-    <label>Devise</label>
-    <select id="f-devise">
-      <option value="EUR">EUR</option>
-      <option value="USD">USD</option>
-    </select>
+
+  <div class="row row-2">
+    <div class="field">
+      <label>Devise</label>
+      <select id="f-devise" onchange="onDeviseChange()">
+        <option value="EUR">EUR</option>
+        <option value="USD">USD</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Taux de change (→ EUR)</label>
+      <input type="text" id="f-taux" inputmode="decimal" value="1" autocomplete="off">
+      <div class="hint">1 pour EUR</div>
+    </div>
   </div>
-  <div class="field">
-    <label>Taux de change (→ EUR)</label>
-    <input type="text" id="f-taux" inputmode="decimal" value="1">
-    <div class="hint">1 pour EUR</div>
-  </div>
-  <div class="field">
-    <label>Type d'article</label>
-    <select id="f-type">
-      <option value="Produit">Produit</option>
-      <option value="Service">Service</option>
-    </select>
-  </div>
+
   <div class="field">
     <label>Demandeur(s)</label>
     <div class="dem-box" id="dem-box"></div>
   </div>
-</div>
 
-<div class="frais-section">
-  <div class="frais-head">
-    <span class="frais-title">Frais associés (optionnel)</span>
-  </div>
+  <div class="divider"></div>
+
+  <div class="frais-title">Frais associés (optionnel)</div>
   <div id="frais-list"></div>
   <button class="btn btn-add-frais" onclick="addFraisRow()">+ Ajouter des frais</button>
-  <div class="hint" style="margin-top:6px;">Les frais héritent de la référence, du code GHP, de la devise, du taux et des demandeurs. Type = Service.</div>
+  <div class="hint" style="margin-top:8px;">Héritent de la référence, du code GHP, de la devise, du taux et des demandeurs. Type = Service.</div>
 </div>
 
 <div class="actions">
@@ -134,7 +150,6 @@ function parseNum(str) {
 async function loadOptions() {
   try {
     const c = await grist.docApi.fetchTable('Commandes');
-    // Demandeurs existents (Choice List)
     const dems = new Set();
     (c.Demandeur||[]).forEach(v => {
       if (Array.isArray(v)) v.slice(1).forEach(x => x && dems.add(x));
@@ -142,12 +157,6 @@ async function loadOptions() {
     });
     demandeursDispo = [...dems].sort((a,b)=>a.localeCompare(b,'fr'));
     renderDems();
-
-    // Codes GHP existents (per suggeriment)
-    const ghps = new Set();
-    (c.Code_GHP||[]).forEach(v => { if (v) ghps.add(v); });
-    const dl = document.getElementById('ghp-list');
-    dl.innerHTML = [...ghps].sort().map(g => `<option value="${g}"></option>`).join('');
   } catch(e) {
     console.error(e);
   }
@@ -164,6 +173,13 @@ function toggleDem(d) {
   renderDems();
 }
 
+function onDeviseChange() {
+  const dev = document.getElementById('f-devise').value;
+  const taux = document.getElementById('f-taux');
+  if (dev === 'EUR') taux.value = '1';
+  else if (taux.value === '1') taux.value = '';
+}
+
 let fraisId = 0;
 function addFraisRow() {
   fraisId++;
@@ -171,8 +187,8 @@ function addFraisRow() {
   div.className = 'frais-row';
   div.id = 'frais-' + fraisId;
   div.innerHTML = `
-    <input type="text" placeholder="Type de frais" list="frais-suggestions" class="frais-type">
-    <input type="text" placeholder="Montant" inputmode="decimal" class="frais-montant">
+    <input type="text" placeholder="Type de frais" list="frais-suggestions" class="frais-type" autocomplete="off">
+    <input type="text" placeholder="Montant" inputmode="decimal" class="frais-montant" autocomplete="off">
     <button class="frais-del" onclick="document.getElementById('frais-${fraisId}').remove()">×</button>`;
   document.getElementById('frais-list').appendChild(div);
 }
@@ -213,7 +229,6 @@ async function submitCommande() {
   const btn = document.getElementById('btn-submit');
   btn.disabled = true;
 
-  // Recollir els frais
   const fraisRows = [...document.querySelectorAll('.frais-row')];
   const frais = [];
   for (const row of fraisRows) {
@@ -223,7 +238,6 @@ async function submitCommande() {
   }
 
   const actions = [];
-  // Línia del producte
   actions.push(['AddRecord', 'Commandes', null, {
     Reference_fournisseur: ref,
     Code_GHP: ghp,
@@ -236,7 +250,6 @@ async function submitCommande() {
     Type_article: type,
     Demandeur: demValue,
   }]);
-  // Línies dels frais (hereten ref, GHP, devise, taux, demandeurs)
   frais.forEach(f => {
     actions.push(['AddRecord', 'Commandes', null, {
       Reference_fournisseur: ref,
