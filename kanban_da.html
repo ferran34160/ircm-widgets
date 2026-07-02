@@ -6,60 +6,63 @@
 <title>Suivi des DA</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
 @media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
-.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
 .title { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
 .count { font-size: 12px; background: rgba(0,0,0,0.08); padding: 2px 9px; border-radius: 10px; }
 @media (prefers-color-scheme: dark) { .count { background: rgba(255,255,255,0.12); } }
-.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 360px)); gap: 12px; align-items: start; }
-.da-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { .da-card { background: #1e1e1e; border-color: #383838; } }
-.da-header { background: #eef2f6; padding: 10px 13px; border-bottom: 1px solid #e0e5ea; }
-@media (prefers-color-scheme: dark) { .da-header { background: #283038; border-bottom-color: #38414a; } }
-.da-header-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
+.da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .da-group { background: #202020; border-color: #353535; } }
+.da-head { padding: 10px 14px; background: #eef2f6; border-bottom: 1px solid #e0e5ea; }
+@media (prefers-color-scheme: dark) { .da-head { background: #283038; border-bottom-color: #38414a; } }
+.da-head-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .da-num { font-size: 14px; font-weight: 600; }
 .da-num-date { font-size: 12px; font-weight: 400; color: #888; }
 .da-route { font-size: 12px; color: #555; font-weight: 500; }
-@media (prefers-color-scheme: dark) { .da-route { color: #bbb; } }
 .da-arrow { color: #aaa; margin: 0 2px; }
-.da-days { font-size: 11px; font-weight: 500; white-space: nowrap; padding: 2px 8px; border-radius: 6px; }
-.da-days.urgent { color: #fff; background: #E24B4A; }
-.da-days.warn { color: #fff; background: #BA7517; }
-.da-days.normal { color: #888; background: rgba(0,0,0,0.06); }
-@media (prefers-color-scheme: dark) { .da-days.normal { background: rgba(255,255,255,0.1); } }
-.da-arts { padding: 10px 13px; }
-.art-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; padding: 2px 0; color: #666; }
-@media (prefers-color-scheme: dark) { .art-line { color: #aaa; } }
-.art-name { word-break: break-word; }
-.art-line.art-service { font-style: italic; opacity: 0.65; font-size: 10px; }
-.art-dem { color: #378ADD; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .da-route { color: #bbb; } }
+.da-days { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 7px; white-space: nowrap; }
+.da-days.normal { background: rgba(0,0,0,0.07); color: #888; }
+.da-days.jaune { background: #FAF0CC; color: #8A7510; }
+.da-days.orange { background: #FBE2CC; color: #9A5410; }
+.da-days.urgent { background: #E24B4A; color: #fff; }
+@media (prefers-color-scheme: dark) { .da-days.normal { background: rgba(255,255,255,0.12); } .da-days.jaune { background: #4A4413; color: #E8D77C; } .da-days.orange { background: #4A3318; color: #E8B27C; } }
+.da-body { padding: 10px 14px; }
+.art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; background: #fff; }
+.art:last-child { margin-bottom: 0; }
+@media (prefers-color-scheme: dark) { .art { background: #2a2a2a; border-color: #383838; } }
+.art.service { background: #F7F5FB; border-color: #E4DBF3; }
+@media (prefers-color-scheme: dark) { .art.service { background: #221D2E; border-color: #362C48; } }
+.art-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.art-name { font-size: 13px; font-weight: 500; }
+.art-name.svc { font-style: italic; opacity: 0.8; }
+.art-ref { font-size: 11px; color: #888; margin-top: 1px; }
+.art-dem { font-size: 11px; color: #378ADD; margin-top: 3px; font-weight: 500; }
 @media (prefers-color-scheme: dark) { .art-dem { color: #6FB0EC; } }
-.art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.da-foot { display: flex; align-items: center; justify-content: space-between; padding: 8px 13px; border-top: 1px solid #eee; }
+.da-foot { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-top: 1px solid #e8e8e8; }
+@media (prefers-color-scheme: dark) { .da-foot { border-top-color: #353535; } }
 .da-foot-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
-@media (prefers-color-scheme: dark) { .da-foot { border-top-color: #333; } }
-.da-contrat { font-size: 11px; color: #666; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 5px; }
-@media (prefers-color-scheme: dark) { .da-contrat { color: #aaa; background: rgba(255,255,255,0.08); } }
-.da-total { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.btn-bc { width: calc(100% - 26px); margin: 0 13px 12px; padding: 7px; background: none; border: 1px solid #378ADD; color: #378ADD; border-radius: 7px; font-size: 12px; cursor: pointer; }
-.btn-bc:hover { background: #378ADD; color: #fff; }
-.bc-form { margin: 0 13px 12px; padding-top: 10px; border-top: 1px dashed #d5d5d5; display: none; }
-.bc-form.open { display: block; }
-@media (prefers-color-scheme: dark) { .bc-form { border-top-color: #444; } }
-.bc-form-row { display: flex; gap: 8px; margin-bottom: 8px; }
-.bc-field { flex: 1; }
-.bc-field label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 2px; }
-.bc-field input { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; }
-@media (prefers-color-scheme: dark) { .bc-field input { border-color: #444; } }
-.bc-actions { display: flex; gap: 8px; }
-.bc-btn { font-size: 12px; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; }
-.bc-save { background: #1D9E75; color: #fff; }
-.bc-cancel { background: rgba(0,0,0,0.08); color: inherit; }
-@media (prefers-color-scheme: dark) { .bc-cancel { background: rgba(255,255,255,0.12); } }
-.empty { text-align: center; padding: 24px; color: #aaa; font-size: 13px; }
-.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+.da-total { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.btn-edit { display: block; width: calc(100% - 28px); margin: 0 14px 12px; font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 7px; cursor: pointer; padding: 7px; }
+.btn-edit:hover { background: #378ADD; color: #fff; }
+.form { margin: 0 14px 12px; padding-top: 10px; border-top: 1px dashed #d5d5d5; display: none; }
+.form.open { display: block; }
+@media (prefers-color-scheme: dark) { .form { border-top-color: #444; } }
+.form-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.form-field { flex: 1; min-width: 120px; }
+.form-field label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 2px; }
+.form-field input { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .form-field input { border-color: #444; } }
+.form-actions { display: flex; gap: 8px; }
+.btn { font-size: 12px; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; }
+.btn-save { background: #1D9E75; color: #fff; }
+.btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
+@media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
+.empty { text-align: center; padding: 30px; color: #aaa; }
+.loading { text-align: center; padding: 40px; color: #888; }
 </style>
 </head>
 <body>
@@ -101,6 +104,11 @@ function daysSince(g) {
   if (!ms) return null;
   return Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24));
 }
+function fmtDemandeur(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.slice(1).filter(Boolean).join(', ');
+  return String(v);
+}
 
 async function fetchAll() {
   try {
@@ -130,6 +138,7 @@ async function fetchAll() {
     commandes = (c.id||[]).map((id,i) => ({
       demande_achat: (c.Demande_achat||[])[i] || null,
       designation:   (c.Designation2||[])[i] || '',
+      ref:           (c.Reference_fournisseur||[])[i] || '',
       prix:          (c.Prix_unitaire_HT||[])[i] || 0,
       qte:           (c.Quantite||[])[i] || 1,
       montant:       (c.Montant2||[])[i] || ((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
@@ -143,11 +152,6 @@ async function fetchAll() {
   }
 }
 
-function fmtDemandeur(v) {
-  if (v == null) return '';
-  if (Array.isArray(v)) return v.slice(1).filter(Boolean).join(', ');
-  return String(v);
-}
 function resolveContrat(v) {
   if (v == null) return '';
   if (typeof v === 'number') return contratNoms[v] || ('#'+v);
@@ -174,7 +178,7 @@ function render() {
     return;
   }
 
-  let html = '<div class="list">';
+  let html = '<div class="da-grid">';
   sorted.forEach(d => {
     const arts = commandes.filter(c => c.demande_achat === d.id);
     const total = arts.reduce((s,a) => s + a.montant, 0);
@@ -184,36 +188,49 @@ function render() {
     if (days !== null) {
       daysText = days === 0 ? "aujourd'hui" : days === 1 ? '1 jour' : days + ' jours';
       if (days > 14) daysClass = 'urgent';
-      else if (days > 7) daysClass = 'warn';
+      else if (days > 7) daysClass = 'orange';
+      else if (days > 3) daysClass = 'jaune';
     }
 
     const artsHtml = arts.length
-      ? arts.map(a => { const dem = fmtDemandeur(a.demandeur); return `<div class="art-line ${a.type_article === 'Service' ? 'art-service' : ''}"><span class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}${dem ? ` <span class="art-dem">· ${dem}</span>` : ''}</span><span class="art-price">${fmt(a.montant)}</span></div>`; }).join('')
-      : '<div class="art-line"><span class="art-name" style="font-style:italic; color:#bbb;">Aucun article assigné</span></div>';
+      ? arts.map(a => {
+          const svc = a.type_article === 'Service';
+          const dem = fmtDemandeur(a.demandeur);
+          return `<div class="art ${svc ? 'service' : ''}">
+            <div class="art-top">
+              <div>
+                <div class="art-name ${svc ? 'svc' : ''}">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</div>
+                <div class="art-ref">${a.ref && !svc ? 'Réf: ' + a.ref + ' · ' : ''}${fmt(a.montant)}</div>
+                ${dem ? `<div class="art-dem">👤 ${dem}</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')
+      : '<div class="art"><div class="art-name" style="font-style:italic; color:#bbb;">Aucun article assigné</div></div>';
 
     html += `
-      <div class="da-card">
-        <div class="da-header">
-          <div class="da-header-top">
+      <div class="da-group">
+        <div class="da-head">
+          <div class="da-head-top">
             <span class="da-num">${d.num_da} <span class="da-num-date">du ${fmtDate(d.date_da)}</span></span>
             <span class="da-days ${daysClass}">${daysText}</span>
           </div>
           <div class="da-route">${resolveContrat(d.contrat) || '—'} <span class="da-arrow">→</span> ${resolveFour(d.fournisseur) || '—'}</div>
         </div>
-        <div class="da-arts">${artsHtml}</div>
+        <div class="da-body">${artsHtml}</div>
         <div class="da-foot">
           <span class="da-foot-label">Total</span>
           <span class="da-total">${fmt(total)}</span>
         </div>
-        <button class="btn-bc" onclick="toggleBC(${d.id})">Réception BC</button>
-        <div class="bc-form" id="bc-form-${d.id}">
-          <div class="bc-form-row">
-            <div class="bc-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
-            <div class="bc-field"><label>Date réception BC</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_reception_bc) || new Date().toISOString().slice(0,10)}"></div>
+        <button class="btn-edit" onclick="toggleBC(${d.id})">Réception BC</button>
+        <div class="form" id="bc-form-${d.id}">
+          <div class="form-row">
+            <div class="form-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
+            <div class="form-field"><label>Date réception BC</label><input type="date" id="bc-date-${d.id}" value="${dateInput(d.date_reception_bc) || new Date().toISOString().slice(0,10)}"></div>
           </div>
-          <div class="bc-actions">
-            <button class="bc-btn bc-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
-            <button class="bc-btn bc-cancel" onclick="toggleBC(${d.id})">Annuler</button>
+          <div class="form-actions">
+            <button class="btn btn-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
+            <button class="btn btn-cancel" onclick="toggleBC(${d.id})">Annuler</button>
           </div>
         </div>
       </div>`;
