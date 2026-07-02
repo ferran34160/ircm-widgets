@@ -327,6 +327,9 @@ function renderListContent() {
     list = list.filter(d => (d.num_bc || '').toLowerCase().includes(q));
   }
   const dateRef = (d) => {
+    // A "Toutes": toujours par Date_DA (chronologie de création)
+    if (tab === 'toutes') return toMs(d.date_da);
+    // Sinon: date pertinente selon le statut
     if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') return toMs(d.date_bc) || toMs(d.date_da);
     return toMs(d.date_da);
   };
