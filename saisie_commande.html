@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saisie d'une commande</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; max-width: 640px; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field.full { grid-column: span 2; }
+.field label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #999; font-weight: 500; }
+.field input, .field select { font-size: 13px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; }
+.field input:focus, .field select:focus { outline: none; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .field input, .field select { border-color: #444; } }
+.dem-box { border: 1px solid #ccc; border-radius: 7px; padding: 6px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 38px; align-content: flex-start; }
+@media (prefers-color-scheme: dark) { .dem-box { border-color: #444; } }
+.dem-chip { font-size: 12px; padding: 3px 8px; border-radius: 12px; background: #EAF3FB; color: #0C447C; cursor: pointer; border: 1px solid transparent; }
+.dem-chip.sel { background: #378ADD; color: #fff; }
+@media (prefers-color-scheme: dark) { .dem-chip { background: #223a52; color: #9FC6EE; } .dem-chip.sel { background: #378ADD; color: #fff; } }
+.frais-section { max-width: 640px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed #d5d5d5; }
+@media (prefers-color-scheme: dark) { .frais-section { border-top-color: #444; } }
+.frais-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.frais-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #888; }
+.frais-row { display: grid; grid-template-columns: 1fr 130px 32px; gap: 8px; margin-bottom: 8px; align-items: center; }
+.frais-row input { font-size: 13px; padding: 7px 9px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .frais-row input { border-color: #444; } }
+.frais-del { background: none; border: none; color: #E24B4A; cursor: pointer; font-size: 18px; padding: 0; }
+.btn { font-size: 13px; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-add-frais { background: none; border: 1px dashed #378ADD; color: #378ADD; padding: 6px 12px; font-size: 12px; }
+.btn-add-frais:hover { background: rgba(55,138,221,0.08); }
+.actions { max-width: 640px; margin-top: 20px; display: flex; align-items: center; gap: 12px; }
+.btn-submit { background: #1D9E75; color: #fff; }
+.btn-submit:hover { background: #178A65; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-reset { background: rgba(0,0,0,0.07); color: inherit; }
+@media (prefers-color-scheme: dark) { .btn-reset { background: rgba(255,255,255,0.1); } }
+.msg { font-size: 12px; padding: 7px 12px; border-radius: 7px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: inline-block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: inline-block; }
+.hint { font-size: 11px; color: #aaa; margin-top: 2px; }
+datalist { color: inherit; }
+</style>
+</head>
+<body>
+<div class="title">Saisie d'une commande</div>
+
+<div class="form-grid">
+  <div class="field">
+    <label>Référence fournisseur</label>
+    <input type="text" id="f-ref">
+  </div>
+  <div class="field">
+    <label>Code GHP</label>
+    <input type="text" id="f-ghp" list="ghp-list">
+    <datalist id="ghp-list"></datalist>
+  </div>
+  <div class="field full">
+    <label>Désignation</label>
+    <input type="text" id="f-desig">
+  </div>
+  <div class="field">
+    <label>Prix unitaire HT</label>
+    <input type="text" id="f-prix" inputmode="decimal">
+  </div>
+  <div class="field">
+    <label>Quantité</label>
+    <input type="text" id="f-qte" inputmode="decimal" value="1">
+  </div>
+  <div class="field">
+    <label>Devise</label>
+    <select id="f-devise">
+      <option value="EUR">EUR</option>
+      <option value="USD">USD</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Taux de change (→ EUR)</label>
+    <input type="text" id="f-taux" inputmode="decimal" value="1">
+    <div class="hint">1 pour EUR</div>
+  </div>
+  <div class="field">
+    <label>Type d'article</label>
+    <select id="f-type">
+      <option value="Produit">Produit</option>
+      <option value="Service">Service</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Demandeur(s)</label>
+    <div class="dem-box" id="dem-box"></div>
+  </div>
+</div>
+
+<div class="frais-section">
+  <div class="frais-head">
+    <span class="frais-title">Frais associés (optionnel)</span>
+  </div>
+  <div id="frais-list"></div>
+  <button class="btn btn-add-frais" onclick="addFraisRow()">+ Ajouter des frais</button>
+  <div class="hint" style="margin-top:6px;">Les frais héritent de la référence, du code GHP, de la devise, du taux et des demandeurs. Type = Service.</div>
+</div>
+
+<div class="actions">
+  <button class="btn btn-submit" id="btn-submit" onclick="submitCommande()">Enregistrer</button>
+  <button class="btn btn-reset" onclick="resetForm()">Effacer</button>
+  <span class="msg" id="msg"></span>
+</div>
+
+<datalist id="frais-suggestions">
+  <option value="Frais de port"></option>
+  <option value="Shipping charges"></option>
+  <option value="Fuel surcharge"></option>
+  <option value="Frais de glace carbonique"></option>
+  <option value="Handling fee"></option>
+  <option value="Frais de livraison"></option>
+</datalist>
+
+<script>
+let demandeursDispo = [];
+let selectedDems = new Set();
+
+function parseNum(str) {
+  if (str == null) return null;
+  str = String(str).trim().replace(/\s/g,'').replace('€','').replace(',', '.');
+  if (str === '') return null;
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
+async function loadOptions() {
+  try {
+    const c = await grist.docApi.fetchTable('Commandes');
+    // Demandeurs existents (Choice List)
+    const dems = new Set();
+    (c.Demandeur||[]).forEach(v => {
+      if (Array.isArray(v)) v.slice(1).forEach(x => x && dems.add(x));
+      else if (v) dems.add(v);
+    });
+    demandeursDispo = [...dems].sort((a,b)=>a.localeCompare(b,'fr'));
+    renderDems();
+
+    // Codes GHP existents (per suggeriment)
+    const ghps = new Set();
+    (c.Code_GHP||[]).forEach(v => { if (v) ghps.add(v); });
+    const dl = document.getElementById('ghp-list');
+    dl.innerHTML = [...ghps].sort().map(g => `<option value="${g}"></option>`).join('');
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderDems() {
+  const box = document.getElementById('dem-box');
+  box.innerHTML = demandeursDispo.map(d =>
+    `<span class="dem-chip ${selectedDems.has(d)?'sel':''}" onclick="toggleDem('${d.replace(/'/g,"\\'")}')">${d}</span>`
+  ).join('') || '<span class="hint">Aucun demandeur enregistré</span>';
+}
+function toggleDem(d) {
+  if (selectedDems.has(d)) selectedDems.delete(d); else selectedDems.add(d);
+  renderDems();
+}
+
+let fraisId = 0;
+function addFraisRow() {
+  fraisId++;
+  const div = document.createElement('div');
+  div.className = 'frais-row';
+  div.id = 'frais-' + fraisId;
+  div.innerHTML = `
+    <input type="text" placeholder="Type de frais" list="frais-suggestions" class="frais-type">
+    <input type="text" placeholder="Montant" inputmode="decimal" class="frais-montant">
+    <button class="frais-del" onclick="document.getElementById('frais-${fraisId}').remove()">×</button>`;
+  document.getElementById('frais-list').appendChild(div);
+}
+
+function showMsg(text, cls) {
+  const m = document.getElementById('msg');
+  m.textContent = text; m.className = 'msg ' + cls;
+  if (cls === 'ok') setTimeout(()=>{ m.className='msg'; }, 4000);
+}
+
+function resetForm() {
+  ['f-ref','f-ghp','f-desig','f-prix'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-qte').value = '1';
+  document.getElementById('f-taux').value = '1';
+  document.getElementById('f-devise').value = 'EUR';
+  document.getElementById('f-type').value = 'Produit';
+  selectedDems.clear();
+  renderDems();
+  document.getElementById('frais-list').innerHTML = '';
+}
+
+async function submitCommande() {
+  const ref    = document.getElementById('f-ref').value.trim();
+  const ghp    = document.getElementById('f-ghp').value.trim();
+  const desig  = document.getElementById('f-desig').value.trim();
+  const prix   = parseNum(document.getElementById('f-prix').value);
+  const qte    = parseNum(document.getElementById('f-qte').value) || 1;
+  const devise = document.getElementById('f-devise').value;
+  const taux   = parseNum(document.getElementById('f-taux').value) || 1;
+  const type   = document.getElementById('f-type').value;
+
+  if (!desig) { showMsg('La désignation est obligatoire.', 'err'); return; }
+  if (prix == null) { showMsg('Le prix unitaire est obligatoire.', 'err'); return; }
+
+  const demList = [...selectedDems];
+  const demValue = demList.length ? ['L', ...demList] : null;
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+
+  // Recollir els frais
+  const fraisRows = [...document.querySelectorAll('.frais-row')];
+  const frais = [];
+  for (const row of fraisRows) {
+    const t = row.querySelector('.frais-type').value.trim();
+    const m = parseNum(row.querySelector('.frais-montant').value);
+    if (t && m != null) frais.push({ type: t, montant: m });
+  }
+
+  const actions = [];
+  // Línia del producte
+  actions.push(['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref,
+    Code_GHP: ghp,
+    Designation2: desig,
+    Prix_unitaire_HT: prix,
+    Quantite: qte,
+    Devise: devise,
+    Taux_change: taux,
+    Taux_TVA: 0.2,
+    Type_article: type,
+    Demandeur: demValue,
+  }]);
+  // Línies dels frais (hereten ref, GHP, devise, taux, demandeurs)
+  frais.forEach(f => {
+    actions.push(['AddRecord', 'Commandes', null, {
+      Reference_fournisseur: ref,
+      Code_GHP: ghp,
+      Designation2: f.type,
+      Prix_unitaire_HT: f.montant,
+      Quantite: 1,
+      Devise: devise,
+      Taux_change: taux,
+      Taux_TVA: 0.2,
+      Type_article: 'Service',
+      Demandeur: demValue,
+    }]);
+  });
+
+  try {
+    await grist.docApi.applyUserActions(actions);
+    const nb = 1 + frais.length;
+    showMsg(`${nb} ligne(s) enregistrée(s).`, 'ok');
+    resetForm();
+    await loadOptions();
+  } catch(e) {
+    showMsg('Erreur : ' + e.message, 'err');
+  }
+  btn.disabled = false;
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    loadOptions();
+  } else {
+    document.querySelector('.title').textContent = 'Connectez ce widget à Grist.';
+  }
+}
+
+const s = document.createElement('script');
+s.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+s.onload = loadData; s.onerror = loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
