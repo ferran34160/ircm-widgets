@@ -345,7 +345,7 @@ function renderListContent() {
   list.forEach(d => {
     const sel = selectedDA === d.id ? 'sel' : '';
     const nb = nbProduits(d.id);
-    const dProds = artsOf(d.id).filter(a => a.type_article !== 'Service');
+    const dProds = artsOf(d.id).filter(a => a.statut_livr === 'Reçu' || a.statut_livr === 'En attente');
     const nbRecus = dProds.filter(a => a.statut_livr === 'Reçu').length;
     let livrBadge = '';
     if (dProds.length && (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu')) {
@@ -409,7 +409,8 @@ function renderDetail(d) {
       deviseHtml = `<div class="art-devise">${origStr} → ${fmt(a.montant)} (taux ${a.taux}). Valeur estimée en EUR.</div>`;
     }
     const livr = a.statut_livr === 'Reçu';
-    const livrHtml = a.type_article === 'Service'
+    const hasLivr = a.statut_livr === 'Reçu' || a.statut_livr === 'En attente';
+    const livrHtml = !hasLivr
       ? ''
       : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré':'⏳ En attente'}</span>`;
     return `
