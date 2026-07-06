@@ -68,6 +68,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .msg { font-size: 12px; padding: 8px 13px; border-radius: 8px; display: none; }
 .msg.ok { background: #E1F5EE; color: #085041; display: inline-block; }
 .msg.err { background: #FCEBEB; color: #A32D2D; display: inline-block; }
+.recap { margin-top: 10px; font-size: 12px; padding: 10px 13px; border-radius: 9px; background: #E1F5EE; border: 1px solid #B9E4D3; color: #085041; display: none; }
+.recap.show { display: block; animation: recapIn .25s ease; }
+.recap .r-check { font-weight: 600; margin-right: 4px; }
+.recap .r-detail { color: #0F6E56; margin-top: 3px; font-size: 11px; }
+@keyframes recapIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-color-scheme: dark) { .recap { background: #123528; border-color: #1D5F49; color: #7FD9B8; } .recap .r-detail { color: #6FC9A8; } }
 </style>
 </head>
 <body>
@@ -108,6 +114,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
         <span class="msg" id="msg-p"></span>
       </div>
     </div>
+    <div class="recap" id="recap-p"></div>
   </div>
 
   <!-- PANELL SERVICE -->
@@ -132,6 +139,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
         <span class="msg" id="msg-s"></span>
       </div>
     </div>
+    <div class="recap" id="recap-s"></div>
   </div>
 
 </div>
@@ -217,6 +225,15 @@ function addFraisRow() {
   document.getElementById('frais-list').appendChild(div);
 }
 
+function fmtEur(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+
+function showRecap(which, title, detail) {
+  const el = document.getElementById('recap-' + which);
+  if (!el) return;
+  el.innerHTML = `<span class="r-check">✓</span>${title}` + (detail ? `<div class="r-detail">${detail}</div>` : '');
+  el.classList.add('show');
+}
+
 function showMsg(which, text, cls) {
   const m = document.getElementById('msg-' + which);
   m.textContent = text; m.className = 'msg ' + cls;
@@ -247,7 +264,8 @@ async function submitProduit() {
   if (!desig) { showMsg('p','La désignation est obligatoire.', 'err'); return; }
   if (prix == null) { showMsg('p','Le prix unitaire est obligatoire.', 'err'); return; }
 
-  const demValue = selP.size ? ['L', ...selP] : null;
+  const demList = [...selP];
+  const demValue = demList.length ? ['L', ...demList] : null;
   const btn = document.getElementById('btn-submit-p');
   btn.disabled = true;
 
@@ -274,6 +292,12 @@ async function submitProduit() {
 
   try {
     await grist.docApi.applyUserActions(actions);
+    const symP = devise === 'USD' ? '$' : '€';
+    const prixTxt = devise === 'USD' ? `${prix.toFixed(2)} $` : fmtEur(prix);
+    let detailP = `${qte} × ${prixTxt}`;
+    if (demList.length) detailP += ` · ${demList.join(', ')}`;
+    if (frais.length) detailP += ` · ${frais.length} frais (${frais.map(f=>f.type).join(', ')})`;
+    showRecap('p', desig, detailP);
     showMsg('p', `${1 + frais.length} ligne(s) enregistrée(s).`, 'ok');
     resetProduit();
     await loadOptions();
@@ -290,7 +314,8 @@ async function submitService() {
   if (!desig) { showMsg('s','La désignation est obligatoire.', 'err'); return; }
   if (prix == null) { showMsg('s','Le prix est obligatoire.', 'err'); return; }
 
-  const demValue = selS.size ? ['L', ...selS] : null;
+  const demListS = [...selS];
+  const demValue = demListS.length ? ['L', ...demListS] : null;
   const btn = document.getElementById('btn-submit-s');
   btn.disabled = true;
 
@@ -302,6 +327,9 @@ async function submitService() {
         Taux_TVA: 0.2, Type_article: 'Service', Demandeur: demValue,
       }]
     ]);
+    let detailS = fmtEur(prix);
+    if (demListS.length) detailS += ` · ${demListS.join(', ')}`;
+    showRecap('s', desig, detailS);
     showMsg('s', 'Service enregistré.', 'ok');
     resetService();
     await loadOptions();
@@ -325,4 +353,3 @@ document.head.appendChild(s);
 </script>
 </body>
 </html>
-
