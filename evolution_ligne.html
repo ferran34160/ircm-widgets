@@ -238,10 +238,11 @@ function render() {
 
   if(points.length<=1){ container.innerHTML='<div class="empty">Aucune opération depuis le premier relevé.</div>'; return; }
 
-  drawChart(points, ligne);
+  const dernierReleve = rlvs[rlvs.length-1];
+  drawChart(points, ligne, dernierReleve);
 }
 
-function drawChart(points, ligne) {
+function drawChart(points, ligne, dernierReleve) {
   const W=820, H=340, padL=64, padR=20, padT=20, padB=40;
   const iw=W-padL-padR, ih=H-padT-padB;
 
@@ -341,9 +342,10 @@ function drawChart(points, ligne) {
     </div>
     <div class="chart-wrap">${svg}</div>
     <div class="summary">
-      <div class="sum">Premier relevé<b>${fmt(points[0].dispo)}</b></div>
-      <div class="sum">Disponible actuel<b style="color:${finalDispo<0?'#E24B4A':'#1D9E75'}">${fmt(finalDispo)}</b></div>
+      <div class="sum">Dernier relevé<b>${dernierReleve ? fmtDate(dernierReleve.date) : '—'}</b></div>
+      <div class="sum">Montant relevé<b>${dernierReleve ? fmt(dernierReleve.officiel) : '—'}</b></div>
       <div class="sum">Opérations<b>${points.length-1}</b></div>
+      <div class="sum">Disponible actuel<b style="color:${finalDispo<0?'#E24B4A':'#1D9E75'}">${fmt(finalDispo)}</b></div>
     </div>`;
   document.getElementById('container').innerHTML=html;
 
@@ -453,4 +455,3 @@ document.head.appendChild(s);
 </script>
 </body>
 </html>
-
