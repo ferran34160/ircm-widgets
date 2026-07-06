@@ -22,7 +22,7 @@ select { font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radi
 .leg-dot.entree { background: #1D9E75; }
 .leg-dot.transf { background: #9C6ADE; }
 .leg-dot.releve { background: #378ADD; border-radius: 2px; }
-.chart-wrap { position: relative; margin-top: 8px; max-width: 1100px; overflow: visible; }
+.chart-wrap { position: relative; margin-top: 8px; max-width: 1400px; overflow: visible; }
 svg { width: 100%; height: auto; display: block; }
 .grid-line { stroke: rgba(0,0,0,0.07); stroke-width: 1; }
 @media (prefers-color-scheme: dark) { .grid-line { stroke: rgba(255,255,255,0.1); } }
@@ -135,14 +135,20 @@ function fillLignes() {
 
 function buildEvents(ligneId) {
   const evts=[];
-  // Comandes via DA d'aquesta línia (amb data de recepció BC, estat tractat)
+  // Comandes agrupades per DA (un sol punt per DA, suma de tots els articles)
+  const parDA={};
   commandes.forEach(c=>{
     if(!c.da) return;
     const da=das[c.da];
     if(!da || ligneIdOf(da.ligne)!==ligneId) return;
     if(da.statut!=='Envoyée PGM' && da.statut!=='BC reçu') return;
     if(!da.date_bc) return;
-    evts.push({ date:da.date_bc, type:'cmd', delta:-c.montant, label:c.desig||'Commande', extra:da.num_da });
+    if(!parDA[c.da]) parDA[c.da]={ date:da.date_bc, num_da:da.num_da, total:0, nb:0 };
+    parDA[c.da].total+=c.montant;
+    parDA[c.da].nb++;
+  });
+  Object.values(parDA).forEach(d=>{
+    evts.push({ date:d.date, type:'cmd', delta:-d.total, label:d.num_da||'Commande', extra:d.nb+' article'+(d.nb>1?'s':'') });
   });
   // Mouvements
   mouvements.forEach(m=>{
@@ -174,7 +180,7 @@ function render() {
 
   const premierReleve=rlvs[0];
   let running=premierReleve.officiel;
-  const points=[{ date:premierReleve.date, dispo:running, type:'releve', label:'Premier relevé PGM', extra:'Disponible officiel' }];
+  const points=[{ date:premierReleve.date, dispo:running, type:'releve', label:'Premier relevé PGM' }];
 
   // Ne considérer que les opérations postérieures au premier relevé,
   // et les relevés suivants (qui recalibrent la ligne)
@@ -186,7 +192,7 @@ function render() {
   merged.forEach(item=>{
     if(item.kind==='releve'){
       running=item.officiel;
-      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', extra:'Disponible officiel' });
+      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM' });
     } else {
       running+=item.delta;
       points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra });
@@ -252,11 +258,26 @@ function drawChart(points, ligne) {
     }
   });
 
-  // Etiquetes de dates a l'eix X (min i max)
+  // Etiquetes de dates a l'eix X: relevés i transferts (a més del primer i últim)
   let xlabels='';
   if(dated.length){
-    xlabels+=`<text class="axis-label" x="${(padL+20).toFixed(1)}" y="${H-padB+22}" text-anchor="start">${fmtDate(minDate)}</text>`;
-    xlabels+=`<text class="axis-label" x="${W-padR}" y="${H-padB+22}" text-anchor="end">${fmtDate(maxDate)}</text>`;
+    // Recollir les dates a etiquetar: primer punt, últim punt, relevés i transferts
+    const labelPts=[];
+    points.forEach((p,i)=>{
+      if(p.type==='releve' || p.type==='transf') labelPts.push({date:p.date, x:xOf(p,i)});
+    });
+    // Afegir primer i últim
+    labelPts.push({date:minDate, x:padL+10});
+    labelPts.push({date:maxDate, x:padL+10+((maxDate-minDate)/spanDate)*(iw-20)});
+    // Ordenar per x i evitar solapaments (mínim 55px entre etiquetes)
+    labelPts.sort((a,b)=>a.x-b.x);
+    let lastX=-100;
+    labelPts.forEach(lp=>{
+      if(lp.x-lastX<55) return;
+      lastX=lp.x;
+      xlabels+=`<line class="grid-line" x1="${lp.x.toFixed(1)}" y1="${padT}" x2="${lp.x.toFixed(1)}" y2="${(H-padB).toFixed(1)}" opacity="0.5"/>`;
+      xlabels+=`<text class="axis-label" x="${lp.x.toFixed(1)}" y="${H-padB+22}" text-anchor="middle">${fmtDate(lp.date)}</text>`;
+    });
   }
 
   const finalDispo=points[points.length-1].dispo;
