@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saisie d'un mouvement</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start; max-width: 900px; }
+.title { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 9px; height: 9px; border-radius: 50%; background: #D97B3F; }
+.subtitle { font-size: 12px; color: #999; margin-bottom: 14px; }
+.card { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; padding: 18px; }
+@media (prefers-color-scheme: dark) { .card { background: #202020; border-color: #353535; } }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 13px; }
+.field label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #999; font-weight: 600; }
+.field input, .field select { font-size: 13px; padding: 8px 10px; border: 1px solid #d5d5d5; border-radius: 8px; background: #fff; color: inherit; width: 100%; }
+.field input:focus, .field select:focus { outline: none; border-color: #D97B3F; box-shadow: 0 0 0 3px rgba(217,123,63,0.12); }
+@media (prefers-color-scheme: dark) { .field input, .field select { background: #2a2a2a; border-color: #444; } }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row > .field { min-width: 0; }
+.montant-wrap { position: relative; }
+.montant-wrap input { padding-right: 26px; }
+.montant-sym { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: #888; pointer-events: none; }
+.seg { display: flex; gap: 0; border: 1px solid #d5d5d5; border-radius: 8px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .seg { border-color: #444; } }
+.seg button { flex: 1; font-size: 13px; padding: 8px; border: none; background: #fff; color: inherit; cursor: pointer; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .seg button { background: #2a2a2a; } }
+.seg button.sel-sortie { background: #E24B4A; color: #fff; }
+.seg button.sel-entree { background: #1D9E75; color: #fff; }
+.btn { font-size: 13px; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.actions { margin-top: 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.btn-submit { background: #D97B3F; color: #fff; box-shadow: 0 1px 3px rgba(217,123,63,0.3); }
+.btn-submit:hover { background: #C06A32; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-reset { background: rgba(0,0,0,0.06); color: inherit; }
+.btn-reset:hover { background: rgba(0,0,0,0.1); }
+@media (prefers-color-scheme: dark) { .btn-reset { background: rgba(255,255,255,0.1); } }
+.msg { font-size: 12px; padding: 8px 13px; border-radius: 8px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: inline-block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: inline-block; }
+.list-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #888; margin-bottom: 10px; }
+.mvt { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid #e8e8e8; border-radius: 9px; margin-bottom: 7px; background: #fff; }
+@media (prefers-color-scheme: dark) { .mvt { background: #252525; border-color: #383838; } }
+.mvt-info { min-width: 0; }
+.mvt-motif { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mvt-ligne { font-size: 11px; color: #888; margin-top: 1px; }
+.mvt-right { text-align: right; white-space: nowrap; }
+.mvt-montant { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mvt-montant.sortie { color: #E24B4A; }
+.mvt-montant.entree { color: #1D9E75; }
+.mvt-date { font-size: 10px; color: #aaa; margin-top: 1px; }
+.empty { font-size: 12px; color: #aaa; padding: 14px 0; }
+.loading { text-align: center; padding: 30px; color: #888; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div>
+    <div class="title"><span class="title-dot"></span>Saisie d'un mouvement</div>
+    <div class="subtitle">Dépense ou entrée directe sur une ligne (hors circuit DA).</div>
+    <div class="card">
+      <div class="field">
+        <label>Type de mouvement</label>
+        <div class="seg">
+          <button id="btn-sortie" class="sel-sortie" onclick="setType('Sortie')">Sortie (dépense)</button>
+          <button id="btn-entree" onclick="setType('Entrée')">Entrée</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Ligne budgétaire</label>
+        <select id="m-ligne"><option value="">— Choisir une ligne —</option></select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Montant</label>
+          <div class="montant-wrap"><input type="text" id="m-montant" inputmode="decimal" autocomplete="off"><span class="montant-sym">€</span></div>
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="m-date">
+        </div>
+      </div>
+      <div class="field">
+        <label>Motif</label>
+        <input type="text" id="m-motif" autocomplete="off" placeholder="Ex : Repas réunion, note de frais…">
+      </div>
+      <div class="actions">
+        <button class="btn btn-submit" id="btn-submit" onclick="submitMvt()">Enregistrer</button>
+        <button class="btn btn-reset" onclick="resetForm()">Effacer</button>
+        <span class="msg" id="msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="list-title">Derniers mouvements</div>
+    <div id="mvt-list"><div class="loading">Chargement…</div></div>
+  </div>
+
+</div>
+
+<script>
+let lignesDispo = [], contratNoms = {}, mvtType = 'Sortie';
+
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+function parseNum(str) {
+  if (str == null) return null;
+  str = String(str).trim().replace(/\s/g,'').replace('€','').replace(',', '.');
+  if (str === '') return null;
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
+function setType(t) {
+  mvtType = t;
+  document.getElementById('btn-sortie').className = t==='Sortie' ? 'sel-sortie' : '';
+  document.getElementById('btn-entree').className = t==='Entrée' ? 'sel-entree' : '';
+}
+
+async function fetchAll() {
+  try {
+    const [lb, ct, mv] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Mouvements'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+
+    lignesDispo = (lb.id||[]).map((id,i)=>({
+      id, label:(lb.Label||[])[i]||('Ligne #'+id),
+    }));
+    fillLignes();
+
+    // Últims mouvements (ordenats per data desc)
+    const mvts = (mv.id||[]).map((id,i)=>({
+      id,
+      ligne:(mv.Ligne_budgetaire||[])[i],
+      type:(mv.Type||[])[i]||'',
+      montant:(mv.Montant||[])[i]||0,
+      date:(mv.Date||[])[i],
+      motif:(mv.Motif||[])[i]||'',
+    })).sort((a,b)=>toMs(b.date)-toMs(a.date)).slice(0,12);
+    renderList(mvts);
+  } catch(e) {
+    document.getElementById('mvt-list').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
+  }
+}
+
+function lblLigne(ligneRef) {
+  let id = ligneRef;
+  if (Array.isArray(ligneRef)) id = ligneRef[1];
+  const l = lignesDispo.find(x=>x.id===id);
+  return l ? l.label : '';
+}
+
+function fillLignes() {
+  const sel = document.getElementById('m-ligne');
+  const cur = sel.value;
+  // Agrupar per contracte (part abans del |)
+  const groups = {};
+  lignesDispo.forEach(l => {
+    const contrat = (l.label.split('|')[0]||'').trim() || 'Autres';
+    (groups[contrat]=groups[contrat]||[]).push(l);
+  });
+  let html = '<option value="">— Choisir une ligne —</option>';
+  Object.keys(groups).sort((a,b)=>a.localeCompare(b,'fr')).forEach(c => {
+    html += `<optgroup label="${c.replace(/"/g,'&quot;')}">`;
+    groups[c].forEach(l => {
+      const sub = l.label.includes('|') ? l.label.split('|').slice(1).join('|').trim() : l.label;
+      html += `<option value="${l.id}">${sub.replace(/</g,'&lt;')}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+  sel.value = cur;
+}
+
+function renderList(mvts) {
+  const container = document.getElementById('mvt-list');
+  if (!mvts.length) { container.innerHTML = '<div class="empty">Aucun mouvement enregistré.</div>'; return; }
+  container.innerHTML = mvts.map(m => {
+    const isSortie = m.type === 'Sortie';
+    const sign = isSortie ? '−' : '+';
+    return `<div class="mvt">
+      <div class="mvt-info">
+        <div class="mvt-motif">${m.motif || '(sans motif)'}</div>
+        <div class="mvt-ligne">${lblLigne(m.ligne) || '—'}</div>
+      </div>
+      <div class="mvt-right">
+        <div class="mvt-montant ${isSortie?'sortie':'entree'}">${sign} ${fmt(m.montant)}</div>
+        <div class="mvt-date">${fmtDate(m.date)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showMsg(text, cls) {
+  const m = document.getElementById('msg');
+  m.textContent = text; m.className = 'msg ' + cls;
+  if (cls === 'ok') setTimeout(()=>{ m.className='msg'; }, 4000);
+}
+
+function resetForm() {
+  document.getElementById('m-ligne').value = '';
+  document.getElementById('m-montant').value = '';
+  document.getElementById('m-motif').value = '';
+  document.getElementById('m-date').value = new Date().toISOString().slice(0,10);
+  setType('Sortie');
+}
+
+async function submitMvt() {
+  const ligneId = document.getElementById('m-ligne').value;
+  const montant = parseNum(document.getElementById('m-montant').value);
+  const dateVal = document.getElementById('m-date').value;
+  const motif   = document.getElementById('m-motif').value.trim();
+
+  if (!ligneId) { showMsg('Choisissez une ligne budgétaire.', 'err'); return; }
+  if (montant == null) { showMsg('Le montant est obligatoire.', 'err'); return; }
+
+  let dateG = null;
+  if (dateVal) dateG = Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000);
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  try {
+    await grist.docApi.applyUserActions([
+      ['AddRecord', 'Mouvements', null, {
+        Ligne_budgetaire: Number(ligneId),
+        Type: mvtType,
+        Montant: montant,
+        Date: dateG,
+        Motif: motif,
+      }]
+    ]);
+    showMsg('Mouvement enregistré.', 'ok');
+    resetForm();
+    await fetchAll();
+  } catch(e) {
+    showMsg('Erreur : ' + e.message, 'err');
+  }
+  btn.disabled = false;
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    document.getElementById('m-date').value = new Date().toISOString().slice(0,10);
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+  } else {
+    document.querySelector('.title').textContent = 'Connectez ce widget à Grist.';
+  }
+}
+
+const s = document.createElement('script');
+s.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+s.onload = loadData; s.onerror = loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
