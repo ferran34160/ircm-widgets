@@ -88,6 +88,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
         <label>Motif</label>
         <input type="text" id="m-motif" autocomplete="off" placeholder="Ex : Repas réunion, note de frais…">
       </div>
+      <div class="field">
+        <label>Fournisseur</label>
+        <input type="text" id="m-fournisseur" autocomplete="off" list="four-list" placeholder="Nom du fournisseur">
+        <datalist id="four-list"></datalist>
+      </div>
       <div class="actions">
         <button class="btn btn-submit" id="btn-submit" onclick="submitMvt()">Enregistrer</button>
         <button class="btn btn-reset" onclick="resetForm()">Effacer</button>
@@ -147,8 +152,16 @@ async function fetchAll() {
       montant:(mv.Montant||[])[i]||0,
       date:(mv.Date||[])[i],
       motif:(mv.Motif||[])[i]||'',
-    })).sort((a,b)=>toMs(b.date)-toMs(a.date)).slice(0,12);
-    renderList(mvts);
+      fournisseur:(mv.Fournisseur||[])[i]||'',
+    })).sort((a,b)=>toMs(b.date)-toMs(a.date));
+
+    // Suggeriments de fournisseurs (valors ja escrits)
+    const fours = new Set();
+    (mv.Fournisseur||[]).forEach(v => { if (v) fours.add(v); });
+    const dl = document.getElementById('four-list');
+    if (dl) dl.innerHTML = [...fours].sort((a,b)=>a.localeCompare(b,'fr')).map(f=>`<option value="${f.replace(/"/g,'&quot;')}"></option>`).join('');
+
+    renderList(mvts.slice(0,12));
   } catch(e) {
     document.getElementById('mvt-list').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
   }
@@ -192,7 +205,7 @@ function renderList(mvts) {
     return `<div class="mvt">
       <div class="mvt-info">
         <div class="mvt-motif">${m.motif || '(sans motif)'}</div>
-        <div class="mvt-ligne">${lblLigne(m.ligne) || '—'}</div>
+        <div class="mvt-ligne">${lblLigne(m.ligne) || '—'}${m.fournisseur ? ' · ' + m.fournisseur : ''}</div>
       </div>
       <div class="mvt-right">
         <div class="mvt-montant ${isSortie?'sortie':'entree'}">${sign} ${fmt(m.montant)}</div>
@@ -212,6 +225,7 @@ function resetForm() {
   document.getElementById('m-ligne').value = '';
   document.getElementById('m-montant').value = '';
   document.getElementById('m-motif').value = '';
+  document.getElementById('m-fournisseur').value = '';
   document.getElementById('m-date').value = new Date().toISOString().slice(0,10);
   setType('Sortie');
 }
@@ -221,6 +235,7 @@ async function submitMvt() {
   const montant = parseNum(document.getElementById('m-montant').value);
   const dateVal = document.getElementById('m-date').value;
   const motif   = document.getElementById('m-motif').value.trim();
+  const fournisseur = document.getElementById('m-fournisseur').value.trim();
 
   if (!ligneId) { showMsg('Choisissez une ligne budgétaire.', 'err'); return; }
   if (montant == null) { showMsg('Le montant est obligatoire.', 'err'); return; }
@@ -238,6 +253,7 @@ async function submitMvt() {
         Montant: montant,
         Date: dateG,
         Motif: motif,
+        Fournisseur: fournisseur,
       }]
     ]);
     showMsg('Mouvement enregistré.', 'ok');
