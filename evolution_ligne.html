@@ -169,13 +169,18 @@ function render() {
   const evts=buildEvents(ligne.id);
   const rlvs=releves.filter(r=>ligneIdOf(r.ligne)===ligne.id && r.date).sort((a,b)=>a.date-b.date);
 
-  // Construir la sèrie de disponible acumulat partint del budget
-  let running=ligne.budget;
-  const points=[{ date:null, dispo:running, type:'start', label:'Budget ajusté' }];
-  // Fusionar events i relevés cronològicament; els relevés reseteguen al valor oficial
+  // Punt de départ: le premier relevé PGM disponible
+  if(rlvs.length===0){ container.innerHTML='<div class="empty">Aucun relevé PGM sur cette ligne. Le graphique démarre au premier relevé.</div>'; return; }
+
+  const premierReleve=rlvs[0];
+  let running=premierReleve.officiel;
+  const points=[{ date:premierReleve.date, dispo:running, type:'releve', label:'Premier relevé PGM', extra:'Disponible officiel' }];
+
+  // Ne considérer que les opérations postérieures au premier relevé,
+  // et les relevés suivants (qui recalibrent la ligne)
   const merged=[
-    ...evts.map(e=>({...e, kind:'evt'})),
-    ...rlvs.map(r=>({date:r.date, kind:'releve', officiel:r.officiel, type:'releve', label:'Relevé PGM'})),
+    ...evts.filter(e=>e.date>premierReleve.date).map(e=>({...e, kind:'evt'})),
+    ...rlvs.slice(1).map(r=>({date:r.date, kind:'releve', officiel:r.officiel, type:'releve', label:'Relevé PGM'})),
   ].sort((a,b)=>a.date-b.date);
 
   merged.forEach(item=>{
@@ -188,7 +193,7 @@ function render() {
     }
   });
 
-  if(points.length<=1){ container.innerHTML='<div class="empty">Aucune opération sur cette ligne.</div>'; return; }
+  if(points.length<=1){ container.innerHTML='<div class="empty">Aucune opération depuis le premier relevé.</div>'; return; }
 
   drawChart(points, ligne);
 }
@@ -197,15 +202,13 @@ function drawChart(points, ligne) {
   const W=820, H=340, padL=64, padR=20, padT=20, padB=40;
   const iw=W-padL-padR, ih=H-padT-padB;
 
-  // Assignar X: el primer punt (budget) a l'esquerra; la resta per data real
+  // Tots els punts tenen data (el primer és el premier relevé)
   const dated=points.filter(p=>p.date);
   const minDate=dated.length?Math.min(...dated.map(p=>p.date)):Date.now();
   const maxDate=dated.length?Math.max(...dated.map(p=>p.date)):Date.now();
   const spanDate=maxDate-minDate||1;
-  // El punt inicial (budget) el situem una mica abans del primer event
   function xOf(p, i){
-    if(!p.date) return padL; // budget al marge esquerre
-    return padL + 20 + ((p.date-minDate)/spanDate)*(iw-20);
+    return padL + 10 + ((p.date-minDate)/spanDate)*(iw-20);
   }
 
   const vals=points.map(p=>p.dispo);
@@ -280,7 +283,7 @@ function drawChart(points, ligne) {
     </div>
     <div class="chart-wrap">${svg}</div>
     <div class="summary">
-      <div class="sum">Budget ajusté<b>${fmt(ligne.budget)}</b></div>
+      <div class="sum">Premier relevé<b>${fmt(points[0].dispo)}</b></div>
       <div class="sum">Disponible actuel<b style="color:${finalDispo<0?'#E24B4A':'#1D9E75'}">${fmt(finalDispo)}</b></div>
       <div class="sum">Opérations<b>${points.length-1}</b></div>
     </div>`;
