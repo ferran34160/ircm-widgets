@@ -22,7 +22,7 @@ select { font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radi
 .leg-dot.entree { background: #1D9E75; }
 .leg-dot.transf { background: #9C6ADE; }
 .leg-dot.releve { background: #378ADD; border-radius: 2px; }
-.chart-wrap { position: relative; margin-top: 8px; max-width: 760px; }
+.chart-wrap { position: relative; margin-top: 8px; max-width: 1100px; overflow: visible; }
 svg { width: 100%; height: auto; display: block; }
 .grid-line { stroke: rgba(0,0,0,0.07); stroke-width: 1; }
 @media (prefers-color-scheme: dark) { .grid-line { stroke: rgba(255,255,255,0.1); } }
@@ -299,10 +299,21 @@ function drawChart(points, ligne) {
       if(p.date) html+=`<br><span class="tt-date">${fmtDate(p.date)}</span>`;
       tooltip.innerHTML=html;
       tooltip.classList.add('show');
+      tooltip.style.transform='none';
       const r=el.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
-      tooltip.style.left=(r.left-wr.left+r.width/2)+'px';
-      tooltip.style.top=(r.top-wr.top-tooltip.offsetHeight-8)+'px';
-      tooltip.style.transform='translateX(-50%)';
+      const tw=tooltip.offsetWidth, th=tooltip.offsetHeight;
+      const cx=r.left-wr.left+r.width/2;   // centre del punt dins el wrap
+      const cyTop=r.top-wr.top;            // dalt del punt dins el wrap
+
+      // Horitzontal: centrat, però sense sortir dels límits del wrap
+      let left=cx-tw/2;
+      left=Math.max(4, Math.min(left, wr.width-tw-4));
+      tooltip.style.left=left+'px';
+
+      // Vertical: per defecte a dalt; si no hi cap, a sota del punt
+      let top=cyTop-th-8;
+      if(top<2) top=cyTop+r.height+8;
+      tooltip.style.top=top+'px';
     });
     el.addEventListener('mouseleave',()=>tooltip.classList.remove('show'));
   });
