@@ -105,7 +105,7 @@ async function fetchAll() {
     das={};
     (d.id||[]).forEach((id,i)=>{ das[id]={
       ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
-      date_bc:toMs((d.Date_reception_BC||[])[i]), num_da:(d.Num_DA||[])[i]||'',
+      date_bc:toMs((d.Date_reception_BC||[])[i]), date_da:toMs((d.Date_DA||[])[i]), num_da:(d.Num_DA||[])[i]||'',
     };});
 
     commandes=(c.id||[]).map((id,i)=>({
@@ -164,15 +164,18 @@ function buildEvents(ligneId) {
     const da=das[c.da];
     if(!da || ligneIdOf(da.ligne)!==ligneId) return;
     if(da.statut!=='Envoyée PGM' && da.statut!=='BC reçu') return;
-    if(!da.date_bc) return;
-    if(!parDA[c.da]) parDA[c.da]={ date:da.date_bc, num_da:da.num_da, total:0, nb:0, articles:[] };
+    // Data de l'event: recepció del BC, o data de la DA com a fallback (Envoyée PGM sense BC)
+    const dEvt = da.date_bc || da.date_da;
+    if(!dEvt) return;
+    if(!parDA[c.da]) parDA[c.da]={ date:dEvt, num_da:da.num_da, statut:da.statut, sansBC:!da.date_bc, total:0, nb:0, articles:[] };
     parDA[c.da].total+=c.montant;
     parDA[c.da].nb++;
     parDA[c.da].articles.push({ desig:c.desig, montant:c.montant });
   });
   Object.values(parDA).forEach(d=>{
-    evts.push({ date:d.date, type:'cmd', delta:-d.total, label:d.num_da||'Commande', extra:d.nb+' article'+(d.nb>1?'s':''),
-                detail:{ kind:'cmd', num_da:d.num_da, total:d.total, articles:d.articles } });
+    const lbl = d.sansBC ? (d.num_da||'Commande')+' (Envoyée PGM)' : (d.num_da||'Commande');
+    evts.push({ date:d.date, type:'cmd', delta:-d.total, label:lbl, extra:d.nb+' article'+(d.nb>1?'s':''),
+                detail:{ kind:'cmd', num_da:d.num_da, total:d.total, articles:d.articles, statut:d.statut } });
   });
   // Mouvements
   mouvements.forEach(m=>{
