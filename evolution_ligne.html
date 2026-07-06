@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Évolution du disponible</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
+select { font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; max-width: 280px; }
+@media (prefers-color-scheme: dark) { select { border-color: #444; } }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 11px; }
+.leg-item { display: flex; align-items: center; gap: 5px; color: #777; }
+@media (prefers-color-scheme: dark) { .leg-item { color: #aaa; } }
+.leg-dot { width: 9px; height: 9px; border-radius: 50%; }
+.leg-dot.cmd { background: #E24B4A; }
+.leg-dot.sortie { background: #D9803F; }
+.leg-dot.entree { background: #1D9E75; }
+.leg-dot.transf { background: #9C6ADE; }
+.leg-dot.releve { background: #378ADD; border-radius: 2px; }
+.chart-wrap { position: relative; margin-top: 8px; }
+svg { width: 100%; height: auto; display: block; }
+.grid-line { stroke: rgba(0,0,0,0.07); stroke-width: 1; }
+@media (prefers-color-scheme: dark) { .grid-line { stroke: rgba(255,255,255,0.1); } }
+.axis-label { font-size: 10px; fill: #999; }
+.dispo-line { fill: none; stroke: #378ADD; stroke-width: 2; }
+.dispo-area { fill: url(#grad); opacity: 0.12; }
+.pt { cursor: pointer; transition: r .1s; }
+.pt:hover { r: 7; }
+.zero-line { stroke: #E24B4A; stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.6; }
+.tooltip { position: absolute; pointer-events: none; background: #222; color: #fff; padding: 8px 11px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .12s; white-space: nowrap; z-index: 10; box-shadow: 0 3px 12px rgba(0,0,0,0.25); }
+.tooltip.show { opacity: 1; }
+.tooltip b { font-weight: 600; }
+.tooltip .tt-date { color: #bbb; font-size: 10px; }
+.tooltip .tt-amount { font-variant-numeric: tabular-nums; }
+.empty { text-align: center; padding: 40px; color: #aaa; }
+.loading { text-align: center; padding: 40px; color: #888; }
+.summary { display: flex; gap: 20px; margin: 12px 0 0; flex-wrap: wrap; font-size: 12px; }
+.sum b { display: block; font-size: 16px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title"><span class="title-dot"></span>Évolution du disponible</div>
+  <select id="contrat-select"><option value="">— Contrat —</option></select>
+  <select id="ligne-select"><option value="">— Ligne budgétaire —</option></select>
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={};
+let selContrat='', selLigne='';
+
+function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(ms){ if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+
+async function fetchAll() {
+  try {
+    const [l,c,t,m,r,d,ct] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Transferts'),
+      grist.docApi.fetchTable('Mouvements'),
+      grist.docApi.fetchTable('Releves_PGM'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    contratNoms={};
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||('#'+v); if(Array.isArray(v))return contratNoms[v[1]]||String(v); return String(v); }
+
+    lignes=(l.id||[]).map((id,i)=>({
+      id, label:(l.Label||[])[i]||('Ligne #'+id), contrat:resolContrat((l.Contrat||[])[i]),
+      budget:(l.Budget_ajuste||[])[i]||0,
+    }));
+
+    das={};
+    (d.id||[]).forEach((id,i)=>{ das[id]={
+      ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
+      date_bc:toMs((d.Date_reception_BC||[])[i]), num_da:(d.Num_DA||[])[i]||'',
+    };});
+
+    commandes=(c.id||[]).map((id,i)=>({
+      da:(c.Demande_achat||[])[i]||null,
+      desig:(c.Designation2||[])[i]||'',
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+    }));
+
+    transferts=(t.id||[]).map((id,i)=>({
+      source:(t.Ligne_source||[])[i]||null, dest:(t.Ligne_destination||[])[i]||null,
+      montant:(t.Montant||[])[i]||0, date:toMs((t.Date||[])[i]), motif:(t.Motif||[])[i]||'',
+    }));
+
+    mouvements=(m.id||[]).map((id,i)=>({
+      ligne:(m.Ligne_budgetaire||[])[i]||null, type:(m.Type||[])[i]||'',
+      montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]), motif:(m.Motif||[])[i]||'',
+    }));
+
+    releves=(r.id||[]).map((id,i)=>({
+      ligne:(r.Ligne_budgetaire||[])[i]||null, date:toMs((r.Date_releve||[])[i]),
+      officiel:(r.Disponible_officiel||[])[i]||0,
+    }));
+
+    fillContrats();
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML='<div class="empty">Erreur: '+e.message+'</div>';
+  }
+}
+
+function ligneIdOf(ref){ if(ref==null)return null; if(Array.isArray(ref))return ref[1]; return ref; }
+
+function fillContrats() {
+  const cs=[...new Set(lignes.map(l=>l.contrat))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
+  const sel=document.getElementById('contrat-select');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Contrat —</option>'+cs.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+  if(cur) sel.value=cur;
+}
+function fillLignes() {
+  const sel=document.getElementById('ligne-select');
+  const ls=lignes.filter(l=>l.contrat===selContrat);
+  sel.innerHTML='<option value="">— Ligne budgétaire —</option>'+ls.map(l=>{
+    const sub=l.label.includes('|')?l.label.split('|').slice(1).join('|').trim():l.label;
+    return `<option value="${l.id}">${sub.replace(/</g,'&lt;')}</option>`;
+  }).join('');
+}
+
+function buildEvents(ligneId) {
+  const evts=[];
+  // Comandes via DA d'aquesta línia (amb data de recepció BC, estat tractat)
+  commandes.forEach(c=>{
+    if(!c.da) return;
+    const da=das[c.da];
+    if(!da || ligneIdOf(da.ligne)!==ligneId) return;
+    if(da.statut!=='Envoyée PGM' && da.statut!=='BC reçu') return;
+    if(!da.date_bc) return;
+    evts.push({ date:da.date_bc, type:'cmd', delta:-c.montant, label:c.desig||'Commande', extra:da.num_da });
+  });
+  // Mouvements
+  mouvements.forEach(m=>{
+    if(ligneIdOf(m.ligne)!==ligneId) return;
+    const isS=m.type==='Sortie';
+    evts.push({ date:m.date, type:isS?'sortie':'entree', delta:isS?-m.montant:m.montant, label:m.motif||(isS?'Sortie':'Entrée'), extra:m.type });
+  });
+  // Transferts
+  transferts.forEach(t=>{
+    if(ligneIdOf(t.dest)===ligneId) evts.push({ date:t.date, type:'transf', delta:t.montant, label:t.motif||'Transfert entrant', extra:'Entrant' });
+    if(ligneIdOf(t.source)===ligneId) evts.push({ date:t.date, type:'transf', delta:-t.montant, label:t.motif||'Transfert sortant', extra:'Sortant' });
+  });
+  evts.sort((a,b)=>a.date-b.date);
+  return evts;
+}
+
+function render() {
+  const container=document.getElementById('container');
+  if(!selLigne){ container.innerHTML='<div class="empty">Choisissez un contrat puis une ligne budgétaire.</div>'; return; }
+
+  const ligne=lignes.find(l=>l.id===Number(selLigne));
+  if(!ligne){ container.innerHTML='<div class="empty">Ligne introuvable.</div>'; return; }
+
+  const evts=buildEvents(ligne.id);
+  const rlvs=releves.filter(r=>ligneIdOf(r.ligne)===ligne.id && r.date).sort((a,b)=>a.date-b.date);
+
+  // Construir la sèrie de disponible acumulat partint del budget
+  let running=ligne.budget;
+  const points=[{ date:null, dispo:running, type:'start', label:'Budget ajusté' }];
+  // Fusionar events i relevés cronològicament; els relevés reseteguen al valor oficial
+  const merged=[
+    ...evts.map(e=>({...e, kind:'evt'})),
+    ...rlvs.map(r=>({date:r.date, kind:'releve', officiel:r.officiel, type:'releve', label:'Relevé PGM'})),
+  ].sort((a,b)=>a.date-b.date);
+
+  merged.forEach(item=>{
+    if(item.kind==='releve'){
+      running=item.officiel;
+      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', extra:'Disponible officiel' });
+    } else {
+      running+=item.delta;
+      points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra });
+    }
+  });
+
+  if(points.length<=1){ container.innerHTML='<div class="empty">Aucune opération sur cette ligne.</div>'; return; }
+
+  drawChart(points, ligne);
+}
+
+function drawChart(points, ligne) {
+  const W=820, H=340, padL=64, padR=20, padT=20, padB=40;
+  const iw=W-padL-padR, ih=H-padT-padB;
+
+  // Assignar X: el primer punt (budget) a l'esquerra; la resta per data real
+  const dated=points.filter(p=>p.date);
+  const minDate=dated.length?Math.min(...dated.map(p=>p.date)):Date.now();
+  const maxDate=dated.length?Math.max(...dated.map(p=>p.date)):Date.now();
+  const spanDate=maxDate-minDate||1;
+  // El punt inicial (budget) el situem una mica abans del primer event
+  function xOf(p, i){
+    if(!p.date) return padL; // budget al marge esquerre
+    return padL + 20 + ((p.date-minDate)/spanDate)*(iw-20);
+  }
+
+  const vals=points.map(p=>p.dispo);
+  let minV=Math.min(0,...vals), maxV=Math.max(...vals);
+  const range=maxV-minV||1; minV-=range*0.08; maxV+=range*0.08;
+  function yOf(v){ return padT + ih - ((v-minV)/(maxV-minV))*ih; }
+
+  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', start:'#888' };
+
+  // Path de la línia
+  let d='';
+  points.forEach((p,i)=>{ const x=xOf(p,i), y=yOf(p.dispo); d+=(i===0?'M':'L')+x.toFixed(1)+' '+y.toFixed(1)+' '; });
+  // Àrea
+  const x0=xOf(points[0],0), xN=xOf(points[points.length-1],points.length-1);
+  const area=d+`L${xN.toFixed(1)} ${yOf(minV).toFixed(1)} L${x0.toFixed(1)} ${yOf(minV).toFixed(1)} Z`;
+
+  // Grid horitzontal (5 línies) amb etiquetes
+  let grid='';
+  const nGrid=5;
+  for(let i=0;i<=nGrid;i++){
+    const v=minV+(maxV-minV)*i/nGrid;
+    const y=yOf(v);
+    grid+=`<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}"/>`;
+    grid+=`<text class="axis-label" x="${padL-8}" y="${(y+3).toFixed(1)}" text-anchor="end">${Math.round(v).toLocaleString('fr-FR')}</text>`;
+  }
+  // Línia del zero destacada si minV<0
+  let zeroLine='';
+  if(minV<0 && maxV>0){ const yz=yOf(0); zeroLine=`<line class="zero-line" x1="${padL}" y1="${yz.toFixed(1)}" x2="${W-padR}" y2="${yz.toFixed(1)}"/>`; }
+
+  // Punts
+  let pts='';
+  points.forEach((p,i)=>{
+    if(p.type==='start') return;
+    const x=xOf(p,i), y=yOf(p.dispo);
+    const col=COLORS[p.type]||'#888';
+    const isReleve=p.type==='releve';
+    if(isReleve){
+      pts+=`<rect class="pt" x="${(x-4).toFixed(1)}" y="${(y-4).toFixed(1)}" width="8" height="8" fill="${col}" data-i="${i}"/>`;
+    } else {
+      pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" data-i="${i}"/>`;
+    }
+  });
+
+  // Etiquetes de dates a l'eix X (min i max)
+  let xlabels='';
+  if(dated.length){
+    xlabels+=`<text class="axis-label" x="${(padL+20).toFixed(1)}" y="${H-padB+22}" text-anchor="start">${fmtDate(minDate)}</text>`;
+    xlabels+=`<text class="axis-label" x="${W-padR}" y="${H-padB+22}" text-anchor="end">${fmtDate(maxDate)}</text>`;
+  }
+
+  const finalDispo=points[points.length-1].dispo;
+  const svg=`
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      <defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#378ADD"/><stop offset="100%" stop-color="#378ADD" stop-opacity="0"/>
+      </linearGradient></defs>
+      ${grid}${zeroLine}
+      <path class="dispo-area" d="${area}"/>
+      <path class="dispo-line" d="${d.trim()}"/>
+      ${pts}
+      ${xlabels}
+    </svg>`;
+
+  const sub=ligne.label.includes('|')?ligne.label.split('|').slice(1).join('|').trim():ligne.label;
+  const html=`
+    <div class="legend">
+      <div class="leg-item"><span class="leg-dot cmd"></span>Commande</div>
+      <div class="leg-item"><span class="leg-dot sortie"></span>Sortie</div>
+      <div class="leg-item"><span class="leg-dot entree"></span>Entrée</div>
+      <div class="leg-item"><span class="leg-dot transf"></span>Transfert</div>
+      <div class="leg-item"><span class="leg-dot releve"></span>Relevé PGM</div>
+    </div>
+    <div class="chart-wrap">${svg}</div>
+    <div class="summary">
+      <div class="sum">Budget ajusté<b>${fmt(ligne.budget)}</b></div>
+      <div class="sum">Disponible actuel<b style="color:${finalDispo<0?'#E24B4A':'#1D9E75'}">${fmt(finalDispo)}</b></div>
+      <div class="sum">Opérations<b>${points.length-1}</b></div>
+    </div>`;
+  document.getElementById('container').innerHTML=html;
+
+  // Tooltips
+  const tooltip=document.getElementById('tooltip');
+  const wrap=document.querySelector('.chart-wrap');
+  document.querySelectorAll('.pt').forEach(el=>{
+    el.addEventListener('mouseenter',ev=>{
+      const p=points[Number(el.dataset.i)];
+      let html=`<b>${p.label}</b>`;
+      if(p.extra) html+=` <span class="tt-date">(${p.extra})</span>`;
+      html+=`<br><span class="tt-amount">Disponible : ${fmt(p.dispo)}</span>`;
+      if(p.delta!=null) html+=`<br><span class="tt-amount" style="color:${p.delta<0?'#F09595':'#7FD9B8'}">${p.delta<0?'−':'+'} ${fmt(Math.abs(p.delta))}</span>`;
+      if(p.date) html+=`<br><span class="tt-date">${fmtDate(p.date)}</span>`;
+      tooltip.innerHTML=html;
+      tooltip.classList.add('show');
+      const r=el.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
+      tooltip.style.left=(r.left-wr.left+r.width/2)+'px';
+      tooltip.style.top=(r.top-wr.top-tooltip.offsetHeight-8)+'px';
+      tooltip.style.transform='translateX(-50%)';
+    });
+    el.addEventListener('mouseleave',()=>tooltip.classList.remove('show'));
+  });
+}
+
+document.getElementById('contrat-select').addEventListener('change',e=>{
+  selContrat=e.target.value; selLigne=''; fillLignes(); render();
+});
+document.getElementById('ligne-select').addEventListener('change',e=>{
+  selLigne=e.target.value; render();
+});
+
+function loadData(){
+  if(window.grist){
+    grist.ready({ requiredAccess:'full' });
+    fetchAll();
+    grist.onRecords(()=>fetchAll());
+    window.addEventListener('focus',()=>fetchAll());
+  } else {
+    document.getElementById('container').innerHTML='<div class="empty">Connectez à Grist.</div>';
+  }
+}
+const s=document.createElement('script');
+s.src='https://docs.getgrist.com/grist-plugin-api.js';
+s.onload=loadData; s.onerror=loadData;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
