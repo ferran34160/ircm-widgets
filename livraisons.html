@@ -14,6 +14,23 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 #dem-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+#mail-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
+#mail-panel.show { display: flex; }
+.mp-card { background: #fff; border-radius: 14px; padding: 18px; max-width: 520px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+@media (prefers-color-scheme: dark) { .mp-card { background: #222; } }
+.mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.mp-title { font-size: 15px; font-weight: 600; }
+.mp-close { background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; line-height: 1; }
+.mp-close:hover { color: #E24B4A; }
+.mp-field { margin-bottom: 12px; }
+.mp-field label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #999; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.mp-copy { font-size: 10px; text-transform: none; letter-spacing: 0; padding: 2px 8px; border: 1px solid #ccc; border-radius: 5px; background: none; color: #378ADD; cursor: pointer; }
+.mp-copy:hover { border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .mp-copy { border-color: #444; } }
+.mp-val { font-size: 13px; padding: 7px 9px; border: 1px solid #e5e5e5; border-radius: 7px; background: #fafaf8; }
+.mp-body { font-size: 12.5px; padding: 10px; border: 1px solid #e5e5e5; border-radius: 7px; background: #fafaf8; white-space: pre-wrap; font-family: inherit; line-height: 1.5; }
+@media (prefers-color-scheme: dark) { .mp-val, .mp-body { background: #2a2a2a; border-color: #3a3a3a; } }
+.mp-actions { display: flex; gap: 8px; margin-top: 14px; }
 .mail-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #666; margin: 2px 0 10px; cursor: pointer; user-select: none; }
 .mail-check input { width: 14px; height: 14px; cursor: pointer; accent-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .mail-check { color: #aaa; } }
@@ -95,11 +112,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   </div>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
+<div id="mail-panel"></div>
 
 <script>
 // ⚠ MODE TEST : tous les mails partent vers cette adresse.
 // Plus tard : remplacer par une recherche dans une table Demandeurs (nom → email).
-const MAIL_TEST = 'ferran.recasens-munoz@inserm.fr';
+const MAIL_TEST = 'prenom.nom@inserm.fr';
+const OWA_URL = 'https://mail.inserm.fr/owa/';
 
 let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente', filterDem = '', sortAsc = true;
 
@@ -348,19 +367,18 @@ function toggleForm(id) {
   if (form) form.classList.toggle('open');
 }
 
-function ouvrirMail(a) {
+function buildMail(a) {
   const da = dasMap[a.demande_achat];
   const numDA = da ? da.num_da : '';
-  const dem = fmtDemandeur(a.demandeur) || 'Bonjour';
   const prenom = (fmtDemandeur(a.demandeur) || '').split(',')[0].trim();
   const desig = a.designation || 'votre article';
   const dateLiv = fmtDate(a.date_livraison);
 
   const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
-  const lignes = [
+  const corps = [
     `Bonjour${prenom ? ' ' + prenom : ''},`,
     '',
-    `L'article suivant est arrivé :`,
+    "L'article suivant est arrivé :",
     '',
     `• ${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
     a.ref ? `• Référence : ${a.ref}` : '',
@@ -370,12 +388,58 @@ function ouvrirMail(a) {
     a.notes ? `• Notes : ${a.notes}` : '',
     '',
     'Cordialement,',
-  ].filter(Boolean);
+  ].filter(Boolean).join('\n');
 
-  const url = 'mailto:' + encodeURIComponent(MAIL_TEST)
-    + '?subject=' + encodeURIComponent(sujet)
-    + '&body=' + encodeURIComponent(lignes.join('\n'));
-  window.open(url, '_blank');
+  return { dest: MAIL_TEST, sujet, corps };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function ouvrirMail(a) {
+  const m = buildMail(a);
+  const box = document.getElementById('mail-panel');
+  box.innerHTML = `
+    <div class="mp-card">
+      <div class="mp-head">
+        <span class="mp-title">✉ Prévenir le demandeur</span>
+        <button class="mp-close" onclick="fermerMail()">×</button>
+      </div>
+      <div class="mp-field"><label>Destinataire</label><div class="mp-val">${escapeHtml(m.dest)}</div></div>
+      <div class="mp-field">
+        <label>Objet <button class="mp-copy" onclick="copier('mp-sujet', this)">Copier</button></label>
+        <div class="mp-val" id="mp-sujet">${escapeHtml(m.sujet)}</div>
+      </div>
+      <div class="mp-field">
+        <label>Message <button class="mp-copy" onclick="copier('mp-corps', this)">Copier</button></label>
+        <pre class="mp-body" id="mp-corps">${escapeHtml(m.corps)}</pre>
+      </div>
+      <div class="mp-actions">
+        <button class="btn btn-save" onclick="ouvrirOWA('${encodeURIComponent(m.dest)}')">Ouvrir Outlook</button>
+        <button class="btn btn-cancel" onclick="fermerMail()">Fermer</button>
+      </div>
+    </div>`;
+  box.classList.add('show');
+}
+
+function fermerMail() {
+  const box = document.getElementById('mail-panel');
+  box.classList.remove('show');
+  box.innerHTML = '';
+}
+
+function ouvrirOWA(dest) {
+  window.open(OWA_URL + '?path=/mail/action/compose&to=' + dest, '_blank');
+}
+
+function copier(id, btn) {
+  const txt = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const old = btn.textContent;
+    btn.textContent = '✓ Copié';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }).catch(() => { alert('Copie impossible. Sélectionnez le texte manuellement.'); });
 }
 
 async function saveLivraison(id) {
@@ -428,4 +492,3 @@ document.head.appendChild(s);
 </script>
 </body>
 </html>
-
