@@ -173,11 +173,11 @@ function updateView() {
   const sel = document.getElementById('contrat-select').value;
   const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
 
-  const totalEngage = filtered.reduce((s, d) => s + d.total_commandes, 0);
+  const totalEngage = filtered.reduce((s, d) => s + d.commandes_post, 0);
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
 
   document.getElementById('summary').innerHTML = `
-    <div class="sum-item">Total engagé<b>${fmt(totalEngage)}</b></div>
+    <div class="sum-item">Engagé depuis le dernier relevé<b>${fmt(totalEngage)}</b></div>
     <div class="sum-item">Disponible total<b style="color:${totalDispo < 0 ? '#E24B4A' : '#1D9E75'}">${fmt(totalDispo)}</b></div>
   `;
 
