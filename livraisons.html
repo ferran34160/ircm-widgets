@@ -119,6 +119,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 // Laisser vide ('') pour envoyer aux vrais demandeurs.
 const MAIL_TEST = '';
 
+// Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
+const NOMS_SANS_MAIL = ['Commun'];
+
 let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true;
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -381,7 +384,8 @@ function buildMail(a) {
   const da = dasMap[a.demande_achat];
   const numDA = da ? da.num_da : '';
   const noms = Array.isArray(a.demandeur) ? a.demandeur.slice(1).filter(Boolean) : (a.demandeur ? [a.demandeur] : []);
-  const prenom = noms[0] || '';
+  const personnes = noms.filter(n => !NOMS_SANS_MAIL.includes(n));
+  const salut = personnes.length ? ' ' + personnes.join(', ') : '';
   const desig = a.designation || 'votre article';
 
   // Destinataires : e-mails trouvés dans la table Demandeurs
@@ -389,9 +393,9 @@ function buildMail(a) {
   if (MAIL_TEST) {
     dest = MAIL_TEST;
   } else {
-    const mails = noms.map(n => emailsDem[n]).filter(Boolean);
-    dest = mails.join(';');
-    const manquants = noms.filter(n => !emailsDem[n]);
+    const mails = personnes.map(n => emailsDem[n]).filter(Boolean);
+    dest = mails.join(',');
+    const manquants = personnes.filter(n => !emailsDem[n]);
     if (manquants.length) {
       alert('Aucun e-mail trouvé pour : ' + manquants.join(', ') + '\n(à ajouter dans la table Demandeurs)');
     }
@@ -407,7 +411,7 @@ function buildMail(a) {
   ].filter(x => x !== null);
 
   const corps = [
-    `Bonjour${prenom ? ' ' + prenom : ''},`,
+    `Bonjour${salut},`,
     '',
     "L'article suivant est arrivé :",
     '',
