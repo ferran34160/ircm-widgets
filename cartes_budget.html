@@ -109,13 +109,14 @@ function render(data) {
     const st = catStyle(cat);
     const catDispo = groups[cat].reduce((s, d) => s + d.disponible, 0);
 
-    // Ordenar: agrupar les línies d'un mateix contracte, i els grups per disponible creixent.
-    // Dins d'un contracte (Coûts Directs / Indirects), també per disponible creixent.
+    // Ordenar per nom de contracte (alfabètic), amb les línies d'un mateix contracte
+    // (Coûts Directs / Indirects) toujours groupées.
     const parContrat = {};
     groups[cat].forEach(d => { (parContrat[d.contrat] = parContrat[d.contrat] || []).push(d); });
     Object.values(parContrat).forEach(arr => arr.sort((a,b) => a.disponible - b.disponible));
-    groups[cat] = Object.values(parContrat)
-      .sort((g1, g2) => Math.min(...g1.map(d=>d.disponible)) - Math.min(...g2.map(d=>d.disponible)))
+    groups[cat] = Object.keys(parContrat)
+      .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}))
+      .map(c => parContrat[c])
       .flat();
     html += `<div class="cat-section">
       <div class="cat-title" style="border-bottom-color:${st.c}; color:${isDark ? st.dtxt : st.txt};">
@@ -183,9 +184,7 @@ function render(data) {
 
 function updateView() {
   const sel = document.getElementById('contrat-select').value;
-  let filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
-  // Amagar les línies sans relevé i sans disponible (rien à montrer)
-  filtered = filtered.filter(d => !(d.montant_releve == null && !d.disponible));
+  const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
 
   const totalEngage = filtered.reduce((s, d) => s + d.commandes_post, 0);
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
