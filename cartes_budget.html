@@ -17,6 +17,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 .cat-section { margin-bottom: 22px; }
 .cat-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; padding-bottom: 5px; border-bottom: 2px solid; }
 .cat-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.cat-total { margin-left: auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .bcard { border-radius: 12px; padding: 14px 16px; border: 1px solid; border-left-width: 4px; }
 .bcard-cat { font-size: 12px; margin: 0 0 2px; opacity: 0.75; }
@@ -106,9 +107,11 @@ function render(data) {
   let html = '';
   cats.forEach(cat => {
     const st = catStyle(cat);
+    const catDispo = groups[cat].reduce((s, d) => s + d.disponible, 0);
     html += `<div class="cat-section">
       <div class="cat-title" style="border-bottom-color:${st.c}; color:${isDark ? st.dtxt : st.txt};">
         <span class="cat-dot" style="background:${st.c}"></span>${cat}
+        <span class="cat-total" style="color:${catDispo < 0 ? '#E24B4A' : (isDark ? st.dtxt : st.txt)}">${fmt(catDispo)}</span>
       </div>
       <div class="cards-grid">`;
 
