@@ -181,12 +181,18 @@ function render() {
   fillDemFilter();
   const container = document.getElementById('container');
 
-  // Total real de productes per DA (tots, excloent serveis) — independent del filtre
+  // Total de productes per DA (excloent serveis), en tenant compte du filtre demandeur
+  const matchDem = (a) => {
+    if (!filterDem) return true;
+    const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
+    return dems.includes(filterDem);
+  };
   const totauxDA = {};
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return;
     if (estService(a)) return;
+    if (!matchDem(a)) return;
     const key = a.demande_achat || 'sans';
     if (!totauxDA[key]) totauxDA[key] = { total: 0, recus: 0 };
     totauxDA[key].total += 1;
@@ -198,10 +204,7 @@ function render() {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return false;
     if (estService(a)) return false;
-    if (filterDem) {
-      const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
-      if (!dems.includes(filterDem)) return false;
-    }
+    if (!matchDem(a)) return false;
     return true;
   });
 
