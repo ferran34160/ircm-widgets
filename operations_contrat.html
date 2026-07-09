@@ -38,6 +38,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .op-row:last-child { border-bottom: none; }
 .op-desc { color: #666; min-width: 0; }
 @media (prefers-color-scheme: dark) { .op-desc { color: #aaa; } }
+.op-tag-pgm { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; padding: 1px 6px; border-radius: 6px; margin-left: 7px; background: #F0EAFB; color: #5E3A9E; }
+@media (prefers-color-scheme: dark) { .op-tag-pgm { background: #2A1F3D; color: #C4A6EC; } }
 .op-date { font-size: 10px; color: #aaa; }
 .op-amount { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
 .op-row-clickable { cursor: pointer; }
@@ -257,7 +259,7 @@ function render() {
     const parDA = {};
     cmds.forEach(c => {
       const da = das[c.demande_achat];
-      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_bc || da.date_da, fournisseur: da.fournisseur, total: 0, nb: 0, articles: [] };
+      if (!parDA[c.demande_achat]) parDA[c.demande_achat] = { num_da: da.num_da, date: da.date_bc || da.date_da, fournisseur: da.fournisseur, sansBC: !da.date_bc, total: 0, nb: 0, articles: [] };
       parDA[c.demande_achat].total += c.montant;
       if (c.type_article !== 'Service') parDA[c.demande_achat].nb += 1;
       parDA[c.demande_achat].articles.push(c);
@@ -285,7 +287,8 @@ function render() {
           const isSvc = a.type_article === 'Service';
           return `<div class="op-art ${isSvc ? 'op-art-service' : ''}"><span class="op-art-name">${a.qte > 1 ? a.qte + '× ' : ''}${desig}</span><span class="op-art-price">${fmt(a.montant)}</span></div>`;
         }).join('');
-        opsHtml += `<div class="op-row op-row-clickable" onclick="toggleDA('${rowId}')"><span class="op-desc"><span class="op-caret" id="caret-${rowId}">▸</span> ${d.num_da} · ${artLabel}${fourStr}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
+        const pgmTag = d.sansBC ? '<span class="op-tag-pgm">Envoyée PGM</span>' : '';
+        opsHtml += `<div class="op-row op-row-clickable" onclick="toggleDA('${rowId}')"><span class="op-desc"><span class="op-caret" id="caret-${rowId}">▸</span> ${d.num_da} · ${artLabel}${fourStr}${pgmTag}<span class="op-date"> · ${fmtDate(d.date)}</span></span><span class="op-amount neg">− ${fmt(d.total)}</span></div>`;
         opsHtml += `<div class="op-arts" id="${rowId}" style="display:none;">${artsDetail}</div>`;
       });
       opsHtml += '</div>';
