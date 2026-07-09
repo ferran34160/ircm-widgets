@@ -401,13 +401,22 @@ function buildMail(a) {
     }
   }
 
-  const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
+  const sujet = `Votre commande est arrivée / Your order has arrived — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
 
-  const puces = [
-    `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
+  const article = `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`;
+
+  const pucesFR = [
+    article,
     (da && da.fournisseur) ? `• Fournisseur : ${da.fournisseur}` : null,
     (da && da.date_da) ? `• Date de la DA : ${fmtDate(da.date_da)}` : null,
     a.lieu ? `• Lieu de stockage : ${a.lieu}` : null,
+  ].filter(x => x !== null);
+
+  const pucesEN = [
+    article,
+    (da && da.fournisseur) ? `• Supplier: ${da.fournisseur}` : null,
+    (da && da.date_da) ? `• Purchase request date: ${fmtDate(da.date_da)}` : null,
+    a.lieu ? `• Storage location: ${a.lieu}` : null,
   ].filter(x => x !== null);
 
   const corps = [
@@ -415,9 +424,19 @@ function buildMail(a) {
     '',
     "L'article suivant est arrivé :",
     '',
-    ...puces,
+    ...pucesFR,
     '',
     'Cordialement,',
+    '',
+    '---',
+    '',
+    `Hello${salut},`,
+    '',
+    'The following item has arrived:',
+    '',
+    ...pucesEN,
+    '',
+    'Best regards,',
   ].join('\n');
 
   return { dest, sujet, corps };
