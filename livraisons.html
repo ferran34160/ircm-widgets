@@ -114,12 +114,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-// ⚠ MODE TEST : tous les mails partent vers cette adresse.
-// Plus tard : remplacer par une recherche dans une table Demandeurs (nom → email).
-const MAIL_TEST = 'ferran.recasens-munoz@inserm.fr';
-const OWA_URL = 'https://mail.inserm.fr/owa/';
+// Table Demandeurs (colonnes : Nom, Email) → adresses des destinataires.
+// MODE TEST : mettre une adresse ici pour que TOUS les mails y soient envoyés.
+// Laisser vide ('') pour envoyer aux vrais demandeurs.
+const MAIL_TEST = '';
 
-let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente', filterDem = '', sortAsc = true;
+let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true;
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -129,12 +129,23 @@ function dateInput(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms);
 
 async function fetchAll() {
   try {
-    const [c, d, fo, ct] = await Promise.all([
+    const [c, d, fo, ct, dm] = await Promise.all([
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Fournisseurs'),
       grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Demandeurs').catch(() => null),
     ]);
+
+    // Nom du demandeur → e-mail (table Demandeurs : colonnes Nom, Email)
+    emailsDem = {};
+    if (dm) {
+      (dm.id||[]).forEach((id,i) => {
+        const nom = (dm.Nom||[])[i];
+        const mail = (dm.Email||[])[i];
+        if (nom && mail) emailsDem[String(nom).trim()] = String(mail).trim();
+      });
+    }
 
     const contratNoms = {};
     (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
@@ -369,19 +380,30 @@ function toggleForm(id) {
 function buildMail(a) {
   const da = dasMap[a.demande_achat];
   const numDA = da ? da.num_da : '';
-  const prenom = (fmtDemandeur(a.demandeur) || '').split(',')[0].trim();
+  const noms = Array.isArray(a.demandeur) ? a.demandeur.slice(1).filter(Boolean) : (a.demandeur ? [a.demandeur] : []);
+  const prenom = noms[0] || '';
   const desig = a.designation || 'votre article';
-  const dateLiv = fmtDate(a.date_livraison);
+
+  // Destinataires : e-mails trouvés dans la table Demandeurs
+  let dest;
+  if (MAIL_TEST) {
+    dest = MAIL_TEST;
+  } else {
+    const mails = noms.map(n => emailsDem[n]).filter(Boolean);
+    dest = mails.join(';');
+    const manquants = noms.filter(n => !emailsDem[n]);
+    if (manquants.length) {
+      alert('Aucun e-mail trouvé pour : ' + manquants.join(', ') + '\n(à ajouter dans la table Demandeurs)');
+    }
+  }
 
   const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
-  // Les puces optionnelles : on retire les null, pas les lignes vides
+
   const puces = [
-    `• ${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
-    a.ref ? `• Référence : ${a.ref}` : null,
-    numDA ? `• Demande d'achat : ${numDA}` : null,
-    dateLiv ? `• Date de réception : ${dateLiv}` : null,
+    `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
+    (da && da.fournisseur) ? `• Fournisseur : ${da.fournisseur}` : null,
+    (da && da.date_da) ? `• Date de la DA : ${fmtDate(da.date_da)}` : null,
     a.lieu ? `• Lieu de stockage : ${a.lieu}` : null,
-    a.notes ? `• Notes : ${a.notes}` : null,
   ].filter(x => x !== null);
 
   const corps = [
@@ -394,7 +416,7 @@ function buildMail(a) {
     'Cordialement,',
   ].join('\n');
 
-  return { dest: MAIL_TEST, sujet, corps };
+  return { dest, sujet, corps };
 }
 
 function escapeHtml(s) {
