@@ -12,6 +12,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .title { font-size: 15px; font-weight: 500; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: start; }
 .card { border-radius: 12px; padding: 13px 15px; border: 1px solid; border-left-width: 4px; cursor: pointer; transition: transform 0.1s; }
+.card:not([onclick]) { cursor: default; }
+.card:not([onclick]):hover { transform: none; }
 .card:hover { transform: translateY(-1px); }
 .card.urgent { background: #FCEBEB; border-color: #F7C1C1; border-left-color: #E24B4A; }
 .card.warn { background: #FAEEDA; border-color: #FAC775; border-left-color: #BA7517; }
@@ -68,6 +70,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 
 <script>
 let allData = [];
+let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
@@ -109,6 +112,7 @@ function updateView() {
     const sub = v.slice(4);
     filtered = allData.filter(d => getSub(d.label) === sub);
   }
+  subFilterActif = v.startsWith('sub:');
   render(filtered);
 }
 
@@ -183,18 +187,18 @@ function render(data) {
     });
 
     html += `
-      <div class="card ${state}" onclick="this.classList.toggle('open')">
+      <div class="card ${state}" ${subFilterActif ? '' : 'onclick="this.classList.toggle(\'open\')"'}>
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
             <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
-          <span class="c-chevron">▼</span>
+          ${subFilterActif ? '' : '<span class="c-chevron">▼</span>'}
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         <span class="c-ech">${echStr}</span>
-        <div class="cats">${catsHtml}</div>
+        ${subFilterActif ? '' : `<div class="cats">${catsHtml}</div>`}
       </div>`;
   });
   html += '</div>';
