@@ -112,12 +112,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   </div>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
-<div id="mail-panel"></div>
 
 <script>
 // ⚠ MODE TEST : tous les mails partent vers cette adresse.
 // Plus tard : remplacer par une recherche dans une table Demandeurs (nom → email).
-const MAIL_TEST = 'prenom.nom@inserm.fr';
+const MAIL_TEST = 'ferran.recasens-munoz@inserm.fr';
 const OWA_URL = 'https://mail.inserm.fr/owa/';
 
 let articles = [], dasMap = {}, fourNoms = {}, filter = 'attente', filterDem = '', sortAsc = true;
@@ -375,20 +374,25 @@ function buildMail(a) {
   const dateLiv = fmtDate(a.date_livraison);
 
   const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
+  // Les puces optionnelles : on retire les null, pas les lignes vides
+  const puces = [
+    `• ${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
+    a.ref ? `• Référence : ${a.ref}` : null,
+    numDA ? `• Demande d'achat : ${numDA}` : null,
+    dateLiv ? `• Date de réception : ${dateLiv}` : null,
+    a.lieu ? `• Lieu de stockage : ${a.lieu}` : null,
+    a.notes ? `• Notes : ${a.notes}` : null,
+  ].filter(x => x !== null);
+
   const corps = [
     `Bonjour${prenom ? ' ' + prenom : ''},`,
     '',
     "L'article suivant est arrivé :",
     '',
-    `• ${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
-    a.ref ? `• Référence : ${a.ref}` : '',
-    numDA ? `• Demande d'achat : ${numDA}` : '',
-    dateLiv ? `• Date de réception : ${dateLiv}` : '',
-    a.lieu ? `• Lieu de stockage : ${a.lieu}` : '',
-    a.notes ? `• Notes : ${a.notes}` : '',
+    ...puces,
     '',
     'Cordialement,',
-  ].filter(Boolean).join('\n');
+  ].join('\n');
 
   return { dest: MAIL_TEST, sujet, corps };
 }
@@ -399,47 +403,17 @@ function escapeHtml(s) {
 
 function ouvrirMail(a) {
   const m = buildMail(a);
-  const box = document.getElementById('mail-panel');
-  box.innerHTML = `
-    <div class="mp-card">
-      <div class="mp-head">
-        <span class="mp-title">✉ Prévenir le demandeur</span>
-        <button class="mp-close" onclick="fermerMail()">×</button>
-      </div>
-      <div class="mp-field"><label>Destinataire</label><div class="mp-val">${escapeHtml(m.dest)}</div></div>
-      <div class="mp-field">
-        <label>Objet <button class="mp-copy" onclick="copier('mp-sujet', this)">Copier</button></label>
-        <div class="mp-val" id="mp-sujet">${escapeHtml(m.sujet)}</div>
-      </div>
-      <div class="mp-field">
-        <label>Message <button class="mp-copy" onclick="copier('mp-corps', this)">Copier</button></label>
-        <pre class="mp-body" id="mp-corps">${escapeHtml(m.corps)}</pre>
-      </div>
-      <div class="mp-actions">
-        <button class="btn btn-save" onclick="ouvrirOWA('${encodeURIComponent(m.dest)}')">Ouvrir Outlook</button>
-        <button class="btn btn-cancel" onclick="fermerMail()">Fermer</button>
-      </div>
-    </div>`;
-  box.classList.add('show');
-}
-
-function fermerMail() {
-  const box = document.getElementById('mail-panel');
-  box.classList.remove('show');
-  box.innerHTML = '';
-}
-
-function ouvrirOWA(dest) {
-  window.open(OWA_URL + '?path=/mail/action/compose&to=' + dest, '_blank');
-}
-
-function copier(id, btn) {
-  const txt = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(txt).then(() => {
-    const old = btn.textContent;
-    btn.textContent = '✓ Copié';
-    setTimeout(() => { btn.textContent = old; }, 1500);
-  }).catch(() => { alert('Copie impossible. Sélectionnez le texte manuellement.'); });
+  const url = 'mailto:' + encodeURIComponent(m.dest)
+    + '?subject=' + encodeURIComponent(m.sujet)
+    + '&body=' + encodeURIComponent(m.corps);
+  // Un <a> cliqué est plus fiable qu'un window.open dans une iframe
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 async function saveLivraison(id) {
