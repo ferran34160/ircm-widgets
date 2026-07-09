@@ -183,7 +183,9 @@ function render(data) {
 
 function updateView() {
   const sel = document.getElementById('contrat-select').value;
-  const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
+  let filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
+  // Amagar les línies sans relevé i sans disponible (rien à montrer)
+  filtered = filtered.filter(d => !(d.montant_releve == null && !d.disponible));
 
   const totalEngage = filtered.reduce((s, d) => s + d.commandes_post, 0);
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
