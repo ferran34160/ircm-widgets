@@ -113,7 +113,16 @@ function render(data) {
     // (Coûts Directs / Indirects) toujours groupées.
     const parContrat = {};
     groups[cat].forEach(d => { (parContrat[d.contrat] = parContrat[d.contrat] || []).push(d); });
-    Object.values(parContrat).forEach(arr => arr.sort((a,b) => a.disponible - b.disponible));
+    // Dins d'un contracte: Coûts Directs abans que Coûts Indirects, després la resta
+    const rangSousCat = (d) => {
+      const l = (d.label || '').toLowerCase();
+      if (l.includes('indirect')) return 1;   // vérifier "indirect" en premier
+      if (l.includes('direct')) return 0;
+      return 2;
+    };
+    Object.values(parContrat).forEach(arr => arr.sort((a,b) =>
+      rangSousCat(a) - rangSousCat(b) || a.disponible - b.disponible
+    ));
     groups[cat] = Object.keys(parContrat)
       .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}))
       .map(c => parContrat[c])
