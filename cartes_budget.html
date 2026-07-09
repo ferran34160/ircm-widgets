@@ -108,6 +108,15 @@ function render(data) {
   cats.forEach(cat => {
     const st = catStyle(cat);
     const catDispo = groups[cat].reduce((s, d) => s + d.disponible, 0);
+
+    // Ordenar: agrupar les línies d'un mateix contracte, i els grups per disponible creixent.
+    // Dins d'un contracte (Coûts Directs / Indirects), també per disponible creixent.
+    const parContrat = {};
+    groups[cat].forEach(d => { (parContrat[d.contrat] = parContrat[d.contrat] || []).push(d); });
+    Object.values(parContrat).forEach(arr => arr.sort((a,b) => a.disponible - b.disponible));
+    groups[cat] = Object.values(parContrat)
+      .sort((g1, g2) => Math.min(...g1.map(d=>d.disponible)) - Math.min(...g2.map(d=>d.disponible)))
+      .flat();
     html += `<div class="cat-section">
       <div class="cat-title" style="border-bottom-color:${st.c}; color:${isDark ? st.dtxt : st.txt};">
         <span class="cat-dot" style="background:${st.c}"></span>${cat}
