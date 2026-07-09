@@ -75,6 +75,11 @@ function fmt(v) {
 
 const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
 function getCat(label) { for (const k of CAT_ORDER) if (label.includes(k)) return k; return 'Autre'; }
+// Sous-libellé complet : ce qui suit le « | » (ex. « Fonctionnement – Coûts Directs »)
+function getSub(label) {
+  const parts = String(label).split('|');
+  return (parts.length > 1 ? parts.slice(1).join('|') : label).trim();
+}
 function catRank(label) { const i = CAT_ORDER.indexOf(getCat(label)); return i < 0 ? 99 : i; }
 
 function parseDate(gristDate) {
@@ -95,10 +100,15 @@ function monthsUntil(d) {
 }
 
 function updateView() {
-  const catFilter = document.getElementById('cat-filter').value;
-  const filtered = catFilter
-    ? allData.filter(d => getCat(d.label) === catFilter)
-    : allData;
+  const v = document.getElementById('cat-filter').value;
+  let filtered = allData;
+  if (v.startsWith('cat:')) {
+    const cat = v.slice(4);
+    filtered = allData.filter(d => getCat(d.label) === cat);
+  } else if (v.startsWith('sub:')) {
+    const sub = v.slice(4);
+    filtered = allData.filter(d => getSub(d.label) === sub);
+  }
   render(filtered);
 }
 
@@ -249,10 +259,21 @@ function loadData() {
         .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
       const sel = document.getElementById('cat-filter');
       const cur = sel.value;
-      sel.innerHTML = '<option value="">Toutes catégories</option>';
+
+      let html = '<option value="">Toutes catégories</option>';
       catsPresents.forEach(c => {
-        const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+        // La catégorie entière
+        html += `<optgroup label="${c}">`;
+        html += `<option value="cat:${c}">${c} (tout)</option>`;
+        // Les sous-libellés de cette catégorie
+        const subs = [...new Set(allData.filter(d => getCat(d.label) === c).map(d => getSub(d.label)))]
+          .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+        subs.forEach(s => {
+          html += `<option value="sub:${s.replace(/"/g,'&quot;')}">${s}</option>`;
+        });
+        html += '</optgroup>';
       });
+      sel.innerHTML = html;
       if (cur) sel.value = cur;
 
       updateView();
