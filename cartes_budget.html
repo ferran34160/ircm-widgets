@@ -175,7 +175,7 @@ function render(data) {
         : '';
 
       html += `
-        <div class="bcard" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c};">
+        <div class="bcard" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" onclick="selectContrat('${contrat.replace(/'/g,"\\'")}')" title="Filtrer sur ${contrat.replace(/"/g,'&quot;')}">
           <p class="bcard-cat" style="color:${txtColor}">${contrat}</p>
           <p class="bcard-sub" style="color:${txtColor}">${sub} ${alertIcon}</p>
           <p class="bcard-dispo ${state === 'danger' ? 'neg' : ''}" style="${state !== 'danger' ? 'color:'+txtColor : ''}">${fmt(d.disponible)}</p>
@@ -189,6 +189,13 @@ function render(data) {
   });
 
   container.innerHTML = html;
+}
+
+function selectContrat(contrat) {
+  const sel = document.getElementById('contrat-select');
+  // Si on est déjà sur ce contrat, revenir à « Tous » (bascule)
+  sel.value = (sel.value === contrat) ? '' : contrat;
+  updateView();
 }
 
 function updateView() {
