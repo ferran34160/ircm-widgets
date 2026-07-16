@@ -13,7 +13,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filters { display: flex; gap: 6px; }
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
-#dem-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+#dem-filter, #four-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 #mail-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
 #mail-panel.show { display: flex; }
 .mp-card { background: #fff; border-radius: 14px; padding: 18px; max-width: 520px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
@@ -41,7 +41,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .sort-arrow { font-size: 9px; line-height: 1; opacity: 0.35; }
 .sort-arrow.on { opacity: 1; color: #378ADD; }
 @media (prefers-color-scheme: dark) { .sort-btn { border-color: #444; } }
-@media (prefers-color-scheme: dark) { #dem-filter { border-color: #444; } }
+@media (prefers-color-scheme: dark) { #dem-filter, #four-filter { border-color: #444; } }
 @media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
 .da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
 .da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
@@ -113,6 +113,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <button class="filter-btn active" data-f="attente" onclick="setFilter('attente')">En attente</button>
     <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
     <select id="dem-filter" onchange="onDemChange(this.value)"><option value="">Tous les demandeurs</option></select>
+    <select id="four-filter" onchange="onFourChange(this.value)"><option value="">Tous les fournisseurs</option></select>
     <button class="sort-btn" id="sort-btn" onclick="toggleSort()" title="Trier par date de réception du BC"></button>
     <button class="sort-btn" id="hide-btn" onclick="toggleHideRecus()" title="Masquer les articles déjà reçus"></button>
   </div>
@@ -128,7 +129,7 @@ const MAIL_TEST = '';
 // Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
 const NOMS_SANS_MAIL = ['Commun'];
 
-let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true, hideRecus = true;
+let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', filterFour = '', sortAsc = true, hideRecus = true;
 const montrerRecusDA = new Set();  // DA où l'on force l'affichage des reçus
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -208,6 +209,7 @@ function fmtDemandeur(v) {
   return String(v);
 }
 function onDemChange(v) { filterDem = v; render(); }
+function onFourChange(v) { filterFour = v; render(); }
 
 function toggleSort() { sortAsc = !sortAsc; render(); }
 
@@ -251,6 +253,20 @@ function fillDemFilter() {
   sel.value = cur;
 }
 
+function fillFourFilter() {
+  const fours = new Set();
+  articles.forEach(a => {
+    const da = dasMap[a.demande_achat];
+    if (da && da.statut === 'BC reçu' && da.fournisseur) fours.add(da.fournisseur);
+  });
+  const sel = document.getElementById('four-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous les fournisseurs</option>' +
+    [...fours].sort((a,b)=>a.localeCompare(b,'fr')).map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f}</option>`).join('');
+  sel.value = cur;
+}
+
 function estService(a) {
   if (a.type_article === 'Service') return true;
   const des = (a.designation || '').toLowerCase();
@@ -259,6 +275,7 @@ function estService(a) {
 
 function render() {
   fillDemFilter();
+  fillFourFilter();
   renderSortBtn();
   renderHideBtn();
   const container = document.getElementById('container');
@@ -273,6 +290,7 @@ function render() {
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return;
+    if (filterFour && da.fournisseur !== filterFour) return;
     if (estService(a)) return;
     if (!matchDem(a)) return;
     const key = a.demande_achat || 'sans';
@@ -285,6 +303,7 @@ function render() {
   let arts = articles.filter(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu') return false;
+    if (filterFour && da.fournisseur !== filterFour) return false;
     if (estService(a)) return false;
     if (!matchDem(a)) return false;
     return true;
