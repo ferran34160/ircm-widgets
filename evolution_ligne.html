@@ -45,6 +45,8 @@ svg { width: 100%; height: auto; display: block; }
 .dp-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .dp-badge { width: 10px; height: 10px; border-radius: 50%; }
 .dp-date { font-size: 11px; color: #999; }
+.dp-four { font-size: 12px; font-weight: 400; color: #888; margin-left: 4px; }
+@media (prefers-color-scheme: dark) { .dp-four { color: #aaa; } }
 .dp-close { background: none; border: none; font-size: 18px; color: #aaa; cursor: pointer; line-height: 1; }
 .dp-close:hover { color: #E24B4A; }
 .dp-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
@@ -74,7 +76,7 @@ svg { width: 100%; height: auto; display: block; }
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={};
+let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={}, fourNoms={};
 let selContrat='', selLigne='';
 
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -83,7 +85,7 @@ function fmtDate(ms){ if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.get
 
 async function fetchAll() {
   try {
-    const [l,c,t,m,r,d,ct] = await Promise.all([
+    const [l,c,t,m,r,d,ct,fo] = await Promise.all([
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Transferts'),
@@ -91,7 +93,12 @@ async function fetchAll() {
       grist.docApi.fetchTable('Releves_PGM'),
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Fournisseurs'),
     ]);
+
+    fourNoms={};
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
+    function resolFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
 
     contratNoms={};
     (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
@@ -105,7 +112,8 @@ async function fetchAll() {
     das={};
     (d.id||[]).forEach((id,i)=>{ das[id]={
       ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
-      date_bc:toMs((d.Date_reception_BC||[])[i]), date_da:toMs((d.Date_DA||[])[i]), num_da:(d.Num_DA||[])[i]||'',
+      date_bc:toMs((d.Date_reception_BC||[])[i]), date_da:toMs((d.Date_DA||[])[i]), num_da:(d.Num_DA||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
+      fournisseur:resolFour((d.Fournisseur||[])[i]),
     };});
 
     commandes=(c.id||[]).map((id,i)=>({
@@ -167,7 +175,7 @@ function buildEvents(ligneId) {
     // Data de l'event: recepció del BC, o data de la DA com a fallback (Envoyée PGM sense BC)
     const dEvt = da.date_bc || da.date_da;
     if(!dEvt) return;
-    if(!parDA[c.da]) parDA[c.da]={ date:dEvt, num_da:da.num_da, statut:da.statut, sansBC:!da.date_bc, total:0, nb:0, articles:[] };
+    if(!parDA[c.da]) parDA[c.da]={ date:dEvt, num_da:da.num_da, num_bc:da.num_bc, statut:da.statut, fournisseur:da.fournisseur, sansBC:!da.date_bc, total:0, nb:0, articles:[] };
     parDA[c.da].total+=c.montant;
     parDA[c.da].nb++;
     parDA[c.da].articles.push({ desig:c.desig, montant:c.montant });
@@ -175,7 +183,7 @@ function buildEvents(ligneId) {
   Object.values(parDA).forEach(d=>{
     const lbl = d.sansBC ? (d.num_da||'Commande')+' (Envoyée PGM)' : (d.num_da||'Commande');
     evts.push({ date:d.date, type:'cmd', delta:-d.total, label:lbl, extra:d.nb+' article'+(d.nb>1?'s':''),
-                detail:{ kind:'cmd', num_da:d.num_da, total:d.total, articles:d.articles, statut:d.statut } });
+                detail:{ kind:'cmd', num_da:d.num_da, num_bc:d.num_bc, total:d.total, articles:d.articles, statut:d.statut, fournisseur:d.fournisseur } });
   });
   // Mouvements
   mouvements.forEach(m=>{
@@ -395,8 +403,10 @@ function showDetail(p) {
 
   let title='', body='';
   if(d.kind==='cmd'){
-    title=d.num_da||'Commande';
-    body=d.articles.map(a=>`<div class="dp-row"><span class="lbl">${(a.desig||'(sans nom)').replace(/</g,'&lt;')}</span><span class="val">${fmt(a.montant)}</span></div>`).join('');
+    title=(d.num_da||'Commande') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
+    body='';
+    if(d.num_bc) body+=`<div class="dp-info" style="margin-bottom:8px;"><b>BC :</b> ${String(d.num_bc).replace(/</g,'&lt;')}</div>`;
+    body+=d.articles.map(a=>`<div class="dp-row"><span class="lbl">${(a.desig||'(sans nom)').replace(/</g,'&lt;')}</span><span class="val">${fmt(a.montant)}</span></div>`).join('');
     body+=`<div class="dp-total"><span>Total</span><span>${fmt(d.total)}</span></div>`;
   } else if(d.kind==='mvt'){
     title=d.type;
