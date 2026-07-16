@@ -33,6 +33,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .mp-actions { display: flex; gap: 8px; margin-top: 14px; }
 .mail-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #666; margin: 2px 0 10px; cursor: pointer; user-select: none; }
 .mail-check input { width: 14px; height: 14px; cursor: pointer; accent-color: #378ADD; }
+.wa-check { margin-top: -4px; }
+.wa-check input { accent-color: #25D366; }
 @media (prefers-color-scheme: dark) { .mail-check { color: #aaa; } }
 .sort-btn { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .sort-btn:hover { border-color: #378ADD; color: #378ADD; }
@@ -119,8 +121,15 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 // Laisser vide ('') pour envoyer aux vrais demandeurs.
 const MAIL_TEST = '';
 
-// Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
-const NOMS_SANS_MAIL = ['Commun'];
+// Signature ajoutée à la fin du message (texte brut : mailto: ne gère pas le HTML).
+const SIGNATURE = [
+  'Ferran Recasens',
+  'Team A. David "Epitranscriptomics & Cancer Adaptation"',
+  'INSERM U1194 - Institut de Recherche en Cancérologie de Montpellier',
+  '208 rue des apothicaires | 34298 Montpellier',
+  '04 11 28 31 45',
+  'https://www.ircm.fr',
+];
 
 let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true;
 
@@ -359,7 +368,8 @@ function render() {
               <div class="form-field"><label>Reçu par</label><input type="text" id="recu-${a.id}" value="${a.recu_par.replace(/"/g,'&quot;')}"></div>
               <div class="form-field"><label>Notes</label><input type="text" id="notes-${a.id}" value="${a.notes.replace(/"/g,'&quot;')}"></div>
             </div>
-            <label class="mail-check"><input type="checkbox" id="mail-${a.id}"> ✉ Prévenir le demandeur</label>
+            <label class="mail-check"><input type="checkbox" id="mail-${a.id}"> ✉ Prévenir par e-mail</label>
+            <label class="mail-check wa-check"><input type="checkbox" id="wa-${a.id}"> 📱 Prévenir par WhatsApp</label>
             <div class="form-actions">
               <button class="btn btn-save" onclick="saveLivraison(${a.id})">Enregistrer</button>
               <button class="btn btn-cancel" onclick="toggleForm(${a.id})">Annuler</button>
@@ -384,8 +394,7 @@ function buildMail(a) {
   const da = dasMap[a.demande_achat];
   const numDA = da ? da.num_da : '';
   const noms = Array.isArray(a.demandeur) ? a.demandeur.slice(1).filter(Boolean) : (a.demandeur ? [a.demandeur] : []);
-  const personnes = noms.filter(n => !NOMS_SANS_MAIL.includes(n));
-  const salut = personnes.length ? ' ' + personnes.join(', ') : '';
+  const prenom = noms[0] || '';
   const desig = a.designation || 'votre article';
 
   // Destinataires : e-mails trouvés dans la table Demandeurs
@@ -393,50 +402,33 @@ function buildMail(a) {
   if (MAIL_TEST) {
     dest = MAIL_TEST;
   } else {
-    const mails = personnes.map(n => emailsDem[n]).filter(Boolean);
-    dest = mails.join(',');
-    const manquants = personnes.filter(n => !emailsDem[n]);
+    const mails = noms.map(n => emailsDem[n]).filter(Boolean);
+    dest = mails.join(';');
+    const manquants = noms.filter(n => !emailsDem[n]);
     if (manquants.length) {
       alert('Aucun e-mail trouvé pour : ' + manquants.join(', ') + '\n(à ajouter dans la table Demandeurs)');
     }
   }
 
-  const sujet = `Votre commande est arrivée / Your order has arrived — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
+  const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
 
-  const article = `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`;
-
-  const pucesFR = [
-    article,
+  const puces = [
+    `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
     (da && da.fournisseur) ? `• Fournisseur : ${da.fournisseur}` : null,
     (da && da.date_da) ? `• Date de la DA : ${fmtDate(da.date_da)}` : null,
     a.lieu ? `• Lieu de stockage : ${a.lieu}` : null,
   ].filter(x => x !== null);
 
-  const pucesEN = [
-    article,
-    (da && da.fournisseur) ? `• Supplier: ${da.fournisseur}` : null,
-    (da && da.date_da) ? `• Purchase request date: ${fmtDate(da.date_da)}` : null,
-    a.lieu ? `• Storage location: ${a.lieu}` : null,
-  ].filter(x => x !== null);
-
   const corps = [
-    `Bonjour${salut},`,
+    `Bonjour${prenom ? ' ' + prenom : ''},`,
     '',
     "L'article suivant est arrivé :",
     '',
-    ...pucesFR,
+    ...puces,
     '',
     'Cordialement,',
     '',
-    '---',
-    '',
-    `Hello${salut},`,
-    '',
-    'The following item has arrived:',
-    '',
-    ...pucesEN,
-    '',
-    'Best regards,',
+    ...SIGNATURE,
   ].join('\n');
 
   return { dest, sujet, corps };
@@ -444,6 +436,40 @@ function buildMail(a) {
 
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildWhatsApp(a) {
+  const da = dasMap[a.demande_achat];
+  const numDA = da ? da.num_da : '';
+  const noms = Array.isArray(a.demandeur) ? a.demandeur.slice(1).filter(Boolean) : (a.demandeur ? [a.demandeur] : []);
+  const personnes = noms.filter(n => !NOMS_SANS_MAIL.includes(n));
+  const salut = personnes.length ? ' ' + personnes.join(', ') : '';
+  const desig = a.designation || 'votre article';
+  const article = `${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`;
+
+  const lignesEN = [
+    `Hello${salut},`,
+    'The following item has arrived:',
+    `📦 ${article}`,
+    (da && da.fournisseur) ? `🏢 Supplier: ${da.fournisseur}` : null,
+    a.lieu ? `📍 Storage location: ${a.lieu}` : null,
+  ].filter(x => x !== null);
+
+  return lignesEN.join('\n');
+}
+
+function ouvrirWhatsApp(a) {
+  const txt = buildWhatsApp(a);
+  navigator.clipboard.writeText(txt).catch(() => {});
+  // Ouvre WhatsApp Web (le message est dans le presse-papiers : coller dans le groupe)
+  const link = document.createElement('a');
+  link.href = 'https://web.whatsapp.com/';
+  link.target = '_blank';
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  alert('Message copié.\nDans WhatsApp, ouvrez le groupe et collez (Ctrl+V).');
 }
 
 function ouvrirMail(a) {
@@ -482,11 +508,14 @@ async function saveLivraison(id) {
         Notes_livraison: notes,
       }]
     ]);
-    // Ouvrir le brouillon d'e-mail seulement si la case est cochée
-    const chk = document.getElementById('mail-' + id);
+    // Notifications (seulement si la date est renseignée et la case cochée)
+    const chkMail = document.getElementById('mail-' + id);
+    const chkWa = document.getElementById('wa-' + id);
     const art = articles.find(x => x.id === id);
-    if (chk && chk.checked && art && dateGrist) {
-      ouvrirMail({ ...art, date_livraison: dateGrist, lieu, notes });
+    if (art && dateGrist) {
+      const data = { ...art, date_livraison: dateGrist, lieu, notes };
+      if (chkMail && chkMail.checked) ouvrirMail(data);
+      if (chkWa && chkWa.checked) ouvrirWhatsApp(data);
     }
     await fetchAll();
   } catch(e) {
