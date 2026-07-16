@@ -63,6 +63,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-days.orange { background: #FBE2CC; color: #9A5410; }
 .da-days.urgent { background: #E24B4A; color: #fff; }
 @media (prefers-color-scheme: dark) { .da-days.jaune { background: #4A4413; color: #E8D77C; } .da-days.orange { background: #4A3318; color: #E8B27C; } }
+.da-toggle-recus { margin-top: 8px; font-size: 11px; padding: 3px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: #378ADD; cursor: pointer; }
+.da-toggle-recus:hover { border-color: #378ADD; background: rgba(55,138,221,0.06); }
+@media (prefers-color-scheme: dark) { .da-toggle-recus { border-color: #444; } }
 .da-body { padding: 10px 14px; }
 .art { border: 1px solid #e8e8e8; border-radius: 9px; padding: 10px 12px; margin-bottom: 7px; background: #fff; }
 .art:last-child { margin-bottom: 0; }
@@ -125,7 +128,8 @@ const MAIL_TEST = '';
 // Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
 const NOMS_SANS_MAIL = ['Commun'];
 
-let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true, hideRecus = false;
+let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true, hideRecus = true;
+const montrerRecusDA = new Set();  // DA où l'on force l'affichage des reçus
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -207,7 +211,13 @@ function onDemChange(v) { filterDem = v; render(); }
 
 function toggleSort() { sortAsc = !sortAsc; render(); }
 
-function toggleHideRecus() { hideRecus = !hideRecus; render(); }
+function toggleHideRecus() { hideRecus = !hideRecus; montrerRecusDA.clear(); render(); }
+
+function toggleRecusDA(key) {
+  if (montrerRecusDA.has(key)) montrerRecusDA.delete(key);
+  else montrerRecusDA.add(key);
+  render();
+}
 
 function renderHideBtn() {
   const b = document.getElementById('hide-btn');
@@ -342,12 +352,14 @@ function render() {
           <span style="display:flex; align-items:center;">${daysBadge}<span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span></span>
         </div>
         <div class="da-route">${contrat} <span class="da-arrow">→</span> ${fournisseur}${numBC ? ` <span class="da-bc">/ BC ${numBC}</span>` : ''}</div>
+        ${(hideRecus && totaux.recus > 0) ? `<button class="da-toggle-recus" onclick="toggleRecusDA('${key}')">${montrerRecusDA.has(key) ? '▲ Masquer les ' + totaux.recus + ' reçu' + (totaux.recus>1?'s':'') : '▼ Voir les ' + totaux.recus + ' reçu' + (totaux.recus>1?'s':'')}</button>` : ''}
       </div>
       <div class="da-body">`;
 
+    const montrerCetteDA = montrerRecusDA.has(key);
     arts.forEach(a => {
       const recu = !!a.date_livraison;
-      if (hideRecus && recu) return;
+      if (hideRecus && recu && !montrerCetteDA) return;
       html += `
         <div class="art ${recu ? 'recu' : ''}">
           <div class="art-top">
