@@ -121,15 +121,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 // Laisser vide ('') pour envoyer aux vrais demandeurs.
 const MAIL_TEST = '';
 
-// Signature ajoutée à la fin du message (texte brut : mailto: ne gère pas le HTML).
-const SIGNATURE = [
-  'Ferran Recasens',
-  'Team A. David "Epitranscriptomics & Cancer Adaptation"',
-  'INSERM U1194 - Institut de Recherche en Cancérologie de Montpellier',
-  '208 rue des apothicaires | 34298 Montpellier',
-  '04 11 28 31 45',
-  'https://www.ircm.fr',
-];
+// Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
+const NOMS_SANS_MAIL = ['Commun'];
 
 let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', sortAsc = true;
 
@@ -394,7 +387,8 @@ function buildMail(a) {
   const da = dasMap[a.demande_achat];
   const numDA = da ? da.num_da : '';
   const noms = Array.isArray(a.demandeur) ? a.demandeur.slice(1).filter(Boolean) : (a.demandeur ? [a.demandeur] : []);
-  const prenom = noms[0] || '';
+  const personnes = noms.filter(n => !NOMS_SANS_MAIL.includes(n));
+  const salut = personnes.length ? ' ' + personnes.join(', ') : '';
   const desig = a.designation || 'votre article';
 
   // Destinataires : e-mails trouvés dans la table Demandeurs
@@ -402,33 +396,50 @@ function buildMail(a) {
   if (MAIL_TEST) {
     dest = MAIL_TEST;
   } else {
-    const mails = noms.map(n => emailsDem[n]).filter(Boolean);
-    dest = mails.join(';');
-    const manquants = noms.filter(n => !emailsDem[n]);
+    const mails = personnes.map(n => emailsDem[n]).filter(Boolean);
+    dest = mails.join(',');
+    const manquants = personnes.filter(n => !emailsDem[n]);
     if (manquants.length) {
       alert('Aucun e-mail trouvé pour : ' + manquants.join(', ') + '\n(à ajouter dans la table Demandeurs)');
     }
   }
 
-  const sujet = `Votre commande est arrivée — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
+  const sujet = `Votre commande est arrivée / Your order has arrived — ${desig}${numDA ? ' (' + numDA + ')' : ''}`;
 
-  const puces = [
-    `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`,
+  const article = `• ${a.ref ? a.ref + ' — ' : ''}${a.qte > 1 ? a.qte + ' × ' : ''}${desig}`;
+
+  const pucesFR = [
+    article,
     (da && da.fournisseur) ? `• Fournisseur : ${da.fournisseur}` : null,
     (da && da.date_da) ? `• Date de la DA : ${fmtDate(da.date_da)}` : null,
     a.lieu ? `• Lieu de stockage : ${a.lieu}` : null,
   ].filter(x => x !== null);
 
+  const pucesEN = [
+    article,
+    (da && da.fournisseur) ? `• Supplier: ${da.fournisseur}` : null,
+    (da && da.date_da) ? `• Purchase request date: ${fmtDate(da.date_da)}` : null,
+    a.lieu ? `• Storage location: ${a.lieu}` : null,
+  ].filter(x => x !== null);
+
   const corps = [
-    `Bonjour${prenom ? ' ' + prenom : ''},`,
+    `Bonjour${salut},`,
     '',
     "L'article suivant est arrivé :",
     '',
-    ...puces,
+    ...pucesFR,
     '',
     'Cordialement,',
     '',
-    ...SIGNATURE,
+    '---',
+    '',
+    `Hello${salut},`,
+    '',
+    'The following item has arrived:',
+    '',
+    ...pucesEN,
+    '',
+    'Best regards,',
   ].join('\n');
 
   return { dest, sujet, corps };
