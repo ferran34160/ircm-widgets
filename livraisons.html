@@ -254,17 +254,38 @@ function fillDemFilter() {
 }
 
 function fillFourFilter() {
-  const fours = new Set();
+  // Ne lister que les fournisseurs ayant une DA visible avec les filtres actifs
+  // (statut/complétude + demandeur), sans tenir compte du filtre fournisseur lui-même.
+  const matchDem = (a) => {
+    if (!filterDem) return true;
+    const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
+    return dems.includes(filterDem);
+  };
+  // Totaux par DA (produits, hors services), filtrés par demandeur
+  const tot = {};
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
-    if (da && da.statut === 'BC reçu' && da.fournisseur) fours.add(da.fournisseur);
+    if (!da || da.statut !== 'BC reçu' || estService(a) || !matchDem(a)) return;
+    const key = a.demande_achat || 'sans';
+    if (!tot[key]) tot[key] = { total: 0, recus: 0, four: da.fournisseur };
+    tot[key].total += 1;
+    if (a.date_livraison) tot[key].recus += 1;
+  });
+  const fours = new Set();
+  Object.values(tot).forEach(t => {
+    if (t.total === 0) return;
+    const complete = t.recus === t.total;
+    if (filter === 'recu' && !complete) return;
+    if (filter === 'attente' && complete) return;
+    if (t.four) fours.add(t.four);
   });
   const sel = document.getElementById('four-filter');
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">Tous les fournisseurs</option>' +
     [...fours].sort((a,b)=>a.localeCompare(b,'fr')).map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f}</option>`).join('');
-  sel.value = cur;
+  // Si le fournisseur sélectionné n'est plus dans la liste, on garde la valeur (évite un reset brutal)
+  sel.value = [...fours].includes(cur) ? cur : cur;
 }
 
 function estService(a) {
