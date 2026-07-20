@@ -70,6 +70,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 
 <script>
 let allData = [];
+let contratsMasques = new Set();
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
 
 function fmt(v) {
@@ -233,10 +234,24 @@ async function loadReleves() {
 }
 
 function loadData() {
+  async function loadContratsMasques() {
+    try {
+      const ct = await grist.docApi.fetchTable('Contrats');
+      contratsMasques = new Set();
+      (ct.id||[]).forEach((id,i) => {
+        if ((ct.Masquer||[])[i]) {
+          const nom = (ct.Nom||[])[i];
+          if (nom) contratsMasques.add(String(nom).trim());
+        }
+      });
+    } catch(e) {}
+  }
+
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
     grist.onRecords(async (records) => {
       await loadReleves();
+      await loadContratsMasques();
       allData = records.map(r => {
         const lim = limitesParLigne[r.id];
         // Si la línia és annualisée amb data límit, usar-la com a data d'échéance efectiva
@@ -256,7 +271,7 @@ function loadData() {
           budget_ajuste: r.Budget_ajuste || 0,
           montant_releve: r.Montant_dernier_releve || 0,
         };
-      }).filter(d => d.label);
+      }).filter(d => d.label && !contratsMasques.has(String(d.contrat).trim()));
 
       // Omplir el filtre de categories (ordenades)
       const catsPresents = [...new Set(allData.map(d => getCat(d.label)))]
