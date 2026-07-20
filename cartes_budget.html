@@ -49,6 +49,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 
 <script>
 let allData = [];
+let contratsMasques = new Set();
 
 const CAT_COLORS = {
   'Fonctionnement': { c: '#378ADD', bg: '#EAF3FB', dark: '#16314A', txt: '#0C447C', dtxt: '#9FC6EE' },
@@ -215,9 +216,34 @@ function updateView() {
   render(filtered);
 }
 
+function rebuildContratSelect() {
+  const contrats = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
+  const sel = document.getElementById('contrat-select');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous les contrats</option>';
+  contrats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+  if ([...contrats].includes(cur)) sel.value = cur;
+}
+
 function loadData() {
   if (window.grist) {
-    grist.ready({ requiredAccess: 'read table' });
+    grist.ready({ requiredAccess: 'full' });
+    // Charger la liste des contrats masqués
+    grist.docApi.fetchTable('Contrats').then(ct => {
+      contratsMasques = new Set();
+      (ct.id||[]).forEach((id,i) => {
+        if ((ct.Masquer||[])[i]) {
+          const nom = (ct.Nom||[])[i];
+          if (nom) contratsMasques.add(String(nom).trim());
+        }
+      });
+      if (allData.length) { rebuildContratSelect(); updateView(); }
+    }).catch(()=>{});
+
     grist.onRecords((records) => {
       allData = records.map(r => ({
         label:           r.Label || r.label || '',
@@ -229,17 +255,9 @@ function loadData() {
         date_releve:     r.Date_dernier_releve,
         commandes_post:  r.Commandes_post_releve || 0,
         reste_notifier:  r.Reste_a_notifier || 0,
-      })).filter(d => d.label);
+      })).filter(d => d.label && !contratsMasques.has(String(d.contrat).trim()));
 
-      const contrats = [...new Set(allData.map(d => d.contrat))].filter(Boolean).sort();
-      const sel = document.getElementById('contrat-select');
-      sel.innerHTML = '<option value="">Tous les contrats</option>';
-      contrats.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
-        sel.appendChild(opt);
-      });
-
+      rebuildContratSelect();
       updateView();
     });
   } else {
