@@ -235,7 +235,7 @@ async function fetchAll() {
       devise:(c.Devise||[])[i]||'EUR',
       prix:(c.Prix_unitaire_HT||[])[i]||0,
       taux:(c.Taux_change||[])[i]||1,
-      statut_livr:(c.Statut_livraison||[])[i]||'',
+      statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
     }));
 
     render();
@@ -418,9 +418,10 @@ function renderDetail(d) {
     }
     const livr = a.statut_livr === 'Reçu';
     const hasLivr = a.statut_livr === 'Reçu' || a.statut_livr === 'En attente';
+    const livrDate = livr && a.date_livr ? ' ' + fmtDate(a.date_livr) : '';
     const livrHtml = !hasLivr
       ? ''
-      : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré':'⏳ En attente'}</span>`;
+      : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
     return `
     <div class="art ${a.type_article==='Service'?'svc':''}">
       <div class="art-main">
