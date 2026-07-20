@@ -118,7 +118,11 @@ async function fetchAll() {
 
     // Mapa id -> nom de contracte
     const contratNoms = {};
-    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('Contrat #'+id); });
+    const contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i) => {
+      contratNoms[id] = (ct.Nom||[])[i] || ('Contrat #'+id);
+      if ((ct.Masquer||[])[i]) { const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
 
     function resolContrat(v) {
       if (v == null) return '';
@@ -167,7 +171,7 @@ async function fetchAll() {
       montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]), motif:(m.Motif||[])[i]||'',
     }));
 
-    const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+    const contratSet = [...new Set(lignes.map(x => x.contrat))].filter(c => c && !contratsMasques.has(String(c).trim())).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
     const sel = document.getElementById('contrat-select');
     const current = sel.value;
     sel.innerHTML = '<option value="">— Choisir un contrat —</option>';
