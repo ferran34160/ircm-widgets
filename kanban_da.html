@@ -74,7 +74,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </div>
 
 <script>
-let das = [], commandes = [], contratNoms = {}, fourNoms = {};
+let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
@@ -119,8 +119,11 @@ async function fetchAll() {
       grist.docApi.fetchTable('Fournisseurs'),
     ]);
 
-    contratNoms = {};
-    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('#'+id); });
+    contratNoms = {}; contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i) => {
+      contratNoms[id] = (ct.Nom||[])[i] || ('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
     fourNoms = {};
     (fo.id||[]).forEach((id,i) => { fourNoms[id] = (fo.Label||[])[i] || (fo.Fournisseur||[])[i] || (fo.Nom||[])[i] || ('#'+id); });
 
@@ -133,7 +136,7 @@ async function fetchAll() {
       statut:      (d.Statut||[])[i] || '',
       num_bc:      (d.Num_BC||[])[i] || '',
       date_reception_bc: (d.Date_reception_BC||[])[i],
-    })).filter(x => x.num_da && x.statut === 'Envoyée PGM');
+    })).filter(x => x.num_da && x.statut === 'Envoyée PGM' && !contratsMasques.has(String(resolveContrat(x.contrat)).trim()));
 
     commandes = (c.id||[]).map((id,i) => ({
       demande_achat: (c.Demande_achat||[])[i] || null,
