@@ -275,7 +275,20 @@ function drawChart(points, ligne, dernierReleve) {
 
   const vals=points.map(p=>p.dispo);
   let minV=Math.min(0,...vals), maxV=Math.max(...vals);
-  const range=maxV-minV||1; minV-=range*0.08; maxV+=range*0.08;
+  const rawRange=maxV-minV||1; minV-=rawRange*0.08; maxV+=rawRange*0.08;
+
+  // Pas « rond » pour la graduation (au moins 1000)
+  function niceStep(range, target){
+    const rough=range/target;
+    const pow=Math.pow(10, Math.floor(Math.log10(rough)));
+    const candidates=[1,2,2.5,5,10].map(m=>m*pow);
+    let step=candidates.find(c=>c>=rough) || candidates[candidates.length-1];
+    return Math.max(1000, step);
+  }
+  const step=niceStep(maxV-minV, 5);
+  // Aligner les bornes sur des multiples du pas
+  minV=Math.floor(minV/step)*step;
+  maxV=Math.ceil(maxV/step)*step;
   function yOf(v){ return padT + ih - ((v-minV)/(maxV-minV))*ih; }
 
   const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', start:'#888' };
@@ -287,11 +300,9 @@ function drawChart(points, ligne, dernierReleve) {
   const x0=xOf(points[0],0), xN=xOf(points[points.length-1],points.length-1);
   const area=d+`L${xN.toFixed(1)} ${yOf(minV).toFixed(1)} L${x0.toFixed(1)} ${yOf(minV).toFixed(1)} Z`;
 
-  // Grid horitzontal (5 línies) amb etiquetes
+  // Grid horitzontal alineat a múltiples del pas
   let grid='';
-  const nGrid=5;
-  for(let i=0;i<=nGrid;i++){
-    const v=minV+(maxV-minV)*i/nGrid;
+  for(let v=minV; v<=maxV+0.5; v+=step){
     const y=yOf(v);
     grid+=`<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}"/>`;
     grid+=`<text class="axis-label" x="${padL-8}" y="${(y+3).toFixed(1)}" text-anchor="end">${Math.round(v).toLocaleString('fr-FR')}</text>`;
