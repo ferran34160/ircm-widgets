@@ -52,7 +52,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let lignes=[], releves=[], commandes=[], transferts=[], mouvements=[], das={}, contratNoms={};
+let lignes=[], releves=[], commandes=[], transferts=[], mouvements=[], das={}, contratNoms={}, contratsMasques=new Set();
 
 const CAT_COLORS = {
   'Fonctionnement': { c: '#378ADD', bg: '#EAF3FB', dark: '#16314A', txt: '#0C447C', dtxt: '#9FC6EE' },
@@ -82,8 +82,11 @@ async function fetchAll() {
       grist.docApi.fetchTable('Contrats'),
     ]);
 
-    contratNoms = {};
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    contratNoms = {}; contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
     function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||('#'+v); if(Array.isArray(v))return contratNoms[v[1]]||String(v); return String(v); }
 
     lignes = (l.id||[]).map((id,i)=>({
@@ -116,7 +119,7 @@ async function fetchAll() {
       montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]),
     }));
 
-    const contratSet = [...new Set(lignes.map(x=>x.contrat))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+    const contratSet = [...new Set(lignes.map(x=>x.contrat))].filter(c=>c && !contratsMasques.has(String(c).trim())).sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
     const sel = document.getElementById('contrat-select');
     const cur = sel.value;
     sel.innerHTML = '<option value="">Tous les contrats</option>';
@@ -186,7 +189,7 @@ function render() {
   const contrat = document.getElementById('contrat-select').value;
   const container = document.getElementById('container');
 
-  let data = lignes.filter(l => !contrat || l.contrat === contrat)
+  let data = lignes.filter(l => (!contrat || l.contrat === contrat) && !contratsMasques.has(String(l.contrat).trim()))
     .map(l => ({ ...l, calc: calcEcart(l) }))
     .filter(l => l.calc !== null);
 
