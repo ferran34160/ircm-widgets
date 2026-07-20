@@ -76,7 +76,7 @@ svg { width: 100%; height: auto; display: block; }
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={}, fourNoms={};
+let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={}, fourNoms={}, contratsMasques=new Set();
 let selContrat='', selLigne='';
 
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -100,8 +100,11 @@ async function fetchAll() {
     (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
     function resolFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
 
-    contratNoms={};
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    contratNoms={}; contratsMasques=new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
     function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||('#'+v); if(Array.isArray(v))return contratNoms[v[1]]||String(v); return String(v); }
 
     lignes=(l.id||[]).map((id,i)=>({
@@ -148,7 +151,7 @@ async function fetchAll() {
 function ligneIdOf(ref){ if(ref==null)return null; if(Array.isArray(ref))return ref[1]; return ref; }
 
 function fillContrats() {
-  const cs=[...new Set(lignes.map(l=>l.contrat))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
+  const cs=[...new Set(lignes.map(l=>l.contrat))].filter(c=>c && !contratsMasques.has(String(c).trim())).sort((a,b)=>a.localeCompare(b,'fr'));
   const sel=document.getElementById('contrat-select');
   const cur=sel.value;
   sel.innerHTML='<option value="">— Contrat —</option>'+cs.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
