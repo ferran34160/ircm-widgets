@@ -36,6 +36,9 @@ svg { width: 100%; height: auto; display: block; }
 .tooltip.show { opacity: 1; }
 .tooltip b { font-weight: 600; }
 .tooltip .tt-date { color: #bbb; font-size: 10px; }
+.tooltip .tt-svc { background: #F0EAFB; color: #5E3A9E; font-size: 9px; padding: 1px 5px; border-radius: 5px; font-weight: 600; }
+.dp-svc { background: #F0EAFB; color: #5E3A9E; font-size: 10px; padding: 1px 6px; border-radius: 5px; font-weight: 600; margin-left: 4px; }
+@media (prefers-color-scheme: dark) { .tooltip .tt-svc, .dp-svc { background: #2A1F3D; color: #C4A6EC; } }
 .tooltip .tt-amount { font-variant-numeric: tabular-nums; }
 .empty { text-align: center; padding: 40px; color: #aaa; }
 .detail-panel { max-width: 760px; margin-top: 16px; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; background: #fafaf8; display: none; }
@@ -122,6 +125,7 @@ async function fetchAll() {
     commandes=(c.id||[]).map((id,i)=>({
       da:(c.Demande_achat||[])[i]||null,
       desig:(c.Designation2||[])[i]||'',
+      type_article:(c.Type_article||[])[i]||'Produit',
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
     }));
 
@@ -178,15 +182,18 @@ function buildEvents(ligneId) {
     // Data de l'event: recepció del BC, o data de la DA com a fallback (Envoyée PGM sense BC)
     const dEvt = da.date_bc || da.date_da;
     if(!dEvt) return;
-    if(!parDA[c.da]) parDA[c.da]={ date:dEvt, num_da:da.num_da, num_bc:da.num_bc, statut:da.statut, fournisseur:da.fournisseur, sansBC:!da.date_bc, total:0, nb:0, articles:[] };
+    if(!parDA[c.da]) parDA[c.da]={ date:dEvt, num_da:da.num_da, num_bc:da.num_bc, statut:da.statut, fournisseur:da.fournisseur, sansBC:!da.date_bc, total:0, nb:0, nbProd:0, articles:[] };
     parDA[c.da].total+=c.montant;
     parDA[c.da].nb++;
+    if(c.type_article!=='Service') parDA[c.da].nbProd++;
     parDA[c.da].articles.push({ desig:c.desig, montant:c.montant });
   });
   Object.values(parDA).forEach(d=>{
+    const serviceOnly = d.nbProd===0;
     const lbl = d.sansBC ? (d.num_da||'Commande')+' (Envoyée PGM)' : (d.num_da||'Commande');
-    evts.push({ date:d.date, type:'cmd', delta:-d.total, label:lbl, extra:d.nb+' article'+(d.nb>1?'s':''),
-                detail:{ kind:'cmd', num_da:d.num_da, num_bc:d.num_bc, total:d.total, articles:d.articles, statut:d.statut, fournisseur:d.fournisseur } });
+    evts.push({ date:d.date, type:'cmd', delta:-d.total, label:lbl, serviceOnly:serviceOnly,
+                extra: serviceOnly ? (d.nb+' service'+(d.nb>1?'s':'')) : (d.nb+' article'+(d.nb>1?'s':'')),
+                detail:{ kind:'cmd', num_da:d.num_da, num_bc:d.num_bc, total:d.total, articles:d.articles, statut:d.statut, fournisseur:d.fournisseur, serviceOnly:serviceOnly } });
   });
   // Mouvements
   mouvements.forEach(m=>{
@@ -243,7 +250,7 @@ function render() {
       points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', detail:{ kind:'releve', officiel:item.officiel } });
     } else {
       running+=item.delta;
-      points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra, detail:item.detail });
+      points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra, detail:item.detail, serviceOnly:item.serviceOnly });
     }
   });
 
@@ -302,6 +309,9 @@ function drawChart(points, ligne, dernierReleve) {
     const isReleve=p.type==='releve';
     if(isReleve){
       pts+=`<rect class="pt" x="${(x-4).toFixed(1)}" y="${(y-4).toFixed(1)}" width="8" height="8" fill="${col}" data-i="${i}"/>`;
+    } else if(p.serviceOnly){
+      // Losange (DA composée uniquement de services)
+      pts+=`<rect class="pt" x="${(x-5).toFixed(1)}" y="${(y-5).toFixed(1)}" width="10" height="10" fill="${col}" data-i="${i}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
     } else {
       pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" data-i="${i}"/>`;
     }
@@ -367,6 +377,7 @@ function drawChart(points, ligne, dernierReleve) {
     el.addEventListener('mouseenter',ev=>{
       const p=points[Number(el.dataset.i)];
       let html=`<b>${p.label}</b>`;
+      if(p.serviceOnly) html+=` <span class="tt-svc">Service</span>`;
       if(p.extra) html+=` <span class="tt-date">(${p.extra})</span>`;
       html+=`<br><span class="tt-amount">Disponible : ${fmt(p.dispo)}</span>`;
       if(p.delta!=null) html+=`<br><span class="tt-amount" style="color:${p.delta<0?'#F09595':'#7FD9B8'}">${p.delta<0?'−':'+'} ${fmt(Math.abs(p.delta))}</span>`;
@@ -406,7 +417,7 @@ function showDetail(p) {
 
   let title='', body='';
   if(d.kind==='cmd'){
-    title=(d.num_da||'Commande') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
+    title=(d.num_da||'Commande') + (d.serviceOnly ? ' <span class="dp-svc">Service</span>' : '') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
     body='';
     if(d.num_bc) body+=`<div class="dp-info" style="margin-bottom:8px;"><b>BC :</b> ${String(d.num_bc).replace(/</g,'&lt;')}</div>`;
     body+=d.articles.map(a=>`<div class="dp-row"><span class="lbl">${(a.desig||'(sans nom)').replace(/</g,'&lt;')}</span><span class="val">${fmt(a.montant)}</span></div>`).join('');
