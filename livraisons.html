@@ -158,8 +158,11 @@ async function fetchAll() {
       });
     }
 
-    const contratNoms = {};
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    const contratNoms = {}; const contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
     function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
 
     fourNoms = {};
@@ -170,7 +173,7 @@ async function fetchAll() {
     (d.id||[]).forEach((id,i)=>{ dasMap[id]={
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
       fournisseur:resolFour((d.Fournisseur||[])[i]),
-      contrat:resolContrat((d.Contrat||[])[i]),
+      contrat:resolContrat((d.Contrat||[])[i]), masque:contratsMasques.has(String(resolContrat((d.Contrat||[])[i])).trim()),
       date_da:(d.Date_DA||[])[i], date_pgm:(d.Date_OrderPGM||[])[i], date_bc:(d.Date_reception_BC||[])[i], statut:(d.Statut||[])[i]||'', num_bc:(d.Num_BC||[])[i]||'',
     };});
 
@@ -310,7 +313,7 @@ function render() {
   const totauxDA = {};
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
-    if (!da || da.statut !== 'BC reçu') return;
+    if (!da || da.statut !== 'BC reçu' || da.masque) return;
     if (filterFour && da.fournisseur !== filterFour) return;
     if (estService(a)) return;
     if (!matchDem(a)) return;
@@ -323,7 +326,7 @@ function render() {
   // Tots els articles de DA "BC reçu" (excloent serveis) — sempre es mostren tots els de la DA
   let arts = articles.filter(a => {
     const da = dasMap[a.demande_achat];
-    if (!da || da.statut !== 'BC reçu') return false;
+    if (!da || da.statut !== 'BC reçu' || da.masque) return false;
     if (filterFour && da.fournisseur !== filterFour) return false;
     if (estService(a)) return false;
     if (!matchDem(a)) return false;
