@@ -163,7 +163,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let das = [], commandes = [], contratNoms = {}, fourNoms = {};
+let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
 
@@ -197,7 +197,12 @@ async function fetchAll() {
 
     contratNoms = {};
     contratsList = [];
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); contratsList.push({id, nom:contratNoms[id]}); });
+    contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      contratsList.push({id, nom:contratNoms[id]});
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
     fourNoms = {};
     fournisseursList = [];
     (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); fournisseursList.push({id, nom:fourNoms[id]}); });
@@ -210,7 +215,7 @@ async function fetchAll() {
     das = (d.id||[]).map((id,i)=>({
       id,
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
-      contrat:resolveContrat((d.Contrat||[])[i]),
+      contrat:resolveContrat((d.Contrat||[])[i]), masque:contratsMasques.has(String(resolveContrat((d.Contrat||[])[i])).trim()),
       fournisseur:resolveFour((d.Fournisseur||[])[i]),
       date_da:(d.Date_DA||[])[i],
       date_pgm:(d.Date_OrderPGM||[])[i],
@@ -318,7 +323,7 @@ function renderFrame(centerAndRight) {
 
 // Contingut de la vista llista (columna llista + detall)
 function renderListContent() {
-  let list = das.slice().filter(d => d.statut !== 'Annulée');
+  let list = das.slice().filter(d => d.statut !== 'Annulée' && !d.masque);
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
