@@ -70,7 +70,7 @@ td input.money:focus { outline: none; border-color: #378ADD; }
 </div>
 
 <script>
-let lignes = [], releves = [], contratNoms = {};
+let lignes = [], releves = [], contratNoms = {}, contratsMasquesIds = new Set();
 
 function fmt(v) {
   if (v == null || v === '') return '—';
@@ -85,6 +85,23 @@ function fmtDate(g) {
   const ms = toMs(g); if (!ms) return '';
   const d = new Date(ms); if (isNaN(d.getTime()) || d.getFullYear() > 3000) return '';
   return d.toLocaleDateString('fr-FR');
+}
+function dateInput(g) {
+  const ms = toMs(g); if (!ms) return '';
+  const d = new Date(ms); if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0,10);
+}
+function onAnnChange(ligneId) {
+  // Si es marca annualisé i no hi ha data límit, suggerir 31/12 de l'any del relevé
+  const row = document.querySelector(`tr[data-ligne="${ligneId}"]`);
+  if (!row) return;
+  const chk = row.querySelector('.ann');
+  const dlim = row.querySelector('.dlim');
+  if (chk.checked && !dlim.value) {
+    const dateStr = document.getElementById('date-releve').value;
+    const year = dateStr ? dateStr.slice(0,4) : new Date().getFullYear();
+    dlim.value = year + '-12-31';
+  }
 }
 function dateToGrist(dateStr) {
   if (!dateStr) return null;
@@ -110,8 +127,11 @@ async function fetchAll() {
       grist.docApi.fetchTable('Contrats'),
     ]);
 
-    contratNoms = {};
-    (ct.id||[]).forEach((id,i) => { contratNoms[id] = (ct.Nom||[])[i] || ('#'+id); });
+    contratNoms = {}; contratsMasquesIds = new Set();
+    (ct.id||[]).forEach((id,i) => {
+      contratNoms[id] = (ct.Nom||[])[i] || ('#'+id);
+      if ((ct.Masquer||[])[i]) contratsMasquesIds.add(id);
+    });
 
     lignes = (lb.id||[]).map((id,i) => ({
       id,
@@ -127,10 +147,12 @@ async function fetchAll() {
       officiel:   (rv.Disponible_officiel||[])[i],
       reste:      (rv.Reste_a_notifier||[])[i],
       notes:      (rv.Notes||[])[i] || '',
+      annualise:  (rv.Annualise||[])[i] || false,
+      date_limite:(rv.Date_limite||[])[i] || null,
     }));
 
     // Omplir selector de contrats
-    const contratsIds = [...new Set(lignes.map(l => l.contrat))].filter(Boolean);
+    const contratsIds = [...new Set(lignes.map(l => l.contrat))].filter(id => id && !contratsMasquesIds.has(id));
     const contratsList = contratsIds.map(id => ({ id, nom: contratNoms[id] || ('#'+id) }))
       .sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
     const sel = document.getElementById('contrat-select');
@@ -162,7 +184,7 @@ function render() {
   const dateStr = document.getElementById('date-releve').value;
   const dateGrist = dateToGrist(dateStr);
 
-  let list = lignes.slice();
+  let list = lignes.slice().filter(l => !contratsMasquesIds.has(l.contrat));
   if (contratFilter) list = list.filter(l => String(l.contrat) === String(contratFilter));
 
   if (!list.length) {
@@ -185,15 +207,19 @@ function render() {
       <th class="num">Disponible officiel</th>
       <th class="num">Reste à notifier</th>
       <th class="num">Écart</th>
+      <th style="text-align:center">Annualisé</th>
+      <th>Date limite</th>
     </tr></thead><tbody>`;
 
   Object.keys(groups).sort((a,b) => a.localeCompare(b,'fr')).forEach(cn => {
-    html += `<tr class="cat-row"><td colspan="5">${cn}</td></tr>`;
+    html += `<tr class="cat-row"><td colspan="7">${cn}</td></tr>`;
     groups[cn].forEach(l => {
       const existing = dateGrist ? findReleve(l.id, dateGrist) : null;
       const last = lastReleve(l.id);
       const offVal = existing ? existing.officiel : '';
       const resVal = existing ? existing.reste : '';
+      const annVal = existing ? existing.annualise : false;
+      const dlimVal = existing && existing.date_limite ? dateInput(existing.date_limite) : '';
 
       const parts = l.label.split('|');
       const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
@@ -211,6 +237,8 @@ function render() {
         <td class="num"><input class="money off" type="text" inputmode="decimal" value="${offVal !== '' && offVal != null ? offVal : ''}" oninput="onInput(${l.id})"></td>
         <td class="num"><input class="money res" type="text" inputmode="decimal" value="${resVal !== '' && resVal != null ? resVal : ''}"></td>
         <td class="num"><span class="ecart zero" id="ecart-${l.id}">—</span></td>
+        <td style="text-align:center"><input class="ann" type="checkbox" ${annVal ? 'checked' : ''} onchange="onAnnChange(${l.id})"></td>
+        <td><input class="dlim" type="date" value="${dlimVal}" style="font-size:12px; padding:4px 6px;"></td>
       </tr>`;
     });
   });
@@ -284,7 +312,14 @@ async function saveReleve() {
     const off = parseNum(row.querySelector('.off').value);
     const res = parseNum(row.querySelector('.res').value);
     // Només guardar si almenys un camp està informat
-    if (off == null && res == null) return;
+    const annCheck = row.querySelector('.ann');
+    const annChecked = annCheck ? annCheck.checked : false;
+    if (off == null && res == null && !annChecked) return;
+
+    const annEl = row.querySelector('.ann');
+    const dlimEl = row.querySelector('.dlim');
+    const ann = annEl ? annEl.checked : false;
+    const dlim = dlimEl && dlimEl.value ? dateToGrist(dlimEl.value) : null;
 
     const existing = findReleve(ligneId, dateGrist);
     const fields = {
@@ -292,11 +327,15 @@ async function saveReleve() {
       Date_releve: dateGrist,
       Disponible_officiel: off,
       Reste_a_notifier: res,
+      Annualise: ann,
+      Date_limite: dlim,
     };
     if (existing) {
       updates.push(['UpdateRecord', 'Releves_PGM', existing.id, {
         Disponible_officiel: off,
         Reste_a_notifier: res,
+        Annualise: ann,
+        Date_limite: dlim,
       }]);
     } else {
       adds.push(['AddRecord', 'Releves_PGM', null, fields]);
