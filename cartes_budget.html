@@ -204,10 +204,12 @@ function updateView() {
 
   const totalEngage = filtered.reduce((s, d) => s + d.commandes_post, 0);
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
+  const totalReste  = filtered.reduce((s, d) => s + (d.reste_notifier > 0 ? d.reste_notifier : 0), 0);
 
   document.getElementById('summary').innerHTML = `
     <div class="sum-item">Engagé depuis le dernier relevé<b>${fmt(totalEngage)}</b></div>
     <div class="sum-item">Disponible total<b style="color:${totalDispo < 0 ? '#E24B4A' : '#1D9E75'}">${fmt(totalDispo)}</b></div>
+    <div class="sum-item">Reste à notifier<b>${fmt(totalReste)}</b></div>
   `;
 
   render(filtered);
