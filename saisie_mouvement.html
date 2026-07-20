@@ -109,6 +109,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </div>
 
 <script>
+let contratsMasques = new Set();
 let lignesDispo = [], contratNoms = {}, mvtType = 'Sortie';
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -136,12 +137,18 @@ async function fetchAll() {
       grist.docApi.fetchTable('Mouvements'),
     ]);
 
-    contratNoms = {};
-    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    contratNoms = {}; contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
 
     lignesDispo = (lb.id||[]).map((id,i)=>({
       id, label:(lb.Label||[])[i]||('Ligne #'+id),
-    }));
+    })).filter(l => {
+      const contrat = (l.label.split('|')[0]||'').trim();
+      return !contratsMasques.has(contrat);
+    });
     fillLignes();
 
     // Últims mouvements (ordenats per data desc)
