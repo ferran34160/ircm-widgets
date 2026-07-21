@@ -196,15 +196,11 @@ function render() {
     }
 
     // Detectar si la DA té algun producte real (no-Service)
-    const aDesProduits = arts.some(a => a.type_article !== 'Service');
-    // Paraules clau de serveis accessoris (transport/handling)
-    const motsAccessoire = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', 'envoi', 'handling', 'expédition', 'manutention'];
-    const estAccessoire = (a) => {
-      const des = (a.designation || '').toLowerCase();
-      return a.type_article === 'Service' && motsAccessoire.some(m => des.includes(m));
-    };
-    // Mostrar tots els articles EXCEPTE els serveis accessoris quan la DA té productes reals
-    const artsVisibles = arts.filter(a => !(aDesProduits && estAccessoire(a)));
+    const aDesProduits = arts.some(a => a.type_article !== 'Service' && a.type_article !== 'Frais');
+    // Un frais accessoire est identifié par Type_article = 'Frais'
+    const estAccessoire = (a) => a.type_article === 'Frais';
+    // Montrer tous les articles SAUF les frais accessoires
+    const artsVisibles = arts.filter(a => !estAccessoire(a));
 
     const artsHtml = artsVisibles.length
       ? artsVisibles.map(a => {
