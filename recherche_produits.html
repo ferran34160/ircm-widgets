@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recherche produits</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 20px 22px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+
+.header { max-width: 1000px; margin: 0 auto 16px; }
+.title { font-size: 19px; font-weight: 600; margin-bottom: 12px; }
+.search-box { position: relative; }
+.search-box input { width: 100%; font-size: 15px; padding: 11px 14px 11px 40px; border: 1px solid #ccc; border-radius: 10px; background: inherit; color: inherit; }
+.search-box input:focus { outline: none; border-color: #378ADD; }
+.search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); opacity: 0.4; font-size: 15px; }
+@media (prefers-color-scheme: dark) { .search-box input { border-color: #444; } }
+
+.hint { max-width: 1000px; margin: 0 auto; font-size: 13px; color: #999; text-align: center; padding: 40px 0; }
+
+.results { max-width: 1000px; margin: 0 auto; }
+.count { font-size: 12px; color: #999; margin-bottom: 12px; }
+
+.prod { border: 1px solid #e5e5e5; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .prod { border-color: #383838; } }
+.prod-head { padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
+.prod-head:hover { background: rgba(55,138,221,0.04); }
+.prod-caret { font-size: 11px; opacity: 0.5; transition: transform 0.15s; flex-shrink: 0; }
+.prod.open .prod-caret { transform: rotate(90deg); }
+.prod-main { flex: 1; min-width: 0; }
+.prod-name { font-size: 14px; font-weight: 600; }
+.prod-meta { font-size: 11.5px; color: #999; margin-top: 2px; }
+.prod-stats { display: flex; gap: 14px; align-items: center; flex-shrink: 0; }
+.prod-stat { text-align: right; }
+.prod-stat b { font-size: 14px; font-variant-numeric: tabular-nums; display: block; }
+.prod-stat span { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.prod-body { display: none; border-top: 1px solid #f0f0f0; }
+@media (prefers-color-scheme: dark) { .prod-body { border-top-color: #2e2e2e; } }
+.prod.open .prod-body { display: block; }
+
+.occ { padding: 11px 16px 11px 40px; border-bottom: 1px solid #f5f5f5; display: flex; align-items: flex-start; gap: 12px; }
+.occ:last-child { border-bottom: none; }
+@media (prefers-color-scheme: dark) { .occ { border-bottom-color: #262626; } }
+.occ-main { flex: 1; min-width: 0; }
+.occ-da { font-size: 13px; font-weight: 500; }
+.occ-da a { color: #378ADD; }
+.occ-detail { font-size: 11.5px; color: #999; margin-top: 3px; line-height: 1.5; }
+.occ-detail .ref { color: #777; }
+@media (prefers-color-scheme: dark) { .occ-detail .ref { color: #aaa; } }
+.occ-right { text-align: right; flex-shrink: 0; }
+.occ-price { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.occ-livr { font-size: 10px; padding: 2px 8px; border-radius: 6px; margin-top: 5px; display: inline-block; white-space: nowrap; }
+.occ-livr.recu { background: #E1F5EE; color: #1D9E75; }
+.occ-livr.attente { background: rgba(0,0,0,0.06); color: #999; }
+.occ-livr.pgm { background: #F0EAFB; color: #5E3A9E; }
+@media (prefers-color-scheme: dark) {
+  .occ-livr.recu { background: #16291F; color: #5FCFA0; }
+  .occ-livr.attente { background: rgba(255,255,255,0.08); color: #888; }
+  .occ-livr.pgm { background: #2A1F3D; color: #C4A6EC; }
+}
+.tag-svc { font-size: 9px; background: #F0EAFB; color: #5E3A9E; padding: 1px 5px; border-radius: 4px; margin-left: 6px; }
+@media (prefers-color-scheme: dark) { .tag-svc { background: #2A1F3D; color: #C4A6EC; } }
+
+.loading { text-align: center; padding: 40px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Recherche produits</div>
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search" placeholder="Nom du produit ou référence (ex. Chloroform, T9424)…" autocomplete="off" oninput="onSearch(this.value)">
+  </div>
+</div>
+<div id="content"><div class="hint">Tapez au moins 2 caractères pour rechercher un produit.</div></div>
+
+<script>
+let commandes = [], dasMap = {}, fourNoms = {}, contratNoms = {}, query = '';
+const openProds = new Set();
+
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
+function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function norm(s){ return String(s||'').trim().toLowerCase(); }
+
+async function fetchAll() {
+  try {
+    const [c, d, fo, ct] = await Promise.all([
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Fournisseurs'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    contratNoms = {};
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); });
+    function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
+
+    fourNoms = {};
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); });
+    function resolFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
+
+    dasMap = {};
+    (d.id||[]).forEach((id,i)=>{ dasMap[id]={
+      num_da:(d.Num_DA||[])[i]||('DA#'+id),
+      statut:(d.Statut||[])[i]||'',
+      fournisseur:resolFour((d.Fournisseur||[])[i]),
+      contrat:resolContrat((d.Contrat||[])[i]),
+      date_da:(d.Date_DA||[])[i],
+      date_bc:(d.Date_reception_BC||[])[i],
+      num_bc:(d.Num_BC||[])[i]||'',
+    };});
+
+    commandes = (c.id||[]).map((id,i)=>({
+      id,
+      demande_achat:(c.Demande_achat||[])[i]||null,
+      designation:(c.Designation2||[])[i]||'',
+      ref:(c.Reference_fournisseur||[])[i]||'',
+      qte:(c.Quantite||[])[i]||1,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      date_livraison:(c.Date_livraison||[])[i]||null,
+      lieu:(c.Lieu_stockage||[])[i]||'',
+      type_article:(c.Type_article||[])[i]||'Produit',
+    })).filter(c => c.demande_achat && c.designation);
+
+    render();
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
+  }
+}
+
+function onSearch(v) { query = v; render(); }
+
+function statutLivr(a, da) {
+  if (a.type_article === 'Service') return { cls:'', txt:'' };
+  if (da && da.statut === 'Envoyée PGM') return { cls:'pgm', txt:'Envoyée PGM' };
+  if (a.date_livraison) return { cls:'recu', txt:'✓ Reçu ' + fmtDate(a.date_livraison) };
+  return { cls:'attente', txt:'⏳ En attente' };
+}
+
+function render() {
+  const content = document.getElementById('content');
+  const q = norm(query);
+
+  if (q.length < 2) {
+    content.innerHTML = '<div class="hint">Tapez au moins 2 caractères pour rechercher un produit.</div>';
+    return;
+  }
+
+  // Filtrer par désignation OU référence
+  const matches = commandes.filter(c => norm(c.designation).includes(q) || norm(c.ref).includes(q));
+
+  if (!matches.length) {
+    content.innerHTML = '<div class="hint">Aucun produit trouvé pour « ' + esc(query) +' ».</div>';
+    return;
+  }
+
+  // Grouper par produit (désignation normalisée)
+  const groupes = {};
+  matches.forEach(c => {
+    const key = norm(c.designation);
+    if (!groupes[key]) groupes[key] = { nom: c.designation, occ: [], total: 0, recus: 0, nbProd: 0 };
+    const g = groupes[key];
+    g.occ.push(c);
+    g.total += c.montant;
+    if (c.type_article !== 'Service') {
+      g.nbProd++;
+      if (c.date_livraison) g.recus++;
+    }
+  });
+
+  // Trier les groupes par nombre d'occurrences décroissant
+  const cles = Object.keys(groupes).sort((a,b) => groupes[b].occ.length - groupes[a].occ.length);
+
+  let html = `<div class="results"><div class="count">${matches.length} résultat${matches.length>1?'s':''} · ${cles.length} produit${cles.length>1?'s':''}</div>`;
+
+  cles.forEach(key => {
+    const g = groupes[key];
+    const isOpen = openProds.has(key);
+    // Trier les occurrences par date (récentes d'abord)
+    g.occ.sort((a,b) => (toMs(dasMap[b.demande_achat]?.date_bc)||toMs(dasMap[b.demande_achat]?.date_da)||0) - (toMs(dasMap[a.demande_achat]?.date_bc)||toMs(dasMap[a.demande_achat]?.date_da)||0));
+
+    const livrInfo = g.nbProd > 0 ? `${g.recus}/${g.nbProd} reçus` : '—';
+
+    let occHtml = '';
+    g.occ.forEach(a => {
+      const da = dasMap[a.demande_achat];
+      const st = statutLivr(a, da);
+      const isSvc = a.type_article === 'Service';
+      occHtml += `
+        <div class="occ">
+          <div class="occ-main">
+            <div class="occ-da">${da ? esc(da.num_da) : 'Sans DA'}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
+            <div class="occ-detail">
+              ${a.ref ? `<span class="ref">${esc(a.ref)}</span> · ` : ''}${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}<br>
+              ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
+            </div>
+          </div>
+          <div class="occ-right">
+            <div class="occ-price">${fmt(a.montant)}</div>
+            ${st.txt ? `<span class="occ-livr ${st.cls}">${st.txt}</span>` : ''}
+          </div>
+        </div>`;
+    });
+
+    html += `
+      <div class="prod ${isOpen?'open':''}" data-key="${esc(key)}">
+        <div class="prod-head" onclick="toggleProd(this)">
+          <span class="prod-caret">▸</span>
+          <div class="prod-main">
+            <div class="prod-name">${esc(g.nom)}</div>
+            <div class="prod-meta">${g.occ.length} commande${g.occ.length>1?'s':''}</div>
+          </div>
+          <div class="prod-stats">
+            <div class="prod-stat"><b>${fmt(g.total)}</b><span>Total</span></div>
+            <div class="prod-stat"><b>${livrInfo}</b><span>Livraison</span></div>
+          </div>
+        </div>
+        <div class="prod-body">${occHtml}</div>
+      </div>`;
+  });
+
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+function toggleProd(el) {
+  const prod = el.closest('.prod');
+  const key = prod.getAttribute('data-key');
+  if (openProds.has(key)) openProds.delete(key);
+  else openProds.add(key);
+  prod.classList.toggle('open');
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = () => { grist.ready({ requiredAccess: 'full' }); fetchAll(); grist.onRecords(fetchAll); };
+gristScript.onerror = () => { document.getElementById('content').innerHTML = '<div class="loading">Grist non disponible.</div>'; };
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
