@@ -179,8 +179,9 @@ function render(data) {
         ? `<p class="bcard-reste">Reste à notifier : ${fmt(d.reste_notifier)}</p>`
         : '';
 
+      const contratAttr = contrat.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       html += `
-        <div class="bcard" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" onclick="selectContrat('${contrat.replace(/'/g,"\\'")}')" title="Filtrer sur ${contrat.replace(/"/g,'&quot;')}">
+        <div class="bcard" data-contrat="${contratAttr}" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" title="Filtrer sur ${contratAttr}">
           <p class="bcard-cat" style="color:${txtColor}">${contrat}</p>
           <p class="bcard-sub" style="color:${txtColor}">${sub} ${alertIcon}</p>
           <p class="bcard-dispo ${state === 'danger' ? 'neg' : ''}" style="${state !== 'danger' ? 'color:'+txtColor : ''}">${fmt(d.disponible)}</p>
@@ -208,11 +209,6 @@ function updateView() {
   const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
 
   const totalEngage = filtered.reduce((s, d) => s + d.commandes_post - d.mouvements_post, 0);
-  filtered.filter(d=>d.montant_releve!=null).forEach(d=>{
-    const eng = d.commandes_post - d.mouvements_post;
-    const check = d.montant_releve - eng;
-    if(Math.abs(check - d.disponible) > 1) console.log('Écart', d.label, 'relevé-engagé=', check.toFixed(2), 'disponible=', d.disponible.toFixed(2), 'diff=', (check-d.disponible).toFixed(2));
-  });
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
   const totalReste  = filtered.reduce((s, d) => s + (d.reste_notifier > 0 ? d.reste_notifier : 0), 0);
 
@@ -278,6 +274,14 @@ function loadData() {
 }
 
 document.getElementById('contrat-select').addEventListener('change', updateView);
+
+// Clic sur une carte → filtrer sur son contrat (délégation d'événements, robuste)
+document.getElementById('cards-container').addEventListener('click', (e) => {
+  const card = e.target.closest('.bcard');
+  if (!card) return;
+  const contrat = card.getAttribute('data-contrat');
+  if (contrat != null) selectContrat(contrat);
+});
 
 const gristScript = document.createElement('script');
 gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
