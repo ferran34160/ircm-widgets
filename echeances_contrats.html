@@ -30,6 +30,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .card.open .c-chevron { transform: rotate(180deg); }
 .c-dispo { font-size: 22px; font-weight: 500; margin: 0; }
 .c-budget { font-size: 11px; margin: 2px 0 10px; opacity: 0.7; }
+.c-reste { font-size: 11px; margin: -6px 0 10px; opacity: 0.8; font-style: italic; }
 .c-ech { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 10px; display: inline-block; }
 .card.urgent .c-nom, .card.urgent .c-dispo { color: #791F1F; }
 .card.warn .c-nom, .card.warn .c-dispo { color: #633806; }
@@ -123,11 +124,12 @@ function render(data) {
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, lignes: [], a_annualisee: false };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, reste_notifier: 0, lignes: [], a_annualisee: false };
     }
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
     c.releve += d.montant_releve;
+    if (d.reste_notifier > 0) c.reste_notifier += d.reste_notifier;
     c.lignes.push(d);
     if (d.annualisee) c.a_annualisee = true;
     // Data de fi del contracte = la MÉS PROPERA entre les seves línies
@@ -198,6 +200,7 @@ function render(data) {
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
+        ${c.reste_notifier > 0 ? `<p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>` : ''}
         <span class="c-ech">${echStr}</span>
         ${subFilterActif ? '' : `<div class="cats">${catsHtml}</div>`}
       </div>`;
@@ -270,6 +273,7 @@ function loadData() {
           disponible:    r.Disponible || 0,
           budget_ajuste: r.Budget_ajuste || 0,
           montant_releve: r.Montant_dernier_releve || 0,
+          reste_notifier: r.Reste_a_notifier || 0,
         };
       }).filter(d => d.label && !contratsMasques.has(String(d.contrat).trim()));
 
