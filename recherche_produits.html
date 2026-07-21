@@ -173,7 +173,9 @@ function render() {
   });
 
   // Trier les groupes par nombre d'occurrences décroissant
-  const cles = Object.keys(groupes).sort((a,b) => groupes[b].occ.length - groupes[a].occ.length);
+  // Date la plus récente de chaque groupe (pour le tri)
+  const dateGroupe = (g) => Math.max(...g.occ.map(c => toMs(dasMap[c.demande_achat]?.date_bc) || toMs(dasMap[c.demande_achat]?.date_da) || 0));
+  const cles = Object.keys(groupes).sort((a,b) => dateGroupe(groupes[b]) - dateGroupe(groupes[a]));
 
   let html = `<div class="results"><div class="count">${matches.length} résultat${matches.length>1?'s':''} · ${cles.length} produit${cles.length>1?'s':''}</div>`;
 
