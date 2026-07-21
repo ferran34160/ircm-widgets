@@ -277,6 +277,8 @@ function loadData() {
         };
       }).filter(d => d.label && !contratsMasques.has(String(d.contrat).trim()));
 
+      console.log('Reste à notifier par ligne:', allData.map(d => ({label:d.label, reste:d.reste_notifier})).filter(x=>x.reste));
+
       // Omplir el filtre de categories (ordenades)
       const catsPresents = [...new Set(allData.map(d => getCat(d.label)))]
         .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
