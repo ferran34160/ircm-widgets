@@ -44,11 +44,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .occ:last-child { border-bottom: none; }
 @media (prefers-color-scheme: dark) { .occ { border-bottom-color: #262626; } }
 .occ-main { flex: 1; min-width: 0; }
-.occ-da { font-size: 13px; font-weight: 500; }
-.occ-da a { color: #378ADD; }
-.occ-detail { font-size: 11.5px; color: #999; margin-top: 3px; line-height: 1.5; }
-.occ-detail .ref { color: #777; }
-@media (prefers-color-scheme: dark) { .occ-detail .ref { color: #aaa; } }
+.occ-prod { font-size: 13.5px; font-weight: 600; }
+.occ-ref { font-weight: 600; color: #378ADD; margin-left: 4px; }
+.occ-detail { font-size: 11px; color: #999; margin-top: 3px; line-height: 1.5; }
+.occ-da { font-weight: 400; }
+@media (prefers-color-scheme: dark) { .occ-ref { color: #6BA9E8; } }
 .occ-right { text-align: right; flex-shrink: 0; }
 .occ-price { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .occ-livr { font-size: 10px; padding: 2px 8px; border-radius: 6px; margin-top: 5px; display: inline-block; white-space: nowrap; }
@@ -195,10 +195,9 @@ function render() {
       occHtml += `
         <div class="occ">
           <div class="occ-main">
-            <div class="occ-da">${da ? esc(da.num_da) : 'Sans DA'}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
+            <div class="occ-prod">${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}${a.ref ? ` <span class="occ-ref">${esc(a.ref)}</span>` : ''}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
             <div class="occ-detail">
-              ${a.ref ? `<span class="ref">${esc(a.ref)}</span> · ` : ''}${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}<br>
-              ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) + (fmtDate(da.date_bc) ? ' (' + fmtDate(da.date_bc) + ')' : '') : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
+              <span class="occ-da">${da ? esc(da.num_da) : 'Sans DA'}</span> · ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) + (fmtDate(da.date_bc) ? ' (' + fmtDate(da.date_bc) + ')' : '') : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
             </div>
           </div>
           <div class="occ-right">
