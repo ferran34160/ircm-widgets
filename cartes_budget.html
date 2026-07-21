@@ -167,7 +167,7 @@ function render(data) {
       // Bloc central: amb relevé o sense
       let infoHtml, barHtml;
       if (aReleve) {
-        infoHtml = `<p class="bcard-meta" style="color:${txtColor}">sur ${fmt(d.montant_releve)} au dernier relevé du ${releveDate} · engagé ${fmt(d.commandes_post)}</p>`;
+        infoHtml = `<p class="bcard-meta" style="color:${txtColor}">sur ${fmt(d.montant_releve)} au dernier relevé du ${releveDate} · engagé ${fmt(d.commandes_post - d.mouvements_post)}</p>`;
         barHtml = `<div class="pct-track"><div class="pct-fill" style="background:${barColor}; width:${fillPct}%"></div></div>
           <p class="bcard-pct" style="color:${txtColor}">${pctText}</p>`;
       } else {
@@ -207,7 +207,12 @@ function updateView() {
   const sel = document.getElementById('contrat-select').value;
   const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
 
-  const totalEngage = filtered.reduce((s, d) => s + d.commandes_post, 0);
+  const totalEngage = filtered.reduce((s, d) => s + d.commandes_post - d.mouvements_post, 0);
+  filtered.filter(d=>d.montant_releve!=null).forEach(d=>{
+    const eng = d.commandes_post - d.mouvements_post;
+    const check = d.montant_releve - eng;
+    if(Math.abs(check - d.disponible) > 1) console.log('Écart', d.label, 'relevé-engagé=', check.toFixed(2), 'disponible=', d.disponible.toFixed(2), 'diff=', (check-d.disponible).toFixed(2));
+  });
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
   const totalReste  = filtered.reduce((s, d) => s + (d.reste_notifier > 0 ? d.reste_notifier : 0), 0);
 
@@ -245,10 +250,9 @@ function loadData() {
           if (nom) contratsMasques.add(String(nom).trim());
         }
       });
-      console.log('Contrats masqués:', [...contratsMasques]);
       // Réappliquer une fois la liste chargée (l'ordre onRecords/fetch n'est pas garanti)
       if (rawData.length) { applyMasque(); rebuildContratSelect(); updateView(); }
-    }).catch(err => console.log('Erreur chargement Contrats:', err));
+    }).catch(()=>{});
 
     grist.onRecords((records) => {
       rawData = records.map(r => ({
@@ -260,6 +264,7 @@ function loadData() {
         montant_releve:  r.Montant_dernier_releve,
         date_releve:     r.Date_dernier_releve,
         commandes_post:  r.Commandes_post_releve || 0,
+        mouvements_post: r.Mouvements_post_releve || 0,
         reste_notifier:  r.Reste_a_notifier || 0,
       })).filter(d => d.label);
 
