@@ -196,7 +196,7 @@ function render() {
             <div class="occ-da">${da ? esc(da.num_da) : 'Sans DA'}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
             <div class="occ-detail">
               ${a.ref ? `<span class="ref">${esc(a.ref)}</span> · ` : ''}${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}<br>
-              ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
+              ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) + (fmtDate(da.date_bc) ? ' (' + fmtDate(da.date_bc) + ')' : '') : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
             </div>
           </div>
           <div class="occ-right">
