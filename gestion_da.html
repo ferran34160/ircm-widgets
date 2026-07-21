@@ -270,7 +270,7 @@ function choixList(v) {
 
 function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
 function totalOf(daId) { return artsOf(daId).reduce((s,a)=>s+a.montant,0); }
-function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service').length; }
+function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length; }
 
 function badgeClass(statut) {
   if (statut === 'En cours') return 'b-cours';
@@ -407,8 +407,9 @@ function renderDetail(d) {
   if (!d) return '<div class="empty">DA introuvable.</div>';
   const arts = artsOf(d.id);
   const total = totalOf(d.id);
-  const nbProd = arts.filter(a=>a.type_article!=='Service').length;
+  const nbProd = arts.filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length;
   const nbServ = arts.filter(a=>a.type_article==='Service').length;
+  const nbFrais = arts.filter(a=>a.type_article==='Frais').length;
 
   let artsHtml = arts.length ? arts.map(a => {
     const dems = choixList(a.demandeur);
@@ -430,9 +431,9 @@ function renderDetail(d) {
       ? ''
       : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
     return `
-    <div class="art ${a.type_article==='Service'?'svc':''}">
+    <div class="art ${(a.type_article==='Service'||a.type_article==='Frais')?'svc':''}">
       <div class="art-main">
-        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
         <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
       </div>
       ${deviseHtml}
@@ -440,7 +441,11 @@ function renderDetail(d) {
     </div>`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
-  const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
+  const parts = [];
+  if (nbProd) parts.push(`${nbProd} article(s)`);
+  if (nbServ) parts.push(`${nbServ} service(s)`);
+  if (nbFrais) parts.push(`${nbFrais} frais`);
+  const footLabel = parts.join(' + ') || '0 article(s)';
 
   // Divisa de la DA (si tots els articles són en la mateixa devise non-EUR)
   const devises = [...new Set(arts.map(a => a.devise || 'EUR'))];
