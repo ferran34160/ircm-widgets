@@ -85,6 +85,7 @@ function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); i
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function norm(s){ return String(s||'').trim().toLowerCase(); }
+function daId(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]; return v; }
 
 async function fetchAll() {
   try {
@@ -116,7 +117,7 @@ async function fetchAll() {
 
     const cmdBrutes = (c.id||[]).map((id,i)=>({
       id,
-      demande_achat:(c.Demande_achat||[])[i]||null,
+      demande_achat:daId((c.Demande_achat||[])[i]),
       designation:(c.Designation2||[])[i]||'',
       ref:(c.Reference_fournisseur||[])[i]||'',
       qte:(c.Quantite||[])[i]||1,
@@ -136,13 +137,6 @@ async function fetchAll() {
       if (c.type_article === 'Service' && daAvecProduit.has(c.demande_achat)) return false;
       return true;
     });
-
-    // DIAGNOSTIC
-    const svc = cmdBrutes.filter(c => c.type_article === 'Service');
-    console.log('Services trouvés:', svc.length);
-    console.log('Exemple demande_achat (format):', svc.slice(0,3).map(c => JSON.stringify(c.demande_achat)));
-    console.log('daAvecProduit (échantillon):', [...daAvecProduit].slice(0,3).map(x => JSON.stringify(x)));
-    console.log('Services accessoires détectés:', svc.filter(c => daAvecProduit.has(c.demande_achat)).length);
 
     render();
   } catch(e) {
