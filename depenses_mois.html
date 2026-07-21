@@ -113,7 +113,7 @@ async function fetchAll() {
     };});
 
     commandes = (c.id||[]).map((id,i)=>({
-      da:(c.Demande_achat||[])[i]||null,
+      da:ligneIdOf((c.Demande_achat||[])[i]),
       designation:(c.Designation2||[])[i]||'',
       type_article:(c.Type_article||[])[i]||'Produit',
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
@@ -138,12 +138,6 @@ function build() {
   // Agréger par mois et par contrat
   const parMois = {};  // key mois → { contrat → {montant, items:[]} }
 
-  // Déterminer quelles DA contiennent au moins un produit (≠ Service)
-  const daAvecProduit = new Set();
-  commandes.forEach(cmd => {
-    if (cmd.da && cmd.type_article !== 'Service') daAvecProduit.add(cmd.da);
-  });
-
   // Commandes (date_bc de la DA)
   commandes.forEach(cmd => {
     if (!cmd.da) return;
@@ -156,8 +150,8 @@ function build() {
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
     parMois[mk][contrat].montant += cmd.montant;
-    // Un service est "accessoire" seulement si sa DA contient aussi des produits
-    const accessoire = cmd.type_article === 'Service' && daAvecProduit.has(cmd.da);
+    // Les 'Frais' comptent au total mais ne sont pas listés
+    const accessoire = cmd.type_article === 'Frais';
     parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: da.date_bc, accessoire });
   });
 
