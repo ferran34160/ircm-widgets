@@ -41,6 +41,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 <div class="header">
   <div class="title">Disponible par ligne budgétaire</div>
   <select id="contrat-select"><option value="">Tous les contrats</option></select>
+  <select id="cat-select"><option value="">Toutes catégories</option></select>
 </div>
 <div class="summary" id="summary"></div>
 <div id="cards-container">
@@ -210,7 +211,9 @@ function selectContrat(contrat) {
 
 function updateView() {
   const sel = document.getElementById('contrat-select').value;
-  const filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
+  const catSel = document.getElementById('cat-select').value;
+  let filtered = sel ? allData.filter(d => d.contrat === sel) : allData;
+  if (catSel) filtered = filtered.filter(d => getCat(d.label) === catSel);
 
   const totalEngage = filtered.reduce((s, d) => s + d.commandes_post - d.mouvements_post, 0);
   const totalDispo  = filtered.reduce((s, d) => s + d.disponible, 0);
@@ -236,6 +239,19 @@ function rebuildContratSelect() {
     sel.appendChild(opt);
   });
   if ([...contrats].includes(cur)) sel.value = cur;
+
+  // Remplir aussi le filtre de catégories
+  const catsPresentes = [...new Set(allData.map(d => getCat(d.label)))]
+    .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+  const catSel = document.getElementById('cat-select');
+  const curCat = catSel.value;
+  catSel.innerHTML = '<option value="">Toutes catégories</option>';
+  catsPresentes.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    catSel.appendChild(opt);
+  });
+  if (catsPresentes.includes(curCat)) catSel.value = curCat;
 }
 
 function loadData() {
@@ -278,6 +294,7 @@ function loadData() {
 }
 
 document.getElementById('contrat-select').addEventListener('change', updateView);
+document.getElementById('cat-select').addEventListener('change', updateView);
 
 // Clic sur une carte → filtrer sur son contrat (délégation d'événements, robuste)
 document.getElementById('cards-container').addEventListener('click', (e) => {
