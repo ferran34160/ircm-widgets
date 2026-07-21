@@ -199,13 +199,12 @@ function render(data) {
 
 function selectContrat(contrat) {
   const sel = document.getElementById('contrat-select');
-  const options = [...sel.options].map(o => o.value);
-  console.log('Clic contrat:', JSON.stringify(contrat));
-  console.log('Options du select:', options.map(o => JSON.stringify(o)));
-  console.log('Existe dans les options?', options.includes(contrat));
-  // Si on est déjà sur ce contrat, revenir à « Tous » (bascule)
-  sel.value = (sel.value === contrat) ? '' : contrat;
-  console.log('Valeur du select après:', JSON.stringify(sel.value));
+  const cible = String(contrat).trim();
+  // Trouver l'option correspondante en ignorant les espaces superflus
+  const opt = [...sel.options].find(o => o.value.trim() === cible);
+  const val = opt ? opt.value : '';
+  // Bascule : si déjà sélectionné, revenir à « Tous »
+  sel.value = (sel.value === val) ? '' : val;
   updateView();
 }
 
