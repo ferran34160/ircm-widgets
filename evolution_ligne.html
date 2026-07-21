@@ -465,6 +465,7 @@ function showDetail(p) {
     </div>
     ${body}`;
   panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 document.getElementById('contrat-select').addEventListener('change',e=>{
