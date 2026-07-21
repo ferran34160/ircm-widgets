@@ -138,6 +138,14 @@ async function fetchAll() {
       return true;
     });
 
+    // DIAGNOSTIC carburant
+    const carb = cmdBrutes.filter(c => norm(c.designation).includes('carburant'));
+    carb.forEach(c => {
+      console.log('CARBURANT:', JSON.stringify({desig:c.designation, da:c.demande_achat, type:c.type_article, daHasProduit: daAvecProduit.has(c.demande_achat)}));
+      // Voir quels articles sont dans la même DA
+      const memesDA = cmdBrutes.filter(x => x.demande_achat === c.demande_achat);
+      console.log('  Articles de la même DA:', memesDA.map(x => x.designation + ' [' + x.type_article + ']'));
+    });
     render();
   } catch(e) {
     document.getElementById('content').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
