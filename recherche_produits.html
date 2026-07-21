@@ -137,6 +137,13 @@ async function fetchAll() {
       return true;
     });
 
+    // DIAGNOSTIC
+    const svc = cmdBrutes.filter(c => c.type_article === 'Service');
+    console.log('Services trouvés:', svc.length);
+    console.log('Exemple demande_achat (format):', svc.slice(0,3).map(c => JSON.stringify(c.demande_achat)));
+    console.log('daAvecProduit (échantillon):', [...daAvecProduit].slice(0,3).map(x => JSON.stringify(x)));
+    console.log('Services accessoires détectés:', svc.filter(c => daAvecProduit.has(c.demande_achat)).length);
+
     render();
   } catch(e) {
     document.getElementById('content').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
