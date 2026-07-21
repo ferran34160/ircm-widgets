@@ -127,25 +127,9 @@ async function fetchAll() {
       type_article:(c.Type_article||[])[i]||'Produit',
     }));
 
-    // DA contenant au moins un produit → leurs services sont "accessoires"
-    const daAvecProduit = new Set();
-    cmdBrutes.forEach(c => { if (c.demande_achat && c.type_article !== 'Service') daAvecProduit.add(c.demande_achat); });
+    // Exclure les frais accessoires (Type_article = 'Frais') ; garder Produit et Service
+    commandes = cmdBrutes.filter(c => c.demande_achat && c.designation && c.type_article !== 'Frais');
 
-    commandes = cmdBrutes.filter(c => {
-      if (!c.demande_achat || !c.designation) return false;
-      // Exclure uniquement les services accessoires (DA qui contient aussi des produits)
-      if (c.type_article === 'Service' && daAvecProduit.has(c.demande_achat)) return false;
-      return true;
-    });
-
-    // DIAGNOSTIC carburant
-    const carb = cmdBrutes.filter(c => norm(c.designation).includes('carburant'));
-    carb.forEach(c => {
-      console.log('CARBURANT:', JSON.stringify({desig:c.designation, da:c.demande_achat, type:c.type_article, daHasProduit: daAvecProduit.has(c.demande_achat)}));
-      // Voir quels articles sont dans la même DA
-      const memesDA = cmdBrutes.filter(x => x.demande_achat === c.demande_achat);
-      console.log('  Articles de la même DA:', memesDA.map(x => x.designation + ' [' + x.type_article + ']'));
-    });
     render();
   } catch(e) {
     document.getElementById('content').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
