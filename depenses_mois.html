@@ -138,6 +138,12 @@ function build() {
   // Agréger par mois et par contrat
   const parMois = {};  // key mois → { contrat → {montant, items:[]} }
 
+  // Déterminer quelles DA contiennent au moins un produit (≠ Service)
+  const daAvecProduit = new Set();
+  commandes.forEach(cmd => {
+    if (cmd.da && cmd.type_article !== 'Service') daAvecProduit.add(cmd.da);
+  });
+
   // Commandes (date_bc de la DA)
   commandes.forEach(cmd => {
     if (!cmd.da) return;
@@ -150,7 +156,9 @@ function build() {
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
     parMois[mk][contrat].montant += cmd.montant;
-    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: da.date_bc, isService: cmd.type_article === 'Service' });
+    // Un service est "accessoire" seulement si sa DA contient aussi des produits
+    const accessoire = cmd.type_article === 'Service' && daAvecProduit.has(cmd.da);
+    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: da.date_bc, accessoire });
   });
 
   // Mouvements : sorties uniquement
@@ -300,11 +308,11 @@ function renderDetail() {
     const open = detailOpen.has(c);
     const caret = `<span style="font-size:10px; opacity:0.5; display:inline-block; width:12px; transition:transform 0.1s; transform:rotate(${open?90:0}deg)">▸</span>`;
     let head = `<div class="dp-row" style="cursor:pointer;" onclick="toggleDetailContrat('${c.replace(/'/g,"\\'")}')">
-      <span class="lbl">${caret}<span class="dp-dot" style="background:${contratColor[c]||'#888'}"></span>${esc(c)} <span style="color:#aaa; font-size:11px;">(${v.items.length})</span></span>
+      <span class="lbl">${caret}<span class="dp-dot" style="background:${contratColor[c]||'#888'}"></span>${esc(c)} <span style="color:#aaa; font-size:11px;">(${v.items.filter(it=>!it.accessoire).length})</span></span>
       <span class="val">${fmt2(v.montant)}</span></div>`;
     let sub = '';
     if (open) {
-      const items = v.items.filter(it => !it.isService).slice().sort((a,b)=>(a.date||0)-(b.date||0));
+      const items = v.items.filter(it => !it.accessoire).slice().sort((a,b)=>(a.date||0)-(b.date||0));
       sub = items.map(it =>
         `<div class="dp-row" style="padding-left:30px; font-size:11.5px;"><span class="lbl" style="color:#999;">${it.date?'<span style=\'color:#bbb; margin-right:6px;\'>'+fmtDate(it.date)+'</span>':''}${it.type==='sortie'?'↓ ':''}${esc(it.label)}</span><span class="val">${fmt2(it.montant)}</span></div>`
       ).join('');
