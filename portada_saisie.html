@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saisie</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 28px 24px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.hero { max-width: 700px; margin: 0 auto 28px; }
+.hero-icon { font-size: 32px; margin-bottom: 10px; }
+.hero h1 { font-size: 26px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+.hero p { font-size: 14px; color: #888; line-height: 1.5; max-width: 520px; }
+.cards { max-width: 700px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 20px; border-top: 3px solid; }
+@media (prefers-color-scheme: dark) { .card { border-color: #383838; } }
+.card-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 19px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.card p { font-size: 12.5px; color: #888; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="hero-icon">✏️</div>
+  <h1>Saisie</h1>
+  <p>Formulaires de saisie pour enregistrer de nouvelles commandes et des mouvements budgétaires.</p>
+</div>
+
+<div class="cards">
+  <div class="card" style="border-top-color:#378ADD;">
+    <div class="card-icon" style="background:#E6F1FB; color:#0C447C;">🛒</div>
+    <h2>Formulaire Commande</h2>
+    <p>Saisir un produit ou un service : désignation, référence, prix, devise, demandeurs et frais associés.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#D97B3F;">
+    <div class="card-icon" style="background:#FBF0E8;">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 13V4M6 4L3.5 6.5M6 4L8.5 6.5" stroke="#1D9E75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 7V16M14 16L11.5 13.5M14 16L16.5 13.5" stroke="#E24B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2>Formulaire Mouvement</h2>
+    <p>Enregistrer une entrée ou une sortie directe sur une ligne budgétaire, avec motif et fournisseur.</p>
+  </div>
+</div>
+
+</body>
+</html>

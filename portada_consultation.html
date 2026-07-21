@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consultation</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 28px 24px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.hero { max-width: 900px; margin: 0 auto 28px; }
+.hero-icon { font-size: 32px; margin-bottom: 10px; }
+.hero h1 { font-size: 26px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+.hero p { font-size: 14px; color: #888; line-height: 1.5; max-width: 600px; }
+.cards { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 20px; border-top: 3px solid; }
+@media (prefers-color-scheme: dark) { .card { border-color: #383838; } }
+.card-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 19px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.card p { font-size: 12.5px; color: #888; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="hero-icon">📊</div>
+  <h1>Consultation</h1>
+  <p>Vues de suivi budgétaire et de reporting : disponible par ligne, échéances des contrats, opérations, évolution et écarts.</p>
+</div>
+
+<div class="cards">
+  <div class="card" style="border-top-color:#1D9E75;">
+    <div class="card-icon" style="background:#E1F5EE; color:#085041;">💰</div>
+    <h2>Disponible</h2>
+    <p>Disponible par ligne budgétaire, regroupé par catégorie, avec l'engagé depuis le dernier relevé et le reste à notifier.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#D97B3F;">
+    <div class="card-icon" style="background:#FBF0E8; color:#8A4A18;">⏰</div>
+    <h2>Échéances</h2>
+    <p>Contrats regroupés avec leur date de fin, le disponible restant et l'urgence selon l'échéance approchante.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#378ADD;">
+    <div class="card-icon" style="background:#E6F1FB; color:#0C447C;">🔍</div>
+    <h2>Opérations</h2>
+    <p>Détail des mouvements par ligne depuis le dernier relevé : commandes, transferts et mouvements directs.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#9C6ADE;">
+    <div class="card-icon" style="background:#F0EAFB; color:#5E3A9E;">📉</div>
+    <h2>Évolution</h2>
+    <p>Courbe du disponible d'une ligne au fil du temps, à partir du premier relevé, avec le détail de chaque opération.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#BA9517;">
+    <div class="card-icon" style="background:#FBF8E8; color:#6B5A0B;">🔎</div>
+    <h2>Produits</h2>
+    <p>Recherche transversale d'un produit par nom ou référence : dans quelles DA il apparaît, prix et état de livraison.</p>
+  </div>
+
+  <div class="card" style="border-top-color:#E24B4A;">
+    <div class="card-icon" style="background:#FCEBEB; color:#A32D2D;">⚖️</div>
+    <h2>Écarts</h2>
+    <p>Comparaison entre le disponible calculé et le relevé officiel PGM, pour repérer les écarts à vérifier.</p>
+  </div>
+</div>
+
+</body>
+</html>
