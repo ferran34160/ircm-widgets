@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dépenses par mois</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 20px 22px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.header { max-width: 1400px; margin: 0 auto 14px; }
+.title { font-size: 19px; font-weight: 600; }
+.subtitle { font-size: 12px; color: #999; margin-top: 3px; }
+.chart-wrap { max-width: 1400px; margin: 0 auto; position: relative; overflow: visible; }
+svg { width: 100%; height: auto; display: block; }
+.grid-line { stroke: #e8e8e8; stroke-width: 1; }
+@media (prefers-color-scheme: dark) { .grid-line { stroke: #333; } }
+.axis-label { fill: #999; font-size: 11px; }
+.bar-seg { cursor: pointer; transition: opacity 0.1s; }
+.bar-seg:hover { opacity: 0.82; }
+.month-total { fill: #666; font-size: 11px; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .month-total { fill: #bbb; } }
+
+.legend { max-width: 1400px; margin: 14px auto 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.leg-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.leg-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+.tooltip { position: fixed; background: #1a1a1a; color: #fff; padding: 8px 11px; border-radius: 8px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.1s; z-index: 100; box-shadow: 0 4px 14px rgba(0,0,0,0.3); white-space: nowrap; }
+.tooltip.show { opacity: 1; }
+.tooltip .tt-c { color: #bbb; }
+@media (prefers-color-scheme: dark) { .tooltip { background: #000; } }
+
+.detail-panel { max-width: 1400px; margin: 16px auto 0; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; background: #fafaf8; display: none; }
+.detail-panel.show { display: block; }
+@media (prefers-color-scheme: dark) { .detail-panel { background: #202020; border-color: #353535; } }
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dp-title { font-size: 14px; font-weight: 600; }
+.dp-close { background: none; border: none; font-size: 18px; color: #aaa; cursor: pointer; }
+.dp-close:hover { color: #E24B4A; }
+.dp-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+.dp-row:last-child { border-bottom: none; }
+@media (prefers-color-scheme: dark) { .dp-row { border-bottom-color: rgba(255,255,255,0.07); } }
+.dp-row .lbl { display: flex; align-items: center; gap: 7px; color: #555; }
+@media (prefers-color-scheme: dark) { .dp-row .lbl { color: #bbb; } }
+.dp-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.dp-row .val { font-variant-numeric: tabular-nums; font-weight: 500; }
+.dp-total { margin-top: 8px; padding-top: 8px; border-top: 1.5px solid rgba(0,0,0,0.12); display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .dp-total { border-top-color: rgba(255,255,255,0.15); } }
+
+.loading, .empty { text-align: center; padding: 40px; color: #aaa; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Dépenses par mois</div>
+  <div class="subtitle">Commandes (date de réception du BC) et sorties de mouvements, réparties par contrat.</div>
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+<div class="detail-panel" id="detail-panel"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+let commandes = [], mouvements = [], dasMap = {}, ligneContrat = {}, contratNoms = {}, contratsMasques = new Set();
+let moisData = [];
+
+// Palette de couleurs pour les contrats
+const PALETTE = ['#378ADD','#1D9E75','#D97B3F','#9C6ADE','#E24B4A','#BA9517','#4AA8C0','#C0568F','#6B8E23','#5E7CE2','#2AA198','#B58900'];
+let contratColor = {};
+
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0); }
+function fmt2(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ligneIdOf(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]; return v; }
+
+const MOIS_NOMS = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
+function moisKey(ms){ const d=new Date(ms); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function moisLabel(key){ const [y,m]=key.split('-'); return MOIS_NOMS[parseInt(m)-1]+' '+y.slice(2); }
+
+async function fetchAll() {
+  try {
+    const [c, m, d, lb, ct] = await Promise.all([
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Mouvements'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Contrats'),
+    ]);
+
+    contratNoms = {}; contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
+    function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
+
+    // Ligne → contrat
+    ligneContrat = {};
+    (lb.id||[]).forEach((id,i)=>{ ligneContrat[id]=resolContrat((lb.Contrat||[])[i]); });
+
+    dasMap = {};
+    (d.id||[]).forEach((id,i)=>{ dasMap[id]={
+      date_bc:toMs((d.Date_reception_BC||[])[i]),
+      statut:(d.Statut||[])[i]||'',
+      num_da:(d.Num_DA||[])[i]||'',
+      contrat:resolContrat((d.Contrat||[])[i]),
+    };});
+
+    commandes = (c.id||[]).map((id,i)=>({
+      da:(c.Demande_achat||[])[i]||null,
+      designation:(c.Designation2||[])[i]||'',
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+    }));
+
+    mouvements = (m.id||[]).map((id,i)=>({
+      ligne:(m.Ligne_budgetaire||[])[i]||null,
+      type:(m.Type||[])[i]||'',
+      montant:(m.Montant||[])[i]||0,
+      date:toMs((m.Date||[])[i]),
+      motif:(m.Motif||[])[i]||'',
+    }));
+
+    build();
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
+  }
+}
+
+function build() {
+  // Agréger par mois et par contrat
+  const parMois = {};  // key mois → { contrat → {montant, items:[]} }
+
+  // Commandes (date_bc de la DA)
+  commandes.forEach(cmd => {
+    if (!cmd.da) return;
+    const da = dasMap[cmd.da];
+    if (!da || !da.date_bc) return;
+    if (da.statut !== 'BC reçu' && da.statut !== 'Envoyée PGM') return;
+    const contrat = da.contrat;
+    if (!contrat || contratsMasques.has(String(contrat).trim())) return;
+    const mk = moisKey(da.date_bc);
+    if (!parMois[mk]) parMois[mk] = {};
+    if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
+    parMois[mk][contrat].montant += cmd.montant;
+    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant });
+  });
+
+  // Mouvements : sorties uniquement
+  mouvements.forEach(mv => {
+    if (mv.type !== 'Sortie' || !mv.date) return;
+    const contrat = ligneContrat[ligneIdOf(mv.ligne)];
+    if (!contrat || contratsMasques.has(String(contrat).trim())) return;
+    const mk = moisKey(mv.date);
+    if (!parMois[mk]) parMois[mk] = {};
+    if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
+    parMois[mk][contrat].montant += mv.montant;
+    parMois[mk][contrat].items.push({ type:'sortie', label:'Sortie · ' + (mv.motif||''), montant: mv.montant });
+  });
+
+  // Ordonner les mois chronologiquement
+  const cles = Object.keys(parMois).sort();
+  moisData = cles.map(mk => {
+    const contrats = parMois[mk];
+    const total = Object.values(contrats).reduce((s,c)=>s+c.montant, 0);
+    return { key: mk, label: moisLabel(mk), contrats, total };
+  });
+
+  // Assigner une couleur à chaque contrat (par ordre de dépense décroissante globale)
+  const totalParContrat = {};
+  moisData.forEach(m => Object.entries(m.contrats).forEach(([c,v]) => { totalParContrat[c]=(totalParContrat[c]||0)+v.montant; }));
+  const contratsTri = Object.keys(totalParContrat).sort((a,b)=>totalParContrat[b]-totalParContrat[a]);
+  contratColor = {};
+  contratsTri.forEach((c,i)=>{ contratColor[c] = PALETTE[i % PALETTE.length]; });
+}
+
+function render() {
+  const container = document.getElementById('container');
+  if (!moisData.length) { container.innerHTML = '<div class="empty">Aucune dépense à afficher.</div>'; return; }
+
+  const W = 1400, H = 460, padL = 70, padR = 20, padT = 20, padB = 55;
+  const iw = W - padL - padR, ih = H - padT - padB;
+
+  const maxTotal = Math.max(...moisData.map(m => m.total)) || 1;
+  // Pas rond pour l'axe Y
+  const step = niceStep(maxTotal, 5);
+  const yMax = Math.ceil(maxTotal / step) * step;
+  const yOf = v => padT + ih - (v / yMax) * ih;
+
+  const n = moisData.length;
+  const slot = iw / n;
+  const barW = Math.min(60, slot * 0.6);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Grid + étiquettes Y
+  for (let v = 0; v <= yMax + 0.5; v += step) {
+    const y = yOf(v);
+    svg += `<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}"/>`;
+    svg += `<text class="axis-label" x="${padL-8}" y="${(y+4).toFixed(1)}" text-anchor="end">${fmt(v)}</text>`;
+  }
+
+  // Barres empilées
+  moisData.forEach((m, i) => {
+    const cx = padL + slot * i + slot / 2;
+    const x = cx - barW / 2;
+    let yCursor = yOf(0);
+    // Empiler les contrats (ordre : plus gros en bas)
+    const parts = Object.entries(m.contrats).sort((a,b)=>b[1].montant-a[1].montant);
+    parts.forEach(([contrat, v]) => {
+      const h = (v.montant / yMax) * ih;
+      yCursor -= h;
+      const col = contratColor[contrat] || '#888';
+      svg += `<rect class="bar-seg" x="${x.toFixed(1)}" y="${yCursor.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" data-mois="${i}" data-contrat="${esc(contrat)}"/>`;
+    });
+    // Total au-dessus
+    svg += `<text class="month-total" x="${cx.toFixed(1)}" y="${(yOf(m.total)-6).toFixed(1)}" text-anchor="middle">${fmt(m.total)}</text>`;
+    // Label du mois
+    svg += `<text class="axis-label" x="${cx.toFixed(1)}" y="${(H-padB+20).toFixed(1)}" text-anchor="middle">${m.label}</text>`;
+  });
+
+  svg += '</svg>';
+
+  // Légende
+  let legend = '<div class="legend">';
+  Object.keys(contratColor).forEach(c => {
+    legend += `<div class="leg-item"><span class="leg-dot" style="background:${contratColor[c]}"></span>${esc(c)}</div>`;
+  });
+  legend += '</div>';
+
+  container.innerHTML = `<div class="chart-wrap">${svg}</div>${legend}`;
+
+  // Tooltips + clic
+  const tooltip = document.getElementById('tooltip');
+  container.querySelectorAll('.bar-seg').forEach(el => {
+    el.addEventListener('mousemove', ev => {
+      const mi = +el.dataset.mois, c = el.dataset.contrat;
+      const v = moisData[mi].contrats[c];
+      tooltip.innerHTML = `<b>${esc(c)}</b> <span class="tt-c">· ${moisData[mi].label}</span><br>${fmt2(v.montant)}`;
+      tooltip.classList.add('show');
+      tooltip.style.left = (ev.clientX + 12) + 'px';
+      tooltip.style.top = (ev.clientY - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+    el.addEventListener('click', () => showDetail(+el.dataset.mois));
+  });
+}
+
+function showDetail(mi) {
+  const m = moisData[mi];
+  const panel = document.getElementById('detail-panel');
+  const parts = Object.entries(m.contrats).sort((a,b)=>b[1].montant-a[1].montant);
+  let rows = parts.map(([c,v]) =>
+    `<div class="dp-row"><span class="lbl"><span class="dp-dot" style="background:${contratColor[c]||'#888'}"></span>${esc(c)}</span><span class="val">${fmt2(v.montant)}</span></div>`
+  ).join('');
+  panel.innerHTML = `
+    <div class="dp-head">
+      <div class="dp-title">Dépenses · ${esc(m.label)}</div>
+      <button class="dp-close" onclick="document.getElementById('detail-panel').classList.remove('show')">×</button>
+    </div>
+    ${rows}
+    <div class="dp-total"><span>Total</span><span>${fmt2(m.total)}</span></div>`;
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function niceStep(range, target) {
+  const rough = range / target;
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+  const cands = [1,2,2.5,5,10].map(x=>x*pow);
+  return cands.find(c=>c>=rough) || cands[cands.length-1];
+}
+
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = () => { grist.ready({ requiredAccess: 'full' }); fetchAll(); grist.onRecords(fetchAll); };
+gristScript.onerror = () => { document.getElementById('container').innerHTML = '<div class="loading">Grist non disponible.</div>'; };
+document.head.appendChild(gristScript);
+</script>
+</body>
+</html>
