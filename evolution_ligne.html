@@ -168,6 +168,11 @@ function fillLignes() {
     const sub=l.label.includes('|')?l.label.split('|').slice(1).join('|').trim():l.label;
     return `<option value="${l.id}">${sub.replace(/</g,'&lt;')}</option>`;
   }).join('');
+  // Si le contrat n'a qu'une seule ligne, la sélectionner d'office
+  if (ls.length === 1) {
+    selLigne = String(ls[0].id);
+    sel.value = selLigne;
+  }
 }
 
 function buildEvents(ligneId) {
