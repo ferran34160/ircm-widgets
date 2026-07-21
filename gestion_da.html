@@ -431,7 +431,7 @@ function renderDetail(d) {
       ? ''
       : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
     return `
-    <div class="art ${(a.type_article==='Service'||a.type_article==='Frais')?'svc':''}">
+    <div class="art ${a.type_article==='Frais'?'svc':''}">
       <div class="art-main">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
         <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
