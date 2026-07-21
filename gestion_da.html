@@ -605,11 +605,20 @@ function setFilterFour(v) {
 function onSearchBC(v) {
   searchBC = v;
   if (v.trim() && tab === 'libres') { tab = 'toutes'; }
+
+  // Si la recherche BC ne laisse qu'une seule DA, la sélectionner automatiquement
+  if (v.trim()) {
+    const q = v.trim().toLowerCase();
+    const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && (d.num_bc || '').toLowerCase().includes(q));
+    selectedDA = matches.length === 1 ? matches[0].id : null;
+  } else {
+    selectedDA = null;
+  }
+
   // Re-renderitzar mantenint el focus a l'input
   renderFrame(renderListContent());
   const inp = document.getElementById('bc-search-input');
   if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-  selectedDA = null;
   render();
 }
 
