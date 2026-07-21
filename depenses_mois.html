@@ -75,6 +75,7 @@ let contratColor = {};
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0); }
 function fmt2(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
+function fmtDate(ms){ if(!ms)return ''; const d=new Date(ms); if(isNaN(d))return ''; return d.toLocaleDateString('fr-FR'); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function ligneIdOf(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]; return v; }
 
@@ -148,7 +149,7 @@ function build() {
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
     parMois[mk][contrat].montant += cmd.montant;
-    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant });
+    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: da.date_bc });
   });
 
   // Mouvements : sorties uniquement
@@ -160,7 +161,7 @@ function build() {
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
     parMois[mk][contrat].montant += mv.montant;
-    parMois[mk][contrat].items.push({ type:'sortie', label:'Sortie · ' + (mv.motif||''), montant: mv.montant });
+    parMois[mk][contrat].items.push({ type:'sortie', label:'Sortie · ' + (mv.motif||''), montant: mv.montant, date: mv.date });
   });
 
   // Ordonner les mois chronologiquement
@@ -302,9 +303,9 @@ function renderDetail() {
       <span class="val">${fmt2(v.montant)}</span></div>`;
     let sub = '';
     if (open) {
-      const items = v.items.slice().sort((a,b)=>b.montant-a.montant);
+      const items = v.items.slice().sort((a,b)=>(a.date||0)-(b.date||0));
       sub = items.map(it =>
-        `<div class="dp-row" style="padding-left:30px; font-size:11.5px;"><span class="lbl" style="color:#999;">${it.type==='sortie'?'↓ ':''}${esc(it.label)}</span><span class="val">${fmt2(it.montant)}</span></div>`
+        `<div class="dp-row" style="padding-left:30px; font-size:11.5px;"><span class="lbl" style="color:#999;">${it.date?'<span style=\'color:#bbb; margin-right:6px;\'>'+fmtDate(it.date)+'</span>':''}${it.type==='sortie'?'↓ ':''}${esc(it.label)}</span><span class="val">${fmt2(it.montant)}</span></div>`
       ).join('');
     }
     return head + sub;
