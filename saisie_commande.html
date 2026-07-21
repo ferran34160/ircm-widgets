@@ -105,7 +105,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
       <div class="divider"></div>
       <div class="frais-title">Frais associés (optionnel)</div>
       <div id="frais-list"></div>
-      <button class="btn btn-add-frais" onclick="addFraisRow()">+ Ajouter des frais</button>
+      <button class="btn btn-add-frais" onclick="addFraisRow('p')">+ Ajouter des frais</button>
       <div class="hint" style="margin-top:8px;">Héritent de la référence, du code GHP, de la devise, du taux et des demandeurs. Type = Service.</div>
 
       <div class="actions">
@@ -132,6 +132,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
       </div>
       <div class="field"><label>Prix HT (EUR)</label><input type="text" id="s-prix" inputmode="decimal" autocomplete="off"></div>
       <div class="field"><label>Demandeur(s)</label><div class="dem-box" id="dem-box-s"></div></div>
+
+      <div class="divider"></div>
+      <div class="frais-title">Frais associés (optionnel)</div>
+      <div id="frais-list-s"></div>
+      <button class="btn btn-add-frais" onclick="addFraisRow('s')">+ Ajouter des frais</button>
+      <div class="hint" style="margin-top:8px;">Héritent de la référence, du code GHP et des demandeurs. Type = Frais, en EUR.</div>
 
       <div class="actions">
         <button class="btn btn-submit svc" id="btn-submit-s" onclick="submitService()">Enregistrer</button>
@@ -212,17 +218,19 @@ function updateFraisSymbols() {
 }
 
 let fraisId = 0;
-function addFraisRow() {
+function addFraisRow(which) {
+  which = which || 'p';
   fraisId++;
   const div = document.createElement('div');
   div.className = 'frais-row';
   div.id = 'frais-' + fraisId;
-  const sym = currentSymbol();
+  // Panell servei sempre en EUR ; panell producte segons la devise sélectionnée
+  const sym = which === 's' ? '€' : currentSymbol();
   div.innerHTML = `
     <input type="text" placeholder="Type de frais" list="frais-suggestions" class="frais-type" autocomplete="off">
     <div class="montant-wrap"><input type="text" placeholder="Montant" inputmode="decimal" class="frais-montant" autocomplete="off"><span class="montant-sym">${sym}</span></div>
     <button class="frais-del" onclick="document.getElementById('frais-${fraisId}').remove()">×</button>`;
-  document.getElementById('frais-list').appendChild(div);
+  document.getElementById(which === 's' ? 'frais-list-s' : 'frais-list').appendChild(div);
 }
 
 function fmtEur(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -251,6 +259,7 @@ function resetProduit() {
 function resetService() {
   ['s-ref','s-ghp','s-desig','s-prix'].forEach(id => document.getElementById(id).value = '');
   selS.clear(); renderDems();
+  document.getElementById('frais-list-s').innerHTML = '';
 }
 
 async function submitProduit() {
@@ -319,15 +328,32 @@ async function submitService() {
   const btn = document.getElementById('btn-submit-s');
   btn.disabled = true;
 
+  // Recueillir les frais associés du panneau service
+  const fraisS = [];
+  [...document.querySelectorAll('#frais-list-s .frais-row')].forEach(row => {
+    const t = row.querySelector('.frais-type').value.trim();
+    const m = parseNum(row.querySelector('.frais-montant').value);
+    if (t && m != null) fraisS.push({ type: t, montant: m });
+  });
+
+  const actionsS = [];
+  actionsS.push(['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref, Code_GHP: ghp, Designation2: desig,
+    Prix_unitaire_HT: prix, Quantite: 1, Devise: 'EUR', Taux_change: 1,
+    Taux_TVA: 0.2, Type_article: 'Service', Demandeur: demValue,
+  }]);
+  fraisS.forEach(f => {
+    actionsS.push(['AddRecord', 'Commandes', null, {
+      Reference_fournisseur: ref, Code_GHP: ghp, Designation2: f.type,
+      Prix_unitaire_HT: f.montant, Quantite: 1, Devise: 'EUR', Taux_change: 1,
+      Taux_TVA: 0.2, Type_article: 'Frais', Demandeur: demValue,
+    }]);
+  });
+
   try {
-    await grist.docApi.applyUserActions([
-      ['AddRecord', 'Commandes', null, {
-        Reference_fournisseur: ref, Code_GHP: ghp, Designation2: desig,
-        Prix_unitaire_HT: prix, Quantite: 1, Devise: 'EUR', Taux_change: 1,
-        Taux_TVA: 0.2, Type_article: 'Service', Demandeur: demValue,
-      }]
-    ]);
+    await grist.docApi.applyUserActions(actionsS);
     let detailS = fmtEur(prix);
+    if (fraisS.length) detailS += ` + ${fraisS.length} frais`;
     if (demListS.length) detailS += ` · ${demListS.join(', ')}`;
     showRecap('s', desig, detailS);
     showMsg('s', 'Service enregistré.', 'ok');
