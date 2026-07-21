@@ -204,7 +204,6 @@ function setFilter(f) {
   render();
 }
 
-const MOTS_CLES = ['shipping', 'frais de port', 'transport', 'livraison', 'port ', "frais d'envoi", 'envoi'];
 
 function fmtDemandeur(v) {
   if (v == null) return '';
@@ -292,9 +291,7 @@ function fillFourFilter() {
 }
 
 function estService(a) {
-  if (a.type_article === 'Service') return true;
-  const des = (a.designation || '').toLowerCase();
-  return MOTS_CLES.some(m => des.includes(m));
+  return a.type_article === 'Service' || a.type_article === 'Frais';
 }
 
 function render() {
