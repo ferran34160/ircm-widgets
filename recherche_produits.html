@@ -114,7 +114,7 @@ async function fetchAll() {
       num_bc:(d.Num_BC||[])[i]||'',
     };});
 
-    commandes = (c.id||[]).map((id,i)=>({
+    const cmdBrutes = (c.id||[]).map((id,i)=>({
       id,
       demande_achat:(c.Demande_achat||[])[i]||null,
       designation:(c.Designation2||[])[i]||'',
@@ -124,7 +124,18 @@ async function fetchAll() {
       date_livraison:(c.Date_livraison||[])[i]||null,
       lieu:(c.Lieu_stockage||[])[i]||'',
       type_article:(c.Type_article||[])[i]||'Produit',
-    })).filter(c => c.demande_achat && c.designation && c.type_article !== 'Service');
+    }));
+
+    // DA contenant au moins un produit → leurs services sont "accessoires"
+    const daAvecProduit = new Set();
+    cmdBrutes.forEach(c => { if (c.demande_achat && c.type_article !== 'Service') daAvecProduit.add(c.demande_achat); });
+
+    commandes = cmdBrutes.filter(c => {
+      if (!c.demande_achat || !c.designation) return false;
+      // Exclure uniquement les services accessoires (DA qui contient aussi des produits)
+      if (c.type_article === 'Service' && daAvecProduit.has(c.demande_achat)) return false;
+      return true;
+    });
 
     render();
   } catch(e) {
