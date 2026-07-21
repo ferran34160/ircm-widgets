@@ -124,7 +124,7 @@ async function fetchAll() {
       date_livraison:(c.Date_livraison||[])[i]||null,
       lieu:(c.Lieu_stockage||[])[i]||'',
       type_article:(c.Type_article||[])[i]||'Produit',
-    })).filter(c => c.demande_achat && c.designation);
+    })).filter(c => c.demande_achat && c.designation && c.type_article !== 'Service');
 
     render();
   } catch(e) {
