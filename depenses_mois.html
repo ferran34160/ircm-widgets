@@ -54,6 +54,9 @@ svg { width: 100%; height: auto; display: block; }
 <div class="header">
   <div class="title">Dépenses par mois</div>
   <div class="subtitle">Commandes (date de réception du BC) et sorties de mouvements, réparties par contrat.</div>
+  <select id="contrat-filter" onchange="onContratChange(this.value)" style="margin-top:10px; font-size:13px; padding:6px 11px; border:1px solid #ccc; border-radius:8px; background:inherit; color:inherit; cursor:pointer;">
+    <option value="">Tous les contrats</option>
+  </select>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 <div class="detail-panel" id="detail-panel"></div>
@@ -62,6 +65,8 @@ svg { width: 100%; height: auto; display: block; }
 <script>
 let commandes = [], mouvements = [], dasMap = {}, ligneContrat = {}, contratNoms = {}, contratsMasques = new Set();
 let moisData = [];
+let vueData = [];
+let filterContrat = '';
 
 // Palette de couleurs pour les contrats
 const PALETTE = ['#378ADD','#1D9E75','#D97B3F','#9C6ADE','#E24B4A','#BA9517','#4AA8C0','#C0568F','#6B8E23','#5E7CE2','#2AA198','#B58900'];
@@ -172,22 +177,46 @@ function build() {
   const contratsTri = Object.keys(totalParContrat).sort((a,b)=>totalParContrat[b]-totalParContrat[a]);
   contratColor = {};
   contratsTri.forEach((c,i)=>{ contratColor[c] = PALETTE[i % PALETTE.length]; });
+
+  // Remplir le sélecteur de contrats
+  const sel = document.getElementById('contrat-filter');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tous les contrats</option>' +
+      contratsTri.slice().sort((a,b)=>a.localeCompare(b,'fr')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sel.value = cur;
+  }
+}
+
+function onContratChange(v) { filterContrat = v; render(); }
+
+// Vue filtrée de moisData selon le contrat sélectionné
+function moisDataView() {
+  if (!filterContrat) return moisData;
+  return moisData.map(m => {
+    const contrats = {};
+    if (m.contrats[filterContrat]) contrats[filterContrat] = m.contrats[filterContrat];
+    const total = Object.values(contrats).reduce((s,c)=>s+c.montant,0);
+    return { key:m.key, label:m.label, contrats, total };
+  }).filter(m => m.total > 0);
 }
 
 function render() {
   const container = document.getElementById('container');
-  if (!moisData.length) { container.innerHTML = '<div class="empty">Aucune dépense à afficher.</div>'; return; }
+  vueData = moisDataView();
+  const vue = vueData;
+  if (!vue.length) { container.innerHTML = '<div class="empty">Aucune dépense à afficher.</div>'; return; }
 
   const W = 1400, H = 460, padL = 70, padR = 20, padT = 20, padB = 55;
   const iw = W - padL - padR, ih = H - padT - padB;
 
-  const maxTotal = Math.max(...moisData.map(m => m.total)) || 1;
+  const maxTotal = Math.max(...vue.map(m => m.total)) || 1;
   // Pas rond pour l'axe Y
   const step = niceStep(maxTotal, 5);
   const yMax = Math.ceil(maxTotal / step) * step;
   const yOf = v => padT + ih - (v / yMax) * ih;
 
-  const n = moisData.length;
+  const n = vue.length;
   const slot = iw / n;
   const barW = Math.min(60, slot * 0.6);
 
@@ -201,7 +230,7 @@ function render() {
   }
 
   // Barres empilées
-  moisData.forEach((m, i) => {
+  vue.forEach((m, i) => {
     const cx = padL + slot * i + slot / 2;
     const x = cx - barW / 2;
     let yCursor = yOf(0);
@@ -235,8 +264,8 @@ function render() {
   container.querySelectorAll('.bar-seg').forEach(el => {
     el.addEventListener('mousemove', ev => {
       const mi = +el.dataset.mois, c = el.dataset.contrat;
-      const v = moisData[mi].contrats[c];
-      tooltip.innerHTML = `<b>${esc(c)}</b> <span class="tt-c">· ${moisData[mi].label}</span><br>${fmt2(v.montant)}`;
+      const v = vueData[mi].contrats[c];
+      tooltip.innerHTML = `<b>${esc(c)}</b> <span class="tt-c">· ${vueData[mi].label}</span><br>${fmt2(v.montant)}`;
       tooltip.classList.add('show');
       tooltip.style.left = (ev.clientX + 12) + 'px';
       tooltip.style.top = (ev.clientY - 10) + 'px';
@@ -246,13 +275,40 @@ function render() {
   });
 }
 
+let detailMois = null;
+const detailOpen = new Set();  // contrats dépliés dans le détail
+
 function showDetail(mi) {
-  const m = moisData[mi];
+  detailMois = mi;
+  detailOpen.clear();
+  renderDetail();
+}
+
+function toggleDetailContrat(c) {
+  if (detailOpen.has(c)) detailOpen.delete(c);
+  else detailOpen.add(c);
+  renderDetail();
+}
+
+function renderDetail() {
+  const m = vueData[detailMois];
   const panel = document.getElementById('detail-panel');
   const parts = Object.entries(m.contrats).sort((a,b)=>b[1].montant-a[1].montant);
-  let rows = parts.map(([c,v]) =>
-    `<div class="dp-row"><span class="lbl"><span class="dp-dot" style="background:${contratColor[c]||'#888'}"></span>${esc(c)}</span><span class="val">${fmt2(v.montant)}</span></div>`
-  ).join('');
+  let rows = parts.map(([c,v]) => {
+    const open = detailOpen.has(c);
+    const caret = `<span style="font-size:10px; opacity:0.5; display:inline-block; width:12px; transition:transform 0.1s; transform:rotate(${open?90:0}deg)">▸</span>`;
+    let head = `<div class="dp-row" style="cursor:pointer;" onclick="toggleDetailContrat('${c.replace(/'/g,"\\'")}')">
+      <span class="lbl">${caret}<span class="dp-dot" style="background:${contratColor[c]||'#888'}"></span>${esc(c)} <span style="color:#aaa; font-size:11px;">(${v.items.length})</span></span>
+      <span class="val">${fmt2(v.montant)}</span></div>`;
+    let sub = '';
+    if (open) {
+      const items = v.items.slice().sort((a,b)=>b.montant-a.montant);
+      sub = items.map(it =>
+        `<div class="dp-row" style="padding-left:30px; font-size:11.5px;"><span class="lbl" style="color:#999;">${it.type==='sortie'?'↓ ':''}${esc(it.label)}</span><span class="val">${fmt2(it.montant)}</span></div>`
+      ).join('');
+    }
+    return head + sub;
+  }).join('');
   panel.innerHTML = `
     <div class="dp-head">
       <div class="dp-title">Dépenses · ${esc(m.label)}</div>
