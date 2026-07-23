@@ -60,6 +60,36 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .c-reste { font-size: 11px; font-style: italic; opacity: 0.75; margin-top: 7px; }
 
 .loading, .empty { text-align: center; padding: 50px; color: #aaa; font-size: 14px; }
+
+/* ---------- Sélecteur de mode ---------- */
+.mode-switch { display: inline-flex; margin: 22px 0 4px; border: 1px solid #ddd; border-radius: 9px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .mode-switch { border-color: #3a3a3a; } }
+.mode-switch button { font-size: 12.5px; padding: 7px 15px; border: none; background: none; color: inherit; cursor: pointer; font-family: inherit; }
+.mode-switch button:hover { background: rgba(55,138,221,0.08); }
+.mode-switch button.on { background: #378ADD; color: #fff; font-weight: 600; }
+
+/* ---------- Tableau d'évolution ---------- */
+.tbl-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 13px; }
+@media (prefers-color-scheme: dark) { .tbl-wrap { border-color: #333; } }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: right; padding: 11px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #888; background: #fafaf8; white-space: nowrap; border-bottom: 1px solid #e8e8e8; }
+@media (prefers-color-scheme: dark) { .tbl th { background: #202020; color: #999; border-bottom-color: #333; } }
+.tbl th.th-ligne { text-align: left; }
+.th-badge { display: block; font-size: 8.5px; letter-spacing: .04em; color: #378ADD; margin-top: 2px; }
+.cat-row td { padding: 10px 14px 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.cat-row .cat-dot { display: inline-block; margin-right: 7px; vertical-align: middle; }
+.tbl tbody tr:hover td { background: rgba(55,138,221,0.045); }
+.tbl .cat-row:hover td { background: none; }
+.td-ligne { padding: 9px 14px; border-left: 3px solid transparent; white-space: nowrap; }
+.td-val { text-align: right; padding: 9px 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.td-val.vide { color: #ccc; }
+@media (prefers-color-scheme: dark) { .td-val.vide { color: #555; } }
+.cell-montant { display: block; }
+.cell-delta { display: block; font-size: 10px; font-weight: 600; margin-top: 2px; }
+.cell-delta.up { color: #1D9E75; }
+.cell-delta.down { color: #E24B4A; }
+.total-row td { border-top: 2px solid #e0e0e0; font-weight: 600; padding-top: 11px; padding-bottom: 12px; }
+@media (prefers-color-scheme: dark) { .total-row td { border-top-color: #3a3a3a; } }
 </style>
 </head>
 <body>
@@ -84,7 +114,7 @@ const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', '
 function getCat(label) { for (const k of CAT_ORDER) if (String(label).includes(k)) return k; return 'Autre'; }
 function catStyle(c) { return CAT_COLORS[c] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
 
-let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '';
+let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '', modeReste = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
@@ -151,6 +181,25 @@ async function fetchAll() {
 }
 
 function onContratChange(v) { filterContrat = v; render(); }
+
+function selectContrat(contrat) {
+  const sel = document.getElementById('contrat-filter');
+  const cible = String(contrat).trim();
+  const opt = [...sel.options].find(o => o.value.trim() === cible);
+  if (!opt) return;
+  sel.value = opt.value;
+  filterContrat = opt.value;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Clic sur une carte → historique du contrat (délégation d'événements)
+document.getElementById('wrap').addEventListener('click', (e) => {
+  const card = e.target.closest('.card[data-contrat]');
+  if (!card) return;
+  const c = card.getAttribute('data-contrat');
+  if (c) selectContrat(c);
+});
 
 function render() {
   const releves = RELEVES, lignes = LIGNES, contratsMasques = MASQUES;
@@ -269,8 +318,9 @@ function render() {
       const txt = isDark ? st.dtxt : st.txt;
       const reste = resteDe(d);
       const resteHtml = reste > 0 ? `<div class="c-reste" style="color:${txt}">Reste à notifier : ${fmt(reste)}</div>` : '';
+      const cAttr = String(d.contrat||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       html += `
-        <div class="card" style="background:${bg}; border-color:${st.c}33; border-left-color:${st.c};">
+        <div class="card" data-contrat="${cAttr}" title="Voir tous les relevés de ${cAttr}" style="background:${bg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;">
           <div class="c-contrat" style="color:${txt}">${esc(d.contrat||'—')}</div>
           <div class="c-sub" style="color:${txt}">${esc(sousLibelle(d.label))}</div>
           <div class="c-montant" style="color:${txt}">${fmt(d.officiel)}</div>
@@ -286,6 +336,12 @@ function render() {
 }
 
 
+function dateCourte(ms) {
+  return new Date(ms).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+}
+
+function setMode(m) { modeReste = (m === 'reste'); render(); }
+
 function renderHistorique() {
   const wrap = document.getElementById('wrap');
   const contrat = filterContrat;
@@ -294,16 +350,16 @@ function renderHistorique() {
   const items = RELEVES.filter(x => LIGNES[x.ligne] && LIGNES[x.ligne].contrat === contrat);
   if (!items.length) { wrap.innerHTML = '<div class="empty">Aucun relevé pour ce contrat.</div>'; return; }
 
-  const dates = [...new Set(items.map(x => x.date))].sort((a,b) => b - a);
-  const totalAt = d => items.filter(x => x.date === d).reduce((s,x) => s + x.officiel, 0);
-  const dLast = dates[0];
-  const totalLast = totalAt(dLast);
-  const totalPrev = dates[1] != null ? totalAt(dates[1]) : null;
-
-  // Reste à notifier : donnée du relevé (historisée) — ici celui du dernier relevé
   const resteDe = x => (x.reste != null ? x.reste : (LIGNES[x.ligne] ? LIGNES[x.ligne].reste : 0));
-  const resteAt = d => items.filter(x => x.date === d).reduce((s,x) => { const v = resteDe(x); return s + (v > 0 ? v : 0); }, 0);
-  const resteContrat = resteAt(dLast);
+  const valDe = x => modeReste ? resteDe(x) : x.officiel;
+
+  // Dates du plus ancien au plus récent (lecture de l'évolution de gauche à droite)
+  const dates = [...new Set(items.map(x => x.date))].sort((a,b) => a - b);
+  const dLast = dates[dates.length - 1];
+  const totalAt = d => items.filter(x => x.date === d).reduce((s,x) => s + valDe(x), 0);
+
+  const totalLast = totalAt(dLast);
+  const totalPrev = dates.length > 1 ? totalAt(dates[dates.length - 2]) : null;
 
   const jours = joursDepuis(dLast);
   const agoTxt = jours === 0 ? "aujourd'hui" : jours === 1 ? 'il y a 1 jour' : `il y a ${jours} jours`;
@@ -315,80 +371,90 @@ function renderHistorique() {
     deltaTotalHtml = `<span class="hstat-delta">${signe} ${fmt(Math.abs(d))}</span>`;
   }
 
+  // ---------- Hero ----------
   let html = `
     <div class="hero">
       <div class="hero-label">${esc(contrat)}</div>
       <div class="hero-date">${dateLongue(dLast)}</div>
-      <div class="hero-ago">Dernier relevé · ${agoTxt}</div>
+      <div class="hero-ago">Dernier relevé \u00b7 ${agoTxt}</div>
       <div class="hero-stats">
         <div>
-          <div class="hstat-label">Disponible officiel</div>
+          <div class="hstat-label">${modeReste ? 'Reste à notifier' : 'Disponible officiel'}</div>
           <div class="hstat-val">${fmt(totalLast)} ${deltaTotalHtml}</div>
-        </div>
-        <div>
-          <div class="hstat-label">Reste à notifier</div>
-          <div class="hstat-val">${fmt(resteContrat)}</div>
         </div>
         <div>
           <div class="hstat-label">Relevés enregistrés</div>
           <div class="hstat-val">${dates.length}</div>
         </div>
       </div>
+    </div>
+
+    <div class="mode-switch">
+      <button class="${modeReste?'':'on'}" onclick="setMode('officiel')">Disponible officiel</button>
+      <button class="${modeReste?'on':''}" onclick="setMode('reste')">Reste à notifier</button>
     </div>`;
 
-  const rang = x => { const l = String(LIGNES[x.ligne].label).toLowerCase();
+  // ---------- Lignes groupées par catégorie ----------
+  const lignesIds = [...new Set(items.map(x => x.ligne))];
+  const parCat = {};
+  lignesIds.forEach(id => {
+    const cat = getCat(LIGNES[id].label);
+    (parCat[cat] = parCat[cat] || []).push(id);
+  });
+  const rang = id => { const l = String(LIGNES[id].label).toLowerCase();
     if (l.includes('indirect')) return 1; if (l.includes('direct')) return 0; return 2; };
+  Object.values(parCat).forEach(a => a.sort((x,y) => rang(x) - rang(y)));
+  const cats = CAT_ORDER.filter(c => parCat[c]).concat(Object.keys(parCat).filter(c => !CAT_ORDER.includes(c)));
 
-  dates.forEach((d, idx) => {
-    const dPrec = dates[idx+1] != null ? dates[idx+1] : null;
-    const lignesDate = items.filter(x => x.date === d).sort((a,b) => rang(a) - rang(b));
-    const totalD = totalAt(d);
+  // Valeur d'une ligne à une date
+  const valAt = (ligneId, d) => {
+    const row = items.find(x => x.ligne === ligneId && x.date === d);
+    return row ? valDe(row) : null;
+  };
 
-    let deltaD = '';
-    if (dPrec != null) {
-      const diff = totalD - totalAt(dPrec);
+  const cellule = (v, vPrec) => {
+    if (v == null) return '<td class="td-val vide">—</td>';
+    let dl = '';
+    if (vPrec != null) {
+      const diff = v - vPrec;
       if (Math.abs(diff) >= 0.005) {
         const up = diff > 0;
-        deltaD = `<span class="delta ${up?'up':'down'}" style="margin-left:8px;">${up?'\u25B2':'\u25BC'} ${fmt(Math.abs(diff))}</span>`;
+        dl = `<span class="cell-delta ${up?'up':'down'}">${up?'\u25B2':'\u25BC'} ${fmt(Math.abs(diff))}</span>`;
       }
     }
+    return `<td class="td-val"><span class="cell-montant">${fmt(v)}</span>${dl}</td>`;
+  };
 
-    html += `<div class="date-section">
-      <div class="date-head">
-        <span class="date-titre">${dateLongue(d)}</span>
-        ${idx === 0 ? '<span class="date-badge">Dernier</span>' : ''}
-        <span class="date-total">${fmt(totalD)}${deltaD}</span>
-      </div>
-      <div class="grid">`;
+  html += `<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th class="th-ligne">Ligne budgétaire</th>
+      ${dates.map((d,i) => `<th>${dateCourte(d)}${i===dates.length-1?'<span class="th-badge">dernier</span>':''}</th>`).join('')}
+    </tr></thead><tbody>`;
 
-    lignesDate.forEach(x => {
-      const l = LIGNES[x.ligne];
-      const st = catStyle(getCat(l.label));
-      const bg = isDark ? st.dark : st.bg;
-      const txt = isDark ? st.dtxt : st.txt;
-      let deltaHtml = '';
-      if (dPrec != null) {
-        const prevRow = items.find(y => y.date === dPrec && y.ligne === x.ligne);
-        if (prevRow) {
-          const diff = x.officiel - prevRow.officiel;
-          if (Math.abs(diff) < 0.005) deltaHtml = '<span class="delta flat">= inchangé</span>';
-          else { const up = diff > 0; deltaHtml = `<span class="delta ${up?'up':'down'}">${up?'\u25B2':'\u25BC'} ${fmt(Math.abs(diff))}</span>`; }
-        }
-      }
-      const rn = resteDe(x);
-      const resteHtml = rn > 0
-        ? `<div class="c-reste" style="color:${txt}">Reste à notifier : ${fmt(rn)}</div>` : '';
-      html += `
-        <div class="card" style="background:${bg}; border-color:${st.c}33; border-left-color:${st.c};">
-          <div class="c-sub" style="color:${txt}">${esc(sousLibelle(l.label))}</div>
-          <div class="c-montant" style="color:${txt}">${fmt(x.officiel)}</div>
-          <div class="c-foot">${deltaHtml}</div>
-          ${resteHtml}
-        </div>`;
+  cats.forEach(cat => {
+    const st = catStyle(cat);
+    const col = isDark ? st.dtxt : st.txt;
+    html += `<tr class="cat-row"><td colspan="${dates.length+1}" style="color:${col}">
+      <span class="cat-dot" style="background:${st.c}"></span>${cat}</td></tr>`;
+
+    parCat[cat].forEach(id => {
+      html += `<tr><td class="td-ligne" style="border-left-color:${st.c}">${esc(sousLibelle(LIGNES[id].label))}</td>`;
+      dates.forEach((d, i) => {
+        const v = valAt(id, d);
+        const vPrec = i > 0 ? valAt(id, dates[i-1]) : null;
+        html += cellule(v, vPrec);
+      });
+      html += `</tr>`;
     });
-
-    html += `</div></div>`;
   });
+
+  // Ligne de total
+  html += `<tr class="total-row"><td class="td-ligne">Total</td>`;
+  dates.forEach((d, i) => {
+    const v = totalAt(d);
+    const vPrec = i > 0 ? totalAt(dates[i-1]) : null;
+    html += cellule(v, vPrec);
+  });
+  html += `</tr></tbody></table></div>`;
 
   wrap.innerHTML = html;
 }
