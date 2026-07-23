@@ -84,13 +84,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <div class="panel-title"><span class="title-dot prod"></span>Commande produit</div>
     <div class="subtitle">Créée libre, à assigner ensuite à une DA.</div>
     <div class="card">
+      <div class="row row-2">
+        <div class="field"><label>Référence fournisseur</label><input type="text" id="p-ref" list="ref-suggestions" autocomplete="off" onchange="onRefChange('p')" placeholder="Réf. connue → remplit le reste"></div>
+        <div class="field"><label>Code GHP</label><input type="text" id="p-ghp" autocomplete="off"></div>
+      </div>
       <div class="field field-desig">
         <label>Désignation</label>
         <input type="text" id="p-desig" placeholder="Nom de l'article">
-      </div>
-      <div class="row row-2">
-        <div class="field"><label>Référence fournisseur</label><input type="text" id="p-ref" autocomplete="off"></div>
-        <div class="field"><label>Code GHP</label><input type="text" id="p-ghp" autocomplete="off"></div>
       </div>
       <div class="row row-4">
         <div class="field"><label>Prix unitaire HT</label><input type="text" id="p-prix" inputmode="decimal" autocomplete="off"></div>
@@ -122,13 +122,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <div class="panel-title"><span class="title-dot svc"></span>Commande service</div>
     <div class="subtitle">Repas, prestation… Type = Service, en EUR.</div>
     <div class="card svc">
+      <div class="row row-2">
+        <div class="field"><label>Référence fournisseur</label><input type="text" id="s-ref" list="ref-suggestions" autocomplete="off" onchange="onRefChange('s')" placeholder="Réf. connue → remplit le reste"></div>
+        <div class="field"><label>Code GHP</label><input type="text" id="s-ghp" autocomplete="off"></div>
+      </div>
       <div class="field field-desig">
         <label>Désignation</label>
         <input type="text" id="s-desig" placeholder="Ex : Repas 6 personnes">
-      </div>
-      <div class="row row-2">
-        <div class="field"><label>Référence fournisseur</label><input type="text" id="s-ref" autocomplete="off"></div>
-        <div class="field"><label>Code GHP</label><input type="text" id="s-ghp" autocomplete="off"></div>
       </div>
       <div class="field"><label>Prix HT (EUR)</label><input type="text" id="s-prix" inputmode="decimal" autocomplete="off"></div>
       <div class="field"><label>Demandeur(s)</label><div class="dem-box" id="dem-box-s"></div></div>
@@ -150,6 +150,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 
 </div>
 
+<datalist id="ref-suggestions"></datalist>
 <datalist id="frais-suggestions">
   <option value="Frais de port"></option>
   <option value="Shipping charges"></option>
@@ -161,6 +162,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 
 <script>
 let demandeursDispo = [];
+let refsMap = {};   // référence normalisée → { desig, ghp, prix, devise, taux }
 let selP = new Set();
 let selS = new Set();
 
@@ -181,6 +183,37 @@ async function loadOptions() {
       else if (v) dems.add(v);
     });
     demandeursDispo = [...dems].sort((a,b)=>a.localeCompare(b,'fr'));
+
+    // Mapa référence → dernière commande enregistrée (id le plus élevé)
+    refsMap = {};
+    const ids = c.id || [];
+    ids.forEach((id, i) => {
+      const ref = (c.Reference_fournisseur||[])[i];
+      if (!ref) return;
+      const type = (c.Type_article||[])[i] || 'Produit';
+      if (type === 'Frais') return;   // les frais ne servent pas de modèle
+      const key = String(ref).trim().toLowerCase();
+      if (!refsMap[key] || id > refsMap[key].id) {
+        refsMap[key] = {
+          id,
+          ref: String(ref).trim(),
+          desig: (c.Designation2||[])[i] || '',
+          ghp: (c.Code_GHP||[])[i] || '',
+          prix: (c.Prix_unitaire_HT||[])[i] || '',
+          devise: (c.Devise||[])[i] || 'EUR',
+          taux: (c.Taux_change||[])[i] || 1,
+        };
+      }
+    });
+    // Remplir la datalist de suggestions de références
+    const dl = document.getElementById('ref-suggestions');
+    if (dl) {
+      dl.innerHTML = Object.values(refsMap)
+        .sort((a,b)=>a.ref.localeCompare(b.ref,'fr'))
+        .map(r => `<option value="${r.ref.replace(/"/g,'&quot;')}">${(r.desig||'').replace(/"/g,'&quot;').slice(0,60)}</option>`)
+        .join('');
+    }
+
     renderDems();
   } catch(e) { console.error(e); }
 }
@@ -240,6 +273,42 @@ function showRecap(which, title, detail) {
   if (!el) return;
   el.innerHTML = `<span class="r-check">✓</span>${title}` + (detail ? `<div class="r-detail">${detail}</div>` : '');
   el.classList.add('show');
+}
+
+function onRefChange(which) {
+  const input = document.getElementById(which + '-ref');
+  const key = input.value.trim().toLowerCase();
+  if (!key) return;
+  const m = refsMap[key];
+  if (!m) return;   // référence inconnue : ne rien faire
+
+  // Ne remplir que les champs vides (ne pas écraser ce qui est déjà saisi)
+  const remplis = [];
+  const setIfEmpty = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && !el.value.trim() && val !== '' && val != null) { el.value = val; return true; }
+    return false;
+  };
+
+  if (setIfEmpty(which + '-desig', m.desig)) remplis.push('désignation');
+  if (setIfEmpty(which + '-ghp', m.ghp)) remplis.push('code GHP');
+  if (setIfEmpty(which + '-prix', m.prix)) remplis.push('prix');
+
+  if (which === 'p') {
+    // Devise et taux : seulement si la devise est encore à sa valeur par défaut
+    const dev = document.getElementById('p-devise');
+    const taux = document.getElementById('p-taux');
+    if (dev && m.devise && dev.value === 'EUR' && m.devise !== 'EUR') {
+      dev.value = m.devise;
+      if (taux && (taux.value === '1' || !taux.value.trim())) taux.value = m.taux;
+      onDeviseChange();
+      remplis.push('devise');
+    }
+  }
+
+  if (remplis.length) {
+    showMsg(which, 'Rempli depuis une commande précédente (' + remplis.join(', ') + ').', 'ok');
+  }
 }
 
 function showMsg(which, text, cls) {
