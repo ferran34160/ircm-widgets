@@ -171,9 +171,24 @@ function fillContrats() {
   sel.innerHTML='<option value="">— Contrat —</option>'+cs.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
   if(cur) sel.value=cur;
 }
+function ordreLigne(label) {
+  const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+  const s = String(label);
+  let cat = CAT.findIndex(c => s.includes(c)); if (cat < 0) cat = 99;
+  const low = s.toLowerCase();
+  const rang = low.includes('indirect') ? 1 : (low.includes('direct') ? 0 : 2);
+  return [cat, rang, s.toLowerCase()];
+}
+function cmpLigne(a, b) {
+  const oa = ordreLigne(a.label), ob = ordreLigne(b.label);
+  if (oa[0] !== ob[0]) return oa[0] - ob[0];
+  if (oa[1] !== ob[1]) return oa[1] - ob[1];
+  return oa[2].localeCompare(ob[2], 'fr');
+}
+
 function fillLignes() {
   const sel=document.getElementById('ligne-select');
-  const ls=lignes.filter(l=>l.contrat===selContrat);
+  const ls=lignes.filter(l=>l.contrat===selContrat).sort(cmpLigne);
   sel.innerHTML='<option value="">— Ligne budgétaire —</option>'+ls.map(l=>{
     const sub=l.label.includes('|')?l.label.split('|').slice(1).join('|').trim():l.label;
     return `<option value="${l.id}">${sub.replace(/</g,'&lt;')}</option>`;
