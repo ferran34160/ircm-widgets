@@ -266,12 +266,12 @@ function loadData() {
           if (nom) contratsMasques.add(String(nom).trim());
         }
       });
-      // Réappliquer une fois la liste chargée (l'ordre onRecords/fetch n'est pas garanti)
       if (rawData.length) { applyMasque(); rebuildContratSelect(); updateView(); }
     }).catch(()=>{});
 
     grist.onRecords((records) => {
       rawData = records.map(r => ({
+        id:              r.id,
         label:           r.Label || r.label || '',
         contrat:         r.Contrat || '',
         budget_ajuste:   r.Budget_ajuste || 0,
