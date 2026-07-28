@@ -54,6 +54,7 @@ svg { width: 100%; height: auto; display: block; }
 .dp-close:hover { color: #E24B4A; }
 .dp-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
 .dp-row.dp-frais { font-style: italic; opacity: 0.6; font-size: 11px; }
+.dp-usd { font-style: italic; opacity: 0.65; font-size: 11px; }
 .dp-row:last-child { border-bottom: none; }
 @media (prefers-color-scheme: dark) { .dp-row { border-bottom-color: rgba(255,255,255,0.07); } }
 .dp-row .lbl { color: #666; flex: 1; min-width: 0; }
@@ -129,6 +130,8 @@ async function fetchAll() {
       desig:(c.Designation2||[])[i]||'',
       type_article:(c.Type_article||[])[i]||'Produit',
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      devise:(c.Devise||[])[i]||'EUR',
+      montant_devise:((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
     }));
 
     transferts=(t.id||[]).map((id,i)=>({
@@ -201,7 +204,7 @@ function buildEvents(ligneId) {
       parDA[c.da].nb++;
       if(c.type_article!=='Service') parDA[c.da].nbProd++;
     }
-    parDA[c.da].articles.push({ desig:c.desig, montant:c.montant, frais:estFrais });
+    parDA[c.da].articles.push({ desig:c.desig, montant:c.montant, frais:estFrais, devise:c.devise, montant_devise:c.montant_devise });
   });
   Object.values(parDA).forEach(d=>{
     const serviceOnly = d.nbProd===0;
@@ -452,7 +455,10 @@ function showDetail(p) {
     title=(d.num_da||'Commande') + (d.serviceOnly ? ' <span class="dp-svc">Service</span>' : '') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
     body='';
     if(d.num_bc) body+=`<div class="dp-info" style="margin-bottom:8px;"><b>BC :</b> ${String(d.num_bc).replace(/</g,'&lt;')}</div>`;
-    body+=d.articles.map(a=>`<div class="dp-row${a.frais?' dp-frais':''}"><span class="lbl">${(a.desig||'(sans nom)').replace(/</g,'&lt;')}</span><span class="val">${fmt(a.montant)}</span></div>`).join('');
+    body+=d.articles.map(a=>{
+      const devHtml = (a.devise==='USD' && a.montant_devise) ? ` <span class="dp-usd">($${a.montant_devise.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})})</span>` : '';
+      return `<div class="dp-row${a.frais?' dp-frais':''}"><span class="lbl">${(a.desig||'(sans nom)').replace(/</g,'&lt;')}${devHtml}</span><span class="val">${fmt(a.montant)}</span></div>`;
+    }).join('');
     body+=`<div class="dp-total"><span>Total</span><span>${fmt(d.total)}</span></div>`;
   } else if(d.kind==='mvt'){
     title=d.type;
