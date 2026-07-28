@@ -58,13 +58,22 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <body>
 <style>
 .header select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+#sim-btn { font-size: 13px; padding: 5px 12px; border: 1px solid #9C6ADE; border-radius: 6px; background: inherit; color: #9C6ADE; cursor: pointer; font-family: inherit; font-weight: 500; }
+#sim-btn:hover { background: rgba(156,106,222,0.08); }
+#sim-btn.on { background: #9C6ADE; color: #fff; }
+.sim-banner { background: #F0EAFB; color: #5E3A9E; border: 1px solid #9C6ADE55; border-radius: 8px; padding: 8px 14px; margin-bottom: 14px; font-size: 12.5px; }
+@media (prefers-color-scheme: dark) { .sim-banner { background: #2A1F3D; color: #C4A6EC; } }
+.c-sim-impact { font-size: 10.5px; color: #9C6ADE; font-style: italic; margin-top: 4px; }
+@media (prefers-color-scheme: dark) { .c-sim-impact { color: #C4A6EC; } }
 @media (prefers-color-scheme: dark) { .header select { border-color: #444; } }
 .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 </style>
 <div class="header">
   <div class="title">Échéances des contrats</div>
   <select id="cat-filter"><option value="">Toutes catégories</option></select>
+  <button id="sim-btn" style="display:none;" onclick="toggleSim()">🔮 Simuler les consultations</button>
 </div>
+<div id="sim-banner-slot"></div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
 </div>
@@ -73,6 +82,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 let allData = [];
 let contratsMasques = new Set();
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
+let consultParLigne = {};
+let simulation = false;
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
@@ -104,6 +115,12 @@ function monthsUntil(d) {
   return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
 }
 
+function toggleSim() {
+  simulation = !simulation;
+  document.getElementById('sim-btn').classList.toggle('on', simulation);
+  updateView();
+}
+
 function updateView() {
   const v = document.getElementById('cat-filter').value;
   let filtered = allData;
@@ -121,13 +138,24 @@ function updateView() {
 function render(data) {
   const container = document.getElementById('container');
 
+  // Bannière de simulation
+  const nbConsult = Object.keys(consultParLigne).length;
+  document.getElementById('sim-banner-slot').innerHTML = simulation
+    ? `<div class="sim-banner">🔮 <b>Simulation active</b> — le disponible inclut ${nbConsult} consultation(s) en attente, comme si elles étaient approuvées. Montants hypothétiques.</div>`
+    : '';
+
   const contrats = {};
   data.forEach(d => {
+    // Disponible = base + impact des consultations si simulation active
+    const impact = (simulation && consultParLigne[d.id]) ? consultParLigne[d.id] : 0;
+    d.disponible = d.disponible_base + impact;
+    d.impactSim = impact;
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, reste_notifier: 0, lignes: [], a_annualisee: false };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, reste_notifier: 0, impactSim: 0, lignes: [], a_annualisee: false };
     }
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
+    c.impactSim += impact;
     c.releve += d.montant_releve;
     if (d.reste_notifier > 0) c.reste_notifier += d.reste_notifier;
     c.lignes.push(d);
@@ -201,6 +229,7 @@ function render(data) {
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         ${c.reste_notifier > 0 ? `<p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>` : ''}
+        ${(simulation && c.impactSim) ? `<p class="c-sim-impact">🔮 inclut ${fmt(Math.abs(c.impactSim))} de consultation(s)</p>` : ''}
         <span class="c-ech">${echStr}</span>
         ${subFilterActif ? '' : `<div class="cats">${catsHtml}</div>`}
       </div>`;
@@ -250,11 +279,32 @@ function loadData() {
     } catch(e) {}
   }
 
+  async function loadConsultations() {
+    try {
+      const co = await grist.docApi.fetchTable('Consultations_PGM');
+      consultParLigne = {};
+      const refId = v => (v==null?null : typeof v==='number'?v : Array.isArray(v)?v[1]:v);
+      (co.id||[]).forEach((id,i) => {
+        if (((co.Statut||[])[i]) !== 'En attente') return;
+        const ligne = refId((co.Ligne_budgetaire||[])[i]);
+        if (!ligne) return;
+        const montant = (co.Montant_estime||[])[i] || 0;
+        const type = (co.Type||[])[i] || 'Commande';
+        const sens = (co.Sens||[])[i] || '';
+        const impact = (type === 'Mouvement' && sens === 'Entrée') ? montant : -montant;
+        consultParLigne[ligne] = (consultParLigne[ligne] || 0) + impact;
+      });
+      const btn = document.getElementById('sim-btn');
+      if (btn) btn.style.display = Object.keys(consultParLigne).length ? '' : 'none';
+    } catch(e) { consultParLigne = {}; }
+  }
+
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
     grist.onRecords(async (records) => {
       await loadReleves();
       await loadContratsMasques();
+      await loadConsultations();
       allData = records.map(r => {
         const lim = limitesParLigne[r.id];
         // Si la línia és annualisée amb data límit, usar-la com a data d'échéance efectiva
@@ -265,12 +315,13 @@ function loadData() {
           annualisee = true;
         }
         return {
+          id:            r.id,
           label:         r.Label || '',
           contrat:       r.Contrat || '',
           date_fin:      dateEff,
           date_fin_reelle: r.Date_fin_contrat,
           annualisee:    annualisee,
-          disponible:    r.Disponible || 0,
+          disponible_base: r.Disponible || 0,
           budget_ajuste: r.Budget_ajuste || 0,
           montant_releve: r.Montant_dernier_releve || 0,
           reste_notifier: r.Reste_a_notifier || 0,
