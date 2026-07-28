@@ -213,7 +213,15 @@ function render() {
 
   Object.keys(groups).sort((a,b) => a.localeCompare(b,'fr')).forEach(cn => {
     html += `<tr class="cat-row"><td colspan="7">${cn}</td></tr>`;
-    groups[cn].forEach(l => {
+    groups[cn].slice().sort((x,y)=>{
+      const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+      const ord = lbl => { const s=String(lbl); let cat=CAT.findIndex(k=>s.includes(k)); if(cat<0)cat=99;
+        const low=s.toLowerCase(); const rang=low.includes('indirect')?1:(low.includes('direct')?0:2); return [cat,rang,low]; };
+      const ox=ord(x.label), oy=ord(y.label);
+      if(ox[0]!==oy[0]) return ox[0]-oy[0];
+      if(ox[1]!==oy[1]) return ox[1]-oy[1];
+      return ox[2].localeCompare(oy[2],'fr');
+    }).forEach(l => {
       const existing = dateGrist ? findReleve(l.id, dateGrist) : null;
       const last = lastReleve(l.id);
       const offVal = existing ? existing.officiel : '';
