@@ -28,6 +28,8 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 .bcard-meta { font-size: 11px; margin: 4px 0 0; opacity: 0.7; }
 .bcard-releve { font-size: 11px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); opacity: 0.8; }
 .bcard-reste { font-size: 11px; margin: 4px 0 0; opacity: 0.8; font-style: italic; }
+.bcard-mise { font-size: 11px; margin: 6px 0 0; color: #0F6E63; font-weight: 500; background: #E0F5F2; border-radius: 6px; padding: 3px 8px; display: inline-block; }
+@media (prefers-color-scheme: dark) { .bcard-mise { color: #7FD9C9; background: #16332E; } }
 @media (prefers-color-scheme: dark) { .bcard-releve { border-top-color: rgba(255,255,255,0.15); } }
 .pct-track { height: 5px; background: rgba(0,0,0,0.1); border-radius: 3px; margin-top: 10px; overflow: hidden; }
 @media (prefers-color-scheme: dark) { .pct-track { background: rgba(255,255,255,0.15); } }
@@ -52,6 +54,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 let allData = [];
 let rawData = [];
 let contratsMasques = new Set();
+let notifsParLigne = {};
 function applyMasque() {
   allData = rawData.filter(d => !contratsMasques.has(String(d.contrat).trim()));
 }
@@ -84,6 +87,14 @@ function fmtDate(g) {
   const d = new Date(ms);
   if (isNaN(d.getTime()) || d.getFullYear() > 3000) return null;
   return d.toLocaleDateString('fr-FR');
+}
+function toMsCB(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+// Notifications de crédit actives : postérieures au dernier relevé de la ligne
+function notifActive(d) {
+  const list = notifsParLigne[d.id];
+  if (!list || !list.length) return [];
+  const dRel = toMsCB(d.date_releve);
+  return list.filter(n => n.date && (!dRel || n.date > dRel));
 }
 function getState(d) {
   if (d.disponible < 0) return 'danger';
@@ -180,6 +191,12 @@ function render(data) {
         ? `<p class="bcard-reste">Reste à notifier : ${fmt(d.reste_notifier)}</p>`
         : '';
 
+      // Mise à disposition : notifications postérieures au dernier relevé de la ligne
+      const notifsActives = notifActive(d);
+      const misesHtml = notifsActives.length
+        ? notifsActives.map(n => `<p class="bcard-mise">🔓 Mise à disposition : ${fmt(n.montant)}${n.date ? ' · ' + fmtDate(n.date) : ''}</p>`).join('')
+        : '';
+
       const contratAttr = contrat.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       html += `
         <div class="bcard" data-contrat="${contratAttr}" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" title="Filtrer sur ${contratAttr}">
@@ -189,6 +206,7 @@ function render(data) {
           ${infoHtml}
           ${barHtml}
           ${resteHtml}
+          ${misesHtml}
         </div>`;
     });
 
@@ -257,8 +275,11 @@ function rebuildContratSelect() {
 function loadData() {
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
-    // Charger la liste des contrats masqués
-    grist.docApi.fetchTable('Contrats').then(ct => {
+    // Charger contrats masqués + notifications de crédit
+    Promise.all([
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Notifications_credit').catch(() => null),
+    ]).then(([ct, no]) => {
       contratsMasques = new Set();
       (ct.id||[]).forEach((id,i) => {
         if ((ct.Masquer||[])[i]) {
@@ -266,6 +287,22 @@ function loadData() {
           if (nom) contratsMasques.add(String(nom).trim());
         }
       });
+
+      // Notifications par ligne (toutes ; on filtrera par date de relevé au rendu)
+      notifsParLigne = {};
+      if (no) {
+        const refId = v => (v==null?null : typeof v==='number'?v : Array.isArray(v)?v[1]:v);
+        const toMs = g => { if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; };
+        (no.id||[]).forEach((id,i) => {
+          const ligne = refId((no.Ligne_budgetaire||[])[i]);
+          if (!ligne) return;
+          (notifsParLigne[ligne] = notifsParLigne[ligne] || []).push({
+            montant: (no.Montant||[])[i] || 0,
+            date: toMs((no.Date_notification||[])[i]),
+          });
+        });
+      }
+
       if (rawData.length) { applyMasque(); rebuildContratSelect(); updateView(); }
     }).catch(()=>{});
 
