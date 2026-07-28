@@ -300,7 +300,7 @@ function render() {
 }
 
 function drawChart(points, ligne, dernierReleve) {
-  const W=820, H=340, padL=64, padR=20, padT=20, padB=40;
+  const W=820, H=340, padL=64, padR=110, padT=20, padB=40;
   const iw=W-padL-padR, ih=H-padT-padB;
 
   // Prolonger la courbe jusqu'à aujourd'hui si le dernier événement est antérieur
@@ -407,8 +407,8 @@ function drawChart(points, ligne, dernierReleve) {
   const yEnd = yOf(lastPt.dispo);
   const labelTxt = fmt(finalDispo);
   const labelW = labelTxt.length * 7 + 16;
-  // Placer l'étiquette à gauche du point si trop près du bord droit
-  const labelX = (xEnd + labelW + 6 > W - padR) ? xEnd - labelW - 6 : xEnd + 8;
+  // L'étiquette va toujours à droite du bout de la ligne (l'espace est réservé par padR)
+  const labelX = xEnd + 10;
   const finalCol = finalDispo < 0 ? '#E24B4A' : '#1D9E75';
   const endLabel = `
     <rect x="${labelX.toFixed(1)}" y="${(yEnd-11).toFixed(1)}" width="${labelW}" height="22" rx="6" fill="${finalCol}"/>
