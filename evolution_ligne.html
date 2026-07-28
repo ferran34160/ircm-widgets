@@ -303,6 +303,13 @@ function drawChart(points, ligne, dernierReleve) {
   const W=820, H=340, padL=64, padR=20, padT=20, padB=40;
   const iw=W-padL-padR, ih=H-padT-padB;
 
+  // Prolonger la courbe jusqu'à aujourd'hui si le dernier événement est antérieur
+  const aujourdhui = Date.now();
+  const dernierPoint = points[points.length-1];
+  if (dernierPoint && dernierPoint.date && dernierPoint.date < aujourdhui) {
+    points = points.concat([{ date: aujourdhui, dispo: dernierPoint.dispo, type: 'today', label: "Aujourd'hui", today: true }]);
+  }
+
   // Tots els punts tenen data (el primer és el premier relevé)
   const dated=points.filter(p=>p.date);
   const minDate=dated.length?Math.min(...dated.map(p=>p.date)):Date.now();
@@ -354,6 +361,7 @@ function drawChart(points, ligne, dernierReleve) {
   let pts='';
   points.forEach((p,i)=>{
     if(p.type==='start') return;
+    if(p.today) return;  // pas de marqueur pour le point « aujourd'hui »
     const x=xOf(p,i), y=yOf(p.dispo);
     const col=COLORS[p.type]||'#888';
     const isReleve=p.type==='releve';
@@ -377,7 +385,8 @@ function drawChart(points, ligne, dernierReleve) {
     });
     // Afegir primer i últim
     labelPts.push({date:minDate, x:padL+10});
-    labelPts.push({date:maxDate, x:padL+10+((maxDate-minDate)/spanDate)*(iw-20)});
+    const today = points.some(p=>p.today);
+    labelPts.push({date:maxDate, x:padL+10+((maxDate-minDate)/spanDate)*(iw-20), today});
     // Ordenar per x i evitar solapaments (mínim 55px entre etiquetes)
     labelPts.sort((a,b)=>a.x-b.x);
     let lastX=-100;
@@ -385,7 +394,8 @@ function drawChart(points, ligne, dernierReleve) {
       if(lp.x-lastX<55) return;
       lastX=lp.x;
       xlabels+=`<line class="grid-line" x1="${lp.x.toFixed(1)}" y1="${padT}" x2="${lp.x.toFixed(1)}" y2="${(H-padB).toFixed(1)}" opacity="0.5"/>`;
-      xlabels+=`<text class="axis-label" x="${lp.x.toFixed(1)}" y="${H-padB+22}" text-anchor="middle">${fmtDate(lp.date)}</text>`;
+      const txt = lp.today ? "Aujourd'hui" : fmtDate(lp.date);
+      xlabels+=`<text class="axis-label" x="${lp.x.toFixed(1)}" y="${H-padB+22}" text-anchor="middle"${lp.today?' style="font-weight:600;"':''}>${txt}</text>`;
     });
   }
 
