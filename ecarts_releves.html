@@ -216,8 +216,11 @@ function render() {
       let body;
       if (calc.first) {
         body = `
-          <p class="c-ecart" style="color:${txtColor}; font-size:18px;">${fmt(calc.officiel)}</p>
+          <p class="c-ecart" style="color:#999; font-size:18px;">—</p>
           <span class="badge first">Premier relevé</span>
+          <div class="c-detail">
+            <div class="row"><span>Officiel PGM</span><b>${fmt(calc.officiel)}</b></div>
+          </div>
           <div class="c-date">Relevé du ${fmtDate(calc.date)}</div>`;
       } else {
         const mag = magnitude(calc.ecart);
