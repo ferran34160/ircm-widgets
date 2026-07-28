@@ -205,7 +205,14 @@ function render() {
     const st = catStyle(cat);
     html += `<div class="cat-section"><div class="cat-title" style="border-bottom-color:${st.c}; color:${isDark?st.dtxt:st.txt};"><span class="cat-dot" style="background:${st.c}"></span>${cat}</div><div class="cards-grid">`;
 
-    groups[cat].forEach(d => {
+    groups[cat].slice().sort((a,b)=>{
+      const na=(a.label.split('|')[0]||'').trim(), nb=(b.label.split('|')[0]||'').trim();
+      if(na!==nb) return na.localeCompare(nb,'fr',{sensitivity:'base'});
+      const la=a.label.toLowerCase(), lb=b.label.toLowerCase();
+      const ra=la.includes('indirect')?1:(la.includes('direct')?0:2);
+      const rb=lb.includes('indirect')?1:(lb.includes('direct')?0:2);
+      return ra-rb;
+    }).forEach(d => {
       const parts = d.label.split('|');
       const contratNom = parts[0] ? parts[0].trim() : '';
       const sub = parts.length>1 ? parts.slice(1).join('|').trim() : d.label;
