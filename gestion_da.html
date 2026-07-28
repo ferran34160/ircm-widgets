@@ -805,6 +805,17 @@ function onNewContratChange() {
     const c = l.contrat;
     const cid = typeof c === 'number' ? c : (Array.isArray(c) ? c[1] : null);
     return cid == contratId;
+  }).sort((a, b) => {
+    const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+    const ord = lbl => {
+      const s = String(lbl); let cat = CAT.findIndex(c => s.includes(c)); if (cat < 0) cat = 99;
+      const low = s.toLowerCase(); const rang = low.includes('indirect') ? 1 : (low.includes('direct') ? 0 : 2);
+      return [cat, rang, low];
+    };
+    const oa = ord(a.label), ob = ord(b.label);
+    if (oa[0] !== ob[0]) return oa[0] - ob[0];
+    if (oa[1] !== ob[1]) return oa[1] - ob[1];
+    return oa[2].localeCompare(ob[2], 'fr');
   });
   sel.disabled = false;
   sel.innerHTML = '<option value="">— Choisir —</option>' +
