@@ -79,7 +79,7 @@ svg { width: 100%; height: auto; display: block; }
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], das={}, contratNoms={}, fourNoms={}, contratsMasques=new Set();
+let lignes=[], commandes=[], transferts=[], mouvements=[], releves=[], notifications=[], das={}, contratNoms={}, fourNoms={}, contratsMasques=new Set();
 let selContrat='', selLigne='';
 
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -88,7 +88,7 @@ function fmtDate(ms){ if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.get
 
 async function fetchAll() {
   try {
-    const [l,c,t,m,r,d,ct,fo] = await Promise.all([
+    const [l,c,t,m,r,d,ct,fo,no] = await Promise.all([
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Transferts'),
@@ -97,6 +97,7 @@ async function fetchAll() {
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Contrats'),
       grist.docApi.fetchTable('Fournisseurs'),
+      grist.docApi.fetchTable('Notifications_credit').catch(() => null),
     ]);
 
     fourNoms={};
@@ -144,6 +145,11 @@ async function fetchAll() {
       ligne:(r.Ligne_budgetaire||[])[i]||null, date:toMs((r.Date_releve||[])[i]),
       officiel:(r.Disponible_officiel||[])[i]||0,
     }));
+
+    notifications = no ? (no.id||[]).map((id,i)=>({
+      ligne:(no.Ligne_budgetaire||[])[i]||null, montant:(no.Montant||[])[i]||0,
+      date:toMs((no.Date_notification||[])[i]), ref:(no.Reference_mail||[])[i]||'',
+    })) : [];
 
     fillContrats();
     render();
@@ -214,6 +220,12 @@ function buildEvents(ligneId) {
                 detail:{ kind:'transf', sens:'Entrant', montant:t.montant, motif:t.motif, source:lblLigneShort(t.source), dest:lblLigneShort(t.dest) } });
     if(ligneIdOf(t.source)===ligneId) evts.push({ date:t.date, type:'transf', delta:-t.montant, label:t.motif||'Transfert sortant', extra:'Sortant',
                 detail:{ kind:'transf', sens:'Sortant', montant:t.montant, motif:t.motif, source:lblLigneShort(t.source), dest:lblLigneShort(t.dest) } });
+  });
+  // Notifications de crédit (mise à disposition)
+  notifications.forEach(n=>{
+    if(ligneIdOf(n.ligne)!==ligneId || !n.date) return;
+    evts.push({ date:n.date, type:'notif', delta:n.montant, label:n.ref||'Mise à disposition', extra:'Notification',
+                detail:{ kind:'notif', montant:n.montant, ref:n.ref } });
   });
   evts.sort((a,b)=>a.date-b.date);
   return evts;
@@ -297,7 +309,7 @@ function drawChart(points, ligne, dernierReleve) {
   maxV=Math.ceil(maxV/step)*step;
   function yOf(v){ return padT + ih - ((v-minV)/(maxV-minV))*ih; }
 
-  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', start:'#888' };
+  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', notif:'#0E8A6B', start:'#888' };
 
   // Path de la línia
   let d='';
@@ -428,7 +440,7 @@ function drawChart(points, ligne, dernierReleve) {
 function showDetail(p) {
   const panel=document.getElementById('detail-panel');
   if(!p || !p.detail){ panel.classList.remove('show'); return; }
-  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD' };
+  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', notif:'#0E8A6B' };
   const col=COLORS[p.type]||'#888';
   const d=p.detail;
 
@@ -454,6 +466,11 @@ function showDetail(p) {
   } else if(d.kind==='releve'){
     title='Relevé PGM';
     body=`<div class="dp-info"><b>Disponible officiel :</b> ${fmt(d.officiel)}</div>`;
+  } else if(d.kind==='notif'){
+    title='Mise à disposition';
+    body=`<div class="dp-info">`;
+    if(d.ref) body+=`<b>Référence :</b> ${String(d.ref).replace(/</g,'&lt;')}<br>`;
+    body+=`<b>Montant notifié :</b> ${fmt(d.montant)}</div>`;
   }
 
   panel.innerHTML=`
