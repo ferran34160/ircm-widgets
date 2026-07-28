@@ -359,6 +359,7 @@ function drawChart(points, ligne, dernierReleve) {
 
   // Punts
   let pts='';
+  let releveLabels='';
   points.forEach((p,i)=>{
     if(p.type==='start') return;
     if(p.today) return;  // pas de marqueur pour le point « aujourd'hui »
@@ -367,6 +368,8 @@ function drawChart(points, ligne, dernierReleve) {
     const isReleve=p.type==='releve';
     if(isReleve){
       pts+=`<rect class="pt" x="${(x-4).toFixed(1)}" y="${(y-4).toFixed(1)}" width="8" height="8" fill="${col}" data-i="${i}"/>`;
+      // Étiquette du montant au-dessus du relevé
+      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
     } else if(p.serviceOnly){
       // Losange (DA composée uniquement de services)
       pts+=`<rect class="pt" x="${(x-5).toFixed(1)}" y="${(y-5).toFixed(1)}" width="10" height="10" fill="${col}" data-i="${i}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
@@ -423,6 +426,7 @@ function drawChart(points, ligne, dernierReleve) {
       <path class="dispo-area" d="${area}"/>
       <path class="dispo-line" d="${d.trim()}"/>
       ${pts}
+      ${releveLabels}
       ${xlabels}
       ${endLabel}
     </svg>`;
@@ -471,8 +475,8 @@ function drawChart(points, ligne, dernierReleve) {
       tooltip.style.left=left+'px';
 
       // Vertical: per defecte a dalt; si no hi cap, a sota del punt
-      let top=cyTop-th-8;
-      if(top<2) top=cyTop+r.height+8;
+      let top=cyTop-th-2;
+      if(top<2) top=cyTop+r.height+2;
       tooltip.style.top=top+'px';
     });
     el.addEventListener('mouseleave',()=>tooltip.classList.remove('show'));
