@@ -57,16 +57,19 @@ svg { width: 100%; height: auto; display: block; }
   <select id="contrat-filter" onchange="onContratChange(this.value)" style="margin-top:10px; font-size:13px; padding:6px 11px; border:1px solid #ccc; border-radius:8px; background:inherit; color:inherit; cursor:pointer;">
     <option value="">Tous les contrats</option>
   </select>
+  <select id="cat-filter" onchange="onCatChange(this.value)" style="margin-top:10px; margin-left:8px; font-size:13px; padding:6px 11px; border:1px solid #ccc; border-radius:8px; background:inherit; color:inherit; cursor:pointer;">
+    <option value="">Toutes catégories</option>
+  </select>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 <div class="detail-panel" id="detail-panel"></div>
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-let commandes = [], mouvements = [], dasMap = {}, ligneContrat = {}, contratNoms = {}, contratsMasques = new Set();
+let commandes = [], mouvements = [], dasMap = {}, ligneContrat = {}, ligneLabel = {}, contratNoms = {}, contratsMasques = new Set();
 let moisData = [];
 let vueData = [];
-let filterContrat = '';
+let filterContrat = '', filterCat = '';
 
 // Palette de couleurs pour les contrats
 const PALETTE = ['#378ADD','#1D9E75','#D97B3F','#9C6ADE','#E24B4A','#BA9517','#4AA8C0','#C0568F','#6B8E23','#5E7CE2','#2AA198','#B58900'];
@@ -100,9 +103,12 @@ async function fetchAll() {
     });
     function resolContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
 
-    // Ligne → contrat
-    ligneContrat = {};
-    (lb.id||[]).forEach((id,i)=>{ ligneContrat[id]=resolContrat((lb.Contrat||[])[i]); });
+    // Ligne → contrat + label (pour la catégorie)
+    ligneContrat = {}; ligneLabel = {};
+    (lb.id||[]).forEach((id,i)=>{
+      ligneContrat[id]=resolContrat((lb.Contrat||[])[i]);
+      ligneLabel[id]=(lb.Label||[])[i]||'';
+    });
 
     dasMap = {};
     (d.id||[]).forEach((id,i)=>{ dasMap[id]={
@@ -110,6 +116,7 @@ async function fetchAll() {
       statut:(d.Statut||[])[i]||'',
       num_da:(d.Num_DA||[])[i]||'',
       contrat:resolContrat((d.Contrat||[])[i]),
+      ligne:ligneIdOf((d.Ligne_budgetaire||[])[i]),
     };});
 
     commandes = (c.id||[]).map((id,i)=>({
@@ -128,11 +135,24 @@ async function fetchAll() {
     }));
 
     build();
+
+    // Remplir le sélecteur de catégories (une seule fois, toutes catégories présentes)
+    const catsPresentes = [...new Set(Object.values(ligneLabel).map(getCat))]
+      .sort((a,b)=>CAT_ORDER.indexOf(a)-CAT_ORDER.indexOf(b));
+    const catSel = document.getElementById('cat-filter');
+    if (catSel) {
+      catSel.innerHTML = '<option value="">Toutes catégories</option>' +
+        catsPresentes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    }
+
     render();
   } catch(e) {
     document.getElementById('container').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
   }
 }
+
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label){ for(const k of CAT_ORDER) if(String(label).includes(k)) return k; return 'Autre'; }
 
 function build() {
   // Agréger par mois et par contrat
@@ -146,6 +166,8 @@ function build() {
     if (da.statut !== 'BC reçu' && da.statut !== 'Envoyée PGM') return;
     const contrat = da.contrat;
     if (!contrat || contratsMasques.has(String(contrat).trim())) return;
+    // Filtre catégorie (via la ligne de la DA)
+    if (filterCat && getCat(ligneLabel[da.ligne]) !== filterCat) return;
     const mk = moisKey(da.date_bc);
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
@@ -160,6 +182,8 @@ function build() {
     if (mv.type !== 'Sortie' || !mv.date) return;
     const contrat = ligneContrat[ligneIdOf(mv.ligne)];
     if (!contrat || contratsMasques.has(String(contrat).trim())) return;
+    // Filtre catégorie (via la ligne du mouvement)
+    if (filterCat && getCat(ligneLabel[ligneIdOf(mv.ligne)]) !== filterCat) return;
     const mk = moisKey(mv.date);
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
@@ -193,6 +217,7 @@ function build() {
 }
 
 function onContratChange(v) { filterContrat = v; render(); }
+function onCatChange(v) { filterCat = v; build(); render(); }
 
 // Vue filtrée de moisData selon le contrat sélectionné
 function moisDataView() {
