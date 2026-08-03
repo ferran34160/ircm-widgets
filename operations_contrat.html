@@ -273,11 +273,12 @@ function render() {
     });
 
     // Transferts sortints i entrants (filtrats per període)
-    const tSort = transferts.filter(t => t.source === ligne.id && apresReleve(t.date));
-    const tEnt  = transferts.filter(t => t.dest === ligne.id && apresReleve(t.date));
+    const tSort = transferts.filter(t => t.source === ligne.id && apresReleve(t.date)).sort((a,b) => (a.date||0) - (b.date||0));
+    const tEnt  = transferts.filter(t => t.dest === ligne.id && apresReleve(t.date)).sort((a,b) => (a.date||0) - (b.date||0));
 
     // Mouvements (filtrats per període)
-    const mvts = mouvements.filter(m => m.ligne === ligne.id && apresReleve(m.date));
+    const mvts = mouvements.filter(m => m.ligne === ligne.id && apresReleve(m.date))
+                           .sort((a,b) => (a.date||0) - (b.date||0));
 
     let opsHtml = '';
 
