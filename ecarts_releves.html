@@ -103,6 +103,7 @@ async function fetchAll() {
     (d.id||[]).forEach((id,i)=>{ das[id]={
       ligne:(d.Ligne_budgetaire||[])[i], statut:(d.Statut||[])[i]||'',
       date_bc:toMs((d.Date_reception_BC||[])[i]),
+      date_pgm:toMs((d.Date_OrderPGM||[])[i]),
     };});
 
     commandes = (c.id||[]).map((id,i)=>({
@@ -162,7 +163,10 @@ function calcEcart(ligne) {
     const da = das[c.demande_achat];
     if (!da || da.ligne !== ligne.id) return;
     if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return;
-    if (da.date_bc > t0 && da.date_bc <= t1) cmd += c.montant;
+    // Date de référence : Date_reception_BC ; cas particulier : DA "BC reçu" sans date → Date_OrderPGM
+    let dateRef = da.date_bc;
+    if (!dateRef && da.statut === 'BC reçu') dateRef = da.date_pgm;
+    if (dateRef > t0 && dateRef <= t1) cmd += c.montant;
   });
 
   let tEnt = 0, tSort = 0;
