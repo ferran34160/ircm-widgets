@@ -113,6 +113,7 @@ async function fetchAll() {
     dasMap = {};
     (d.id||[]).forEach((id,i)=>{ dasMap[id]={
       date_bc:toMs((d.Date_reception_BC||[])[i]),
+      date_pgm:toMs((d.Date_OrderPGM||[])[i]),
       statut:(d.Statut||[])[i]||'',
       num_da:(d.Num_DA||[])[i]||'',
       contrat:resolContrat((d.Contrat||[])[i]),
@@ -162,19 +163,22 @@ function build() {
   commandes.forEach(cmd => {
     if (!cmd.da) return;
     const da = dasMap[cmd.da];
-    if (!da || !da.date_bc) return;
+    if (!da) return;
     if (da.statut !== 'BC reçu' && da.statut !== 'Envoyée PGM') return;
+    // Date de dépense : Date_reception_BC ; cas particulier "BC reçu" sans date → Date_OrderPGM
+    const dateDep = da.date_bc || (da.statut === 'BC reçu' ? da.date_pgm : 0);
+    if (!dateDep) return;
     const contrat = da.contrat;
     if (!contrat || contratsMasques.has(String(contrat).trim())) return;
     // Filtre catégorie (via la ligne de la DA)
     if (filterCat && getCat(ligneLabel[da.ligne]) !== filterCat) return;
-    const mk = moisKey(da.date_bc);
+    const mk = moisKey(dateDep);
     if (!parMois[mk]) parMois[mk] = {};
     if (!parMois[mk][contrat]) parMois[mk][contrat] = { montant: 0, items: [] };
     parMois[mk][contrat].montant += cmd.montant;
     // Les 'Frais' comptent au total mais ne sont pas listés
     const accessoire = cmd.type_article === 'Frais';
-    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: da.date_bc, accessoire });
+    parMois[mk][contrat].items.push({ type:'cmd', label:da.num_da + ' · ' + cmd.designation, montant: cmd.montant, date: dateDep, accessoire });
   });
 
   // Mouvements : sorties uniquement
