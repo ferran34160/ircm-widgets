@@ -14,6 +14,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .filter-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
 .filter-btn.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 #dem-filter, #four-filter { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+#bc-search { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 130px; }
+#bc-search:focus { outline: none; border-color: #378ADD; }
 #mail-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
 #mail-panel.show { display: flex; }
 .mp-card { background: #fff; border-radius: 14px; padding: 18px; max-width: 520px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
@@ -41,7 +43,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .sort-arrow { font-size: 9px; line-height: 1; opacity: 0.35; }
 .sort-arrow.on { opacity: 1; color: #378ADD; }
 @media (prefers-color-scheme: dark) { .sort-btn { border-color: #444; } }
-@media (prefers-color-scheme: dark) { #dem-filter, #four-filter { border-color: #444; } }
+@media (prefers-color-scheme: dark) { #dem-filter, #four-filter, #bc-search { border-color: #444; } }
 @media (prefers-color-scheme: dark) { .filter-btn { border-color: #444; } }
 .da-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px)); gap: 14px; align-items: start; }
 .da-group { background: #fafaf8; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
@@ -114,6 +116,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
     <select id="dem-filter" onchange="onDemChange(this.value)"><option value="">Tous les demandeurs</option></select>
     <select id="four-filter" onchange="onFourChange(this.value)"><option value="">Tous les fournisseurs</option></select>
+    <input type="text" id="bc-search" placeholder="🔍 N° BC…" oninput="onSearchBC(this.value)" autocomplete="off">
     <button class="sort-btn" id="sort-btn" onclick="toggleSort()" title="Trier par date de réception du BC"></button>
     <button class="sort-btn" id="hide-btn" onclick="toggleHideRecus()" title="Masquer les articles déjà reçus"></button>
   </div>
@@ -129,7 +132,7 @@ const MAIL_TEST = '';
 // Noms qui ne sont pas des personnes : pas d'e-mail, pas de salutation.
 const NOMS_SANS_MAIL = ['Commun'];
 
-let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', filterFour = '', sortAsc = true, hideRecus = true;
+let articles = [], dasMap = {}, fourNoms = {}, emailsDem = {}, filter = 'attente', filterDem = '', filterFour = '', searchBC = '', sortAsc = true, hideRecus = true;
 const montrerRecusDA = new Set();  // DA où l'on force l'affichage des reçus
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -212,6 +215,13 @@ function fmtDemandeur(v) {
 }
 function onDemChange(v) { filterDem = v; render(); }
 function onFourChange(v) { filterFour = v; render(); }
+function onSearchBC(v) {
+  searchBC = v;
+  render();
+  // Garder le focus dans le champ
+  const inp = document.getElementById('bc-search');
+  if (inp) { inp.focus(); }
+}
 
 function toggleSort() { sortAsc = !sortAsc; render(); }
 
@@ -307,11 +317,14 @@ function render() {
     const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
     return dems.includes(filterDem);
   };
+  const q = searchBC.trim().toLowerCase();
+  const matchBC = (da) => !q || (da.num_bc && String(da.num_bc).toLowerCase().includes(q));
   const totauxDA = {};
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu' || da.masque) return;
     if (filterFour && da.fournisseur !== filterFour) return;
+    if (!matchBC(da)) return;
     if (estService(a)) return;
     if (!matchDem(a)) return;
     const key = a.demande_achat || 'sans';
@@ -325,6 +338,7 @@ function render() {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu' || da.masque) return false;
     if (filterFour && da.fournisseur !== filterFour) return false;
+    if (!matchBC(da)) return false;
     if (estService(a)) return false;
     if (!matchDem(a)) return false;
     return true;
