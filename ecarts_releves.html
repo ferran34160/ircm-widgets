@@ -52,7 +52,7 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let lignes=[], releves=[], commandes=[], transferts=[], mouvements=[], das={}, contratNoms={}, contratsMasques=new Set();
+let lignes=[], releves=[], commandes=[], transferts=[], mouvements=[], notifications=[], das={}, contratNoms={}, contratsMasques=new Set();
 
 const CAT_COLORS = {
   'Fonctionnement': { c: '#378ADD', bg: '#EAF3FB', dark: '#16314A', txt: '#0C447C', dtxt: '#9FC6EE' },
@@ -72,7 +72,7 @@ function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); i
 
 async function fetchAll() {
   try {
-    const [l,r,c,t,m,d,ct] = await Promise.all([
+    const [l,r,c,t,m,d,ct,no] = await Promise.all([
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Releves_PGM'),
       grist.docApi.fetchTable('Commandes'),
@@ -80,6 +80,7 @@ async function fetchAll() {
       grist.docApi.fetchTable('Mouvements'),
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Notifications_credit').catch(()=>null),
     ]);
 
     contratNoms = {}; contratsMasques = new Set();
@@ -118,6 +119,12 @@ async function fetchAll() {
       id, ligne:(m.Ligne_budgetaire||[])[i]||null, type:(m.Type||[])[i]||'',
       montant:(m.Montant||[])[i]||0, date:toMs((m.Date||[])[i]),
     }));
+
+    const refLigne = v => (v==null?null : typeof v==='number'?v : Array.isArray(v)?v[1]:v);
+    notifications = no ? (no.id||[]).map((id,i)=>({
+      ligne:refLigne((no.Ligne_budgetaire||[])[i]),
+      montant:(no.Montant||[])[i]||0, date:toMs((no.Date_notification||[])[i]),
+    })) : [];
 
     const contratSet = [...new Set(lignes.map(x=>x.contrat))].filter(c=>c && !contratsMasques.has(String(c).trim())).sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
     const sel = document.getElementById('contrat-select');
@@ -173,7 +180,13 @@ function calcEcart(ligne) {
     }
   });
 
-  const calcule = precedent.officiel + tEnt - tSort - cmd + mvt;
+  // Mises à disposition PGM (notifications de crédit) entre les deux relevés
+  let notif = 0;
+  notifications.forEach(n => {
+    if (n.ligne === ligne.id && n.date > t0 && n.date <= t1) notif += n.montant;
+  });
+
+  const calcule = precedent.officiel + tEnt - tSort - cmd + mvt + notif;
   const ecart = dernier.officiel - calcule;
   return { first: false, officiel: dernier.officiel, calcule, ecart, date: dernier.date };
 }
