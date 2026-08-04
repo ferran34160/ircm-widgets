@@ -415,9 +415,11 @@ function drawChart(points, ligne, dernierReleve) {
   // L'étiquette va toujours à droite du bout de la ligne (l'espace est réservé par padR)
   const labelX = xEnd + 10;
   const finalCol = finalDispo < 0 ? '#E24B4A' : '#1D9E75';
+  const dateAuj = fmtDate(Date.now());
   const endLabel = `
     <rect x="${labelX.toFixed(1)}" y="${(yEnd-11).toFixed(1)}" width="${labelW}" height="22" rx="6" fill="${finalCol}"/>
-    <text x="${(labelX+labelW/2).toFixed(1)}" y="${(yEnd+4).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">${labelTxt}</text>`;
+    <text x="${(labelX+labelW/2).toFixed(1)}" y="${(yEnd+4).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">${labelTxt}</text>
+    <text x="${(labelX+labelW/2).toFixed(1)}" y="${(yEnd+22).toFixed(1)}" text-anchor="middle" fill="${finalCol}" font-size="9.5" font-style="italic">${dateAuj}</text>`;
 
   const svg=`
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
