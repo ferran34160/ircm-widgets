@@ -54,6 +54,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .op-amount.neg { color: #A32D2D; }
 .op-amount.pos { color: #0F6E56; }
 @media (prefers-color-scheme: dark) { .op-amount.neg { color: #F09595; } .op-amount.pos { color: #5DCAA5; } }
+.op-total { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-top: 8px; padding: 8px 8px 4px 12px; border-top: 1.5px solid #d8d8d8; font-size: 12px; }
+@media (prefers-color-scheme: dark) { .op-total { border-top-color: #444; } }
+.op-total-lbl { color: #888; font-style: italic; }
+.op-total-amount { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.op-total-amount.neg { color: #A32D2D; }
+.op-total-amount.pos { color: #0F6E56; }
+@media (prefers-color-scheme: dark) { .op-total-amount.neg { color: #F09595; } .op-total-amount.pos { color: #5DCAA5; } }
 .no-op { padding-left: 0; color: #bbb; border: none; font-style: italic; }
 .empty { text-align: center; padding: 30px; color: #aaa; }
 </style>
@@ -333,6 +340,21 @@ function render() {
 
     if (!opsHtml) opsHtml = '<div class="op-row no-op">Aucune opération</div>';
 
+    // Sommatoire de la ligne : montant net + nombre d'opérations
+    let totalLigne = 0, nbOps = 0;
+    daKeys.forEach(k => { totalLigne -= parDA[k].total; nbOps += 1; });
+    tEnt.forEach(t => { totalLigne += t.montant; nbOps += 1; });
+    tSort.forEach(t => { totalLigne -= t.montant; nbOps += 1; });
+    mvts.forEach(m => { totalLigne += (m.type === 'Sortie' ? -m.montant : m.montant); nbOps += 1; });
+
+    let sumHtml = '';
+    if (nbOps > 0) {
+      const opLabel = nbOps === 1 ? '1 opération' : nbOps + ' opérations';
+      const cls = totalLigne < 0 ? 'neg' : 'pos';
+      const signe = totalLigne < 0 ? '− ' : '+ ';
+      sumHtml = `<div class="op-total"><span class="op-total-lbl">${opLabel}</span><span class="op-total-amount ${cls}">${signe}${fmt(Math.abs(totalLigne))}</span></div>`;
+    }
+
     const col = catColor(ligne.label);
     const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
     const headBg = isDark ? col.dark : col.bg;
@@ -343,7 +365,7 @@ function render() {
           <div class="ligne-dispo ${dispoClass}">Disponible : ${fmt(ligne.disponible)}</div>
           ${ligne.reste_notifier > 0 ? `<div class="ligne-init">Reste à notifier : ${fmt(ligne.reste_notifier)}</div>` : ''}
         </div>
-        <div class="ops">${opsHtml}</div>
+        <div class="ops">${opsHtml}${sumHtml}</div>
       </div>`;
     });
     html += '</div></div>';
