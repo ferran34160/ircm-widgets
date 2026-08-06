@@ -11,14 +11,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
 .tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
-.bc-search { margin-left: 6px; }
-.bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 130px; }
-.bc-search input:focus { outline: none; border-color: #378ADD; }
-@media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
-.libres-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #9C6ADE; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(156,106,222,0.25); width: 130px; }
-.libres-card:hover { background: #875BC8; }
-.libres-card.active { box-shadow: 0 0 0 3px rgba(156,106,222,0.4); }
-.libres-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
 @media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
 .spacer { flex: 1; }
 .btn-new { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; border: none; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
@@ -26,10 +18,34 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .refresh { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .refresh { border-color: #444; } }
 .layout { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
-.cards-row { display: flex; gap: 12px; }
 @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 .inner-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
-@media (max-width: 720px) { .inner-layout { grid-template-columns: 1fr; } }
+.inner-layout.editing { grid-template-columns: 300px 1fr 320px; }
+@media (max-width: 720px) { .inner-layout, .inner-layout.editing { grid-template-columns: 1fr; } }
+.edit-card { border: 1px solid #d0d7e2; border-radius: 11px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { .edit-card { border-color: #3a4450; } }
+.edit-head { background: #e7edf4; padding: 11px 13px; display: flex; justify-content: space-between; align-items: center; }
+@media (prefers-color-scheme: dark) { .edit-head { background: #2a333d; } }
+.edit-title { font-size: 13px; font-weight: 600; }
+.edit-body { padding: 13px; display: flex; flex-direction: column; gap: 11px; }
+.edit-field label { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; display: block; margin-bottom: 4px; }
+.edit-field input, .edit-field select { width: 100%; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; box-sizing: border-box; }
+@media (prefers-color-scheme: dark) { .edit-field input, .edit-field select { border-color: #444; } }
+.edit-foot { padding: 11px 13px; border-top: 1px solid #eee; display: flex; gap: 8px; }
+@media (prefers-color-scheme: dark) { .edit-foot { border-top-color: #333; } }
+.btn-save { background: #2563a8; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.btn-save:hover { background: #1d4e85; }
+.btn-cancel-edit { background: transparent; border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; color: inherit; }
+@media (prefers-color-scheme: dark) { .btn-cancel-edit { border-color: #555; } }
+.btn-edit { background: transparent; border: 1px solid #b8c4d4; border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #2563a8; }
+.btn-edit:hover { background: #eef3f9; }
+@media (prefers-color-scheme: dark) { .btn-edit { border-color: #445; color: #7ab3f0; } .btn-edit:hover { background: #2a333d; } }
+.btn-edit-com { background: transparent; border: none; cursor: pointer; color: #999; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+.btn-edit-com:hover { background: #eef3f9; color: #2563a8; }
+@media (prefers-color-scheme: dark) { .btn-edit-com:hover { background: #2a333d; color: #7ab3f0; } }
+.edit-msg { font-size: 12px; margin-top: 4px; min-height: 16px; }
+.edit-msg.ok { color: #0F6E56; }
+.edit-msg.err { color: #A32D2D; }
 .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
 .filters-row { display: flex; gap: 6px; margin-bottom: 8px; }
 .four-filter { flex: 1; min-width: 0; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; }
@@ -82,13 +98,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.art-right { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-.art-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
-.art-livr.recu { background: #E1F5EE; color: #1D9E75; }
-.art-livr.attente { background: rgba(0,0,0,0.06); color: #999; }
-@media (prefers-color-scheme: dark) { .art-livr.recu { background: #16291F; color: #5FCFA0; } .art-livr.attente { background: rgba(255,255,255,0.08); color: #888; } }
-.art-devise { font-size: 10px; color: #B8860B; font-style: italic; margin-top: 2px; }
-@media (prefers-color-scheme: dark) { .art-devise { color: #E0C060; } }
 .detail-action { padding: 13px; border-top: 1px solid #eee; }
 .detail-action-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
 .detail-action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -109,15 +118,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
 }
 .detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
-.detail-dates { font-size: 11px; color: #999; margin-top: 3px; }
-.total-devise { font-size: 11px; color: #B8860B; font-style: italic; text-align: right; padding: 4px 13px 8px; background: #fafafa; }
-.da-item-livr { margin-top: 5px; }
-.da-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; }
-.da-livr.all { background: #E1F5EE; color: #1D9E75; }
-.da-livr.partial { background: #FBF3E0; color: #BA7517; }
-.da-livr.none { background: rgba(0,0,0,0.06); color: #999; }
-@media (prefers-color-scheme: dark) { .da-livr.all { background: #16291F; color: #5FCFA0; } .da-livr.partial { background: #332B16; color: #E0C060; } .da-livr.none { background: rgba(255,255,255,0.08); color: #888; } }
-@media (prefers-color-scheme: dark) { .total-devise { color: #E0C060; background: #242424; } }
 @media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
 .detail-total { font-weight: 600; font-size: 14px; }
 .empty { text-align: center; padding: 40px 20px; color: #aaa; font-size: 13px; }
@@ -128,8 +128,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .assign-toolbar button { font-size: 11px; padding: 4px 9px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .assign-toolbar button { border-color: #444; } }
 .assign-da-select { width: 100%; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; margin-bottom: 10px; }
-.assign-da-label { font-size: 12px; font-weight: 600; color: #666; margin: 14px 0 6px; }
-@media (prefers-color-scheme: dark) { .assign-da-label { color: #aaa; } }
 @media (prefers-color-scheme: dark) { .assign-da-select { border-color: #444; } }
 .assign-art { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 5px; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .assign-art { border-color: #383838; } }
@@ -165,9 +163,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
+let das = [], commandes = [], contratNoms = {}, fourNoms = {};
 let contratsList = [], fournisseursList = [], lignesList = [];
-let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
+let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '';
+let editTarget = null;  // {type:'da', id} o {type:'com', id} — targeta d'edició oberta
+const STATUTS = ['En cours', 'Envoyée PGM', 'BC reçu'];
+const TYPES_ARTICLE = ['Produit', 'Service', 'Frais'];
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -186,6 +187,7 @@ function attachIds(v){
 
 function resolveContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
 function resolveFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
+function refId(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]||null; return null; }
 
 async function fetchAll() {
   try {
@@ -199,12 +201,7 @@ async function fetchAll() {
 
     contratNoms = {};
     contratsList = [];
-    contratsMasques = new Set();
-    (ct.id||[]).forEach((id,i)=>{
-      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
-      contratsList.push({id, nom:contratNoms[id]});
-      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
-    });
+    (ct.id||[]).forEach((id,i)=>{ contratNoms[id]=(ct.Nom||[])[i]||('#'+id); contratsList.push({id, nom:contratNoms[id]}); });
     fourNoms = {};
     fournisseursList = [];
     (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); fournisseursList.push({id, nom:fourNoms[id]}); });
@@ -217,8 +214,10 @@ async function fetchAll() {
     das = (d.id||[]).map((id,i)=>({
       id,
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
-      contrat:resolveContrat((d.Contrat||[])[i]), masque:contratsMasques.has(String(resolveContrat((d.Contrat||[])[i])).trim()),
+      contrat:resolveContrat((d.Contrat||[])[i]),
+      contrat_id:refId((d.Contrat||[])[i]),
       fournisseur:resolveFour((d.Fournisseur||[])[i]),
+      fournisseur_id:refId((d.Fournisseur||[])[i]),
       date_da:(d.Date_DA||[])[i],
       date_pgm:(d.Date_OrderPGM||[])[i],
       date_bc:(d.Date_reception_BC||[])[i],
@@ -236,13 +235,11 @@ async function fetchAll() {
       designation:(c.Designation2||[])[i]||'',
       ref:(c.Reference_fournisseur||[])[i]||'',
       qte:(c.Quantite||[])[i]||1,
+      prix:(c.Prix_unitaire_HT||[])[i]||0,
+      code_ghp:(c.Code_GHP||[])[i]||'',
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       type_article:(c.Type_article||[])[i]||'Produit',
       demandeur:(c.Demandeur||[])[i]||null,
-      devise:(c.Devise||[])[i]||'EUR',
-      prix:(c.Prix_unitaire_HT||[])[i]||0,
-      taux:(c.Taux_change||[])[i]||1,
-      statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
     }));
 
     render();
@@ -270,7 +267,7 @@ function choixList(v) {
 
 function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
 function totalOf(daId) { return artsOf(daId).reduce((s,a)=>s+a.montant,0); }
-function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length; }
+function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service').length; }
 
 function badgeClass(statut) {
   if (statut === 'En cours') return 'b-cours';
@@ -291,20 +288,11 @@ function renderFrame(centerAndRight) {
   container.innerHTML = `
     <div class="layout">
       <div class="panel">
-        <div class="cards-row">
-          <div class="new-da-card" onclick="openNewDA()">
-            <div class="new-da-icon">+</div>
-            <div>
-              <div class="new-da-title">Nouvelle DA</div>
-              <div class="new-da-sub">Créer une demande d'achat</div>
-            </div>
-          </div>
-          <div class="libres-card ${tab==='libres'?'active':''}" onclick="setTab('libres')">
-            <div class="libres-icon">📋</div>
-            <div>
-              <div class="new-da-title">Articles libres</div>
-              <div class="new-da-sub">Assigner des articles à une DA</div>
-            </div>
+        <div class="new-da-card" onclick="openNewDA()">
+          <div class="new-da-icon">+</div>
+          <div>
+            <div class="new-da-title">Nouvelle DA</div>
+            <div class="new-da-sub">Créer une demande d'achat</div>
           </div>
         </div>
       </div>
@@ -314,9 +302,7 @@ function renderFrame(centerAndRight) {
           <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
           <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
           <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
-          <div class="bc-search">
-            <input type="text" id="bc-search-input" placeholder="🔍 N° BC…" value="${searchBC.replace(/"/g,'&quot;')}" oninput="onSearchBC(this.value)">
-          </div>
+          <button class="tab ${tab==='libres'?'active':''}" onclick="setTab('libres')">Articles libres</button>
         </div>
         <div class="frame-content">${centerAndRight}</div>
       </div>
@@ -325,22 +311,11 @@ function renderFrame(centerAndRight) {
 
 // Contingut de la vista llista (columna llista + detall)
 function renderListContent() {
-  let list = das.slice().filter(d => d.statut !== 'Annulée' && !d.masque);
+  let list = das.slice().filter(d => d.statut !== 'Annulée');
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
-  if (searchBC.trim()) {
-    const q = searchBC.trim().toLowerCase();
-    list = list.filter(d => (d.num_bc || '').toLowerCase().includes(q));
-  }
-  const dateRef = (d) => {
-    // A "Toutes": toujours par Date_DA (chronologie de création)
-    if (tab === 'toutes') return toMs(d.date_da);
-    // Sinon: date pertinente selon le statut
-    if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') return toMs(d.date_bc) || toMs(d.date_pgm) || toMs(d.date_da);
-    return toMs(d.date_da);
-  };
-  list.sort((a,b) => dateRef(b) - dateRef(a));
+  list.sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
   const nbLibres = commandes.filter(c => !c.demande_achat).length;
 
@@ -360,20 +335,11 @@ function renderListContent() {
   list.forEach(d => {
     const sel = selectedDA === d.id ? 'sel' : '';
     const nb = nbProduits(d.id);
-    const dProds = artsOf(d.id).filter(a => a.statut_livr === 'Reçu' || a.statut_livr === 'En attente');
-    const nbRecus = dProds.filter(a => a.statut_livr === 'Reçu').length;
-    let livrBadge = '';
-    if (dProds.length && (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu')) {
-      const tous = nbRecus === dProds.length;
-      const cls = tous ? 'all' : (nbRecus > 0 ? 'partial' : 'none');
-      livrBadge = `<span class="da-livr ${cls}">${nbRecus}/${dProds.length} livrés</span>`;
-    }
     listHtml += `
       <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
         <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
         <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
-        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${(d.statut==='Envoyée PGM'||d.statut==='BC reçu') ? 'PGM '+fmtDate(d.date_pgm) : fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
-        ${livrBadge ? `<div class="da-item-livr">${livrBadge}</div>` : ''}
+        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
       </div>`;
   });
   if (!listHtml) listHtml = '<div class="empty">Aucune DA.</div>';
@@ -386,8 +352,11 @@ function renderListContent() {
     detailHtml = '<div class="empty">Sélectionnez une DA pour voir le détail.</div>';
   }
 
+  const editHtml = editTarget ? `<div class="edit-col">${renderEditCard()}</div>` : '';
+  const editingCls = editTarget ? ' editing' : '';
+
   return `
-    <div class="inner-layout">
+    <div class="inner-layout${editingCls}">
       <div>
         <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
         <div class="filters-row">
@@ -400,6 +369,7 @@ function renderListContent() {
         <div class="panel-title">Détail</div>
         ${detailHtml}
       </div>
+      ${editHtml}
     </div>`;
 }
 
@@ -407,59 +377,26 @@ function renderDetail(d) {
   if (!d) return '<div class="empty">DA introuvable.</div>';
   const arts = artsOf(d.id);
   const total = totalOf(d.id);
-  const nbProd = arts.filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length;
+  const nbProd = arts.filter(a=>a.type_article!=='Service').length;
   const nbServ = arts.filter(a=>a.type_article==='Service').length;
-  const nbFrais = arts.filter(a=>a.type_article==='Frais').length;
 
   let artsHtml = arts.length ? arts.map(a => {
     const dems = choixList(a.demandeur);
     const demHtml = dems.length ? `<div class="art-dem">${dems.map(x=>`<span class="dem-tag">${x}</span>`).join('')}</div>` : '';
-    let deviseHtml = '';
-    if (a.devise && a.devise !== 'EUR') {
-      const origTotal = (a.prix || 0) * (a.qte || 1);
-      const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
-      const sym = symbols[a.devise] || (a.devise + ' ');
-      const origStr = a.devise === 'USD' || a.devise === 'GBP'
-        ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
-        : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + a.devise;
-      deviseHtml = `<div class="art-devise">${origStr} → ${fmt(a.montant)} (taux ${a.taux}). Valeur estimée en EUR.</div>`;
-    }
-    const livr = a.statut_livr === 'Reçu';
-    const hasLivr = a.statut_livr === 'Reçu' || a.statut_livr === 'En attente';
-    const livrDate = livr && a.date_livr ? ' ' + fmtDate(a.date_livr) : '';
-    const livrHtml = !hasLivr
-      ? ''
-      : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
     return `
-    <div class="art ${a.type_article==='Frais'?'svc':''}">
+    <div class="art ${a.type_article==='Service'?'svc':''}">
       <div class="art-main">
-        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
+        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+        <span style="display:flex; align-items:center; gap:6px;">
+          <span class="art-price">${fmt(a.montant)}</span>
+          <button class="btn-edit-com" onclick="openEditCom(${a.id})" title="Modifier cet article">✎</button>
+        </span>
       </div>
-      ${deviseHtml}
       ${demHtml}
     </div>`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
-  const parts = [];
-  if (nbProd) parts.push(`${nbProd} article(s)`);
-  if (nbServ) parts.push(`${nbServ} service(s)`);
-  if (nbFrais) parts.push(`${nbFrais} frais`);
-  const footLabel = parts.join(' + ') || '0 article(s)';
-
-  // Divisa de la DA (si tots els articles són en la mateixa devise non-EUR)
-  const devises = [...new Set(arts.map(a => a.devise || 'EUR'))];
-  const daDevise = devises.length === 1 ? devises[0] : 'EUR';
-  let totalDeviseHtml = '';
-  if (daDevise !== 'EUR' && arts.length) {
-    const origTotal = arts.reduce((s,a) => s + (a.prix||0)*(a.qte||1), 0);
-    const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
-    const sym = symbols[daDevise] || (daDevise + ' ');
-    const origStr = (daDevise === 'USD' || daDevise === 'GBP')
-      ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
-      : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + daDevise;
-    totalDeviseHtml = `<div class="total-devise">${origStr} → ${fmt(total)}. Valeur estimée en EUR.</div>`;
-  }
+  const footLabel = nbServ ? `${nbProd} article(s) + ${nbServ} service(s)` : `${nbProd} article(s)`;
 
   // Acció: passar a Envoyée PGM (només si està En cours i té articles)
   const today = new Date().toISOString().slice(0,10);
@@ -498,18 +435,17 @@ function renderDetail(d) {
           <span class="detail-num">${d.num_da}</span>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+            <button class="btn-edit" onclick="openEditDA(${d.id})">✎ Modifier</button>
             <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
           </div>
         </div>
-        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
-        <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
+        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'} · ${fmtDate(d.date_da)}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
       </div>
       <div class="detail-arts">${artsHtml}</div>
       <div class="detail-foot">
         <span style="color:#888">${footLabel}</span>
         <span class="detail-total">${fmt(total)}</span>
       </div>
-      ${totalDeviseHtml}
       <div class="detail-files">
         <div class="detail-files-title">Documents</div>
         <div class="detail-files-row">${filesHtml}</div>
@@ -609,25 +545,6 @@ function setFilterFour(v) {
   selectedDA = null;
   render();
 }
-function onSearchBC(v) {
-  searchBC = v;
-  if (v.trim() && tab === 'libres') { tab = 'toutes'; }
-
-  // Si la recherche BC ne laisse qu'une seule DA, la sélectionner automatiquement
-  if (v.trim()) {
-    const q = v.trim().toLowerCase();
-    const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && (d.num_bc || '').toLowerCase().includes(q));
-    selectedDA = matches.length === 1 ? matches[0].id : null;
-  } else {
-    selectedDA = null;
-  }
-
-  // Re-renderitzar mantenint el focus a l'input
-  renderFrame(renderListContent());
-  const inp = document.getElementById('bc-search-input');
-  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-  render();
-}
 
 function setFilterDem(v) {
   filterDem = v;
@@ -636,16 +553,161 @@ function setFilterDem(v) {
 }
 
 function selectDA(id) {
+  const changing = (selectedDA !== id);
   selectedDA = id;
-  // Actualitzar selecció visual de la llista
-  document.querySelectorAll('.da-item').forEach(el => el.classList.remove('sel'));
+  if (changing) editTarget = null;  // tancar edició en canviar de DA
+  render();
   const item = document.querySelector('.da-item[data-da="' + id + '"]');
   if (item) item.classList.add('sel');
-  // Actualitzar el panell de detall directament (segona columna de inner-layout)
-  const d = das.find(x => x.id === id);
-  const inner = document.querySelector('.inner-layout');
-  if (inner && inner.children[1]) {
-    inner.children[1].innerHTML = '<div class="panel-title">Détail</div>' + renderDetail(d);
+}
+
+// ---- ÉDITION ----
+
+function refreshEditColumn() {
+  render();
+  // Mantenir el ressaltat de la DA seleccionada després del render
+  if (selectedDA) {
+    const item = document.querySelector('.da-item[data-da="' + selectedDA + '"]');
+    if (item) item.classList.add('sel');
+  }
+}
+
+function openEditDA(id) { editTarget = { type: 'da', id }; refreshEditColumn(); }
+function openEditCom(id) { editTarget = { type: 'com', id }; refreshEditColumn(); }
+function closeEdit() { editTarget = null; refreshEditColumn(); }
+
+function fmtDateInput(v) {
+  // Reutilitza toMs del widget (gestiona segons/ms) → yyyy-mm-dd per a l'input date
+  const ms = toMs(v);
+  if (!ms) return '';
+  const dt = new Date(ms);
+  if (isNaN(dt) || dt.getFullYear() > 3000) return '';
+  return dt.toISOString().slice(0, 10);
+}
+
+function renderEditCard() {
+  if (!editTarget) return '';
+  if (editTarget.type === 'da') return renderEditDA();
+  return renderEditCom();
+}
+
+function renderEditDA() {
+  const d = das.find(x => x.id === editTarget.id);
+  if (!d) return '';
+  const contratOpts = ['<option value="">— Contrat —</option>']
+    .concat(contratsList.map(c => `<option value="${c.id}" ${c.id===d.contrat_id?'selected':''}>${c.nom}</option>`)).join('');
+  const fourOpts = ['<option value="">— Fournisseur —</option>']
+    .concat(fournisseursList.map(f => `<option value="${f.id}" ${f.id===d.fournisseur_id?'selected':''}>${f.nom}</option>`)).join('');
+  const statutOpts = STATUTS.map(s => `<option value="${s}" ${s===d.statut?'selected':''}>${s}</option>`).join('');
+  return `
+    <div class="edit-card">
+      <div class="edit-head">
+        <span class="edit-title">Modifier ${d.num_da}</span>
+        <button class="btn-cancel-edit" style="padding:3px 9px;" onclick="closeEdit()">✕</button>
+      </div>
+      <div class="edit-body">
+        <div class="edit-field"><label>Contrat</label><select id="ed-contrat">${contratOpts}</select></div>
+        <div class="edit-field"><label>Fournisseur</label><select id="ed-four">${fourOpts}</select></div>
+        <div class="edit-field"><label>Statut</label><select id="ed-statut">${statutOpts}</select></div>
+        <div class="edit-field"><label>Date DA</label><input type="date" id="ed-date-da" value="${fmtDateInput(d.date_da)}"></div>
+        <div class="edit-field"><label>Date envoi PGM</label><input type="date" id="ed-date-pgm" value="${fmtDateInput(d.date_pgm)}"></div>
+        <div class="edit-field"><label>Date réception BC</label><input type="date" id="ed-date-bc" value="${fmtDateInput(d.date_bc)}"></div>
+        <div class="edit-field"><label>N° BC</label><input type="text" id="ed-num-bc" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
+        <div class="edit-msg" id="ed-msg"></div>
+      </div>
+      <div class="edit-foot">
+        <button class="btn-save" onclick="saveEditDA(${d.id})">Enregistrer</button>
+        <button class="btn-cancel-edit" onclick="closeEdit()">Annuler</button>
+      </div>
+    </div>`;
+}
+
+function renderEditCom() {
+  const a = commandes.find(x => x.id === editTarget.id);
+  if (!a) return '';
+  const typeOpts = TYPES_ARTICLE.map(t => `<option value="${t}" ${t===a.type_article?'selected':''}>${t}</option>`).join('');
+  return `
+    <div class="edit-card">
+      <div class="edit-head">
+        <span class="edit-title">Modifier l'article</span>
+        <button class="btn-cancel-edit" style="padding:3px 9px;" onclick="closeEdit()">✕</button>
+      </div>
+      <div class="edit-body">
+        <div class="edit-field"><label>Désignation</label><input type="text" id="ec-desig" value="${(a.designation||'').replace(/"/g,'&quot;')}"></div>
+        <div class="edit-field"><label>Référence fournisseur</label><input type="text" id="ec-ref" value="${(a.ref||'').replace(/"/g,'&quot;')}"></div>
+        <div class="edit-field"><label>Code GHP</label><input type="text" id="ec-ghp" value="${(a.code_ghp||'').replace(/"/g,'&quot;')}"></div>
+        <div class="edit-field"><label>Quantité</label><input type="number" id="ec-qte" step="any" value="${a.qte}"></div>
+        <div class="edit-field"><label>Prix unitaire HT</label><input type="number" id="ec-prix" step="any" value="${a.prix}"></div>
+        <div class="edit-field"><label>Type d'article</label><select id="ec-type">${typeOpts}</select></div>
+        <div class="edit-field"><label>Demandeur</label><input type="text" id="ec-dem" value="${(choixList(a.demandeur).join(', ')||'').replace(/"/g,'&quot;')}"></div>
+        <div class="edit-msg" id="ec-msg"></div>
+      </div>
+      <div class="edit-foot">
+        <button class="btn-save" onclick="saveEditCom(${a.id})">Enregistrer</button>
+        <button class="btn-cancel-edit" onclick="closeEdit()">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function saveEditDA(id) {
+  const msg = document.getElementById('ed-msg');
+  const contratId = document.getElementById('ed-contrat').value;
+  const fourId = document.getElementById('ed-four').value;
+  const statut = document.getElementById('ed-statut').value;
+  const dateDA = document.getElementById('ed-date-da').value;
+  const datePGM = document.getElementById('ed-date-pgm').value;
+  const dateBC = document.getElementById('ed-date-bc').value;
+  const numBC = document.getElementById('ed-num-bc').value.trim();
+  const toEpoch = s => s ? Math.floor(new Date(s + 'T00:00:00Z').getTime() / 1000) : null;
+  const fields = {
+    Contrat: contratId ? Number(contratId) : null,
+    Fournisseur: fourId ? Number(fourId) : null,
+    Statut: statut,
+    Date_DA: toEpoch(dateDA),
+    Date_OrderPGM: toEpoch(datePGM),
+    Date_reception_BC: toEpoch(dateBC),
+    Num_BC: numBC,
+  };
+  try {
+    if (msg) { msg.className = 'edit-msg'; msg.textContent = 'Enregistrement…'; }
+    await grist.docApi.applyUserActions([['UpdateRecord', 'Demandes_achat', id, fields]]);
+    editTarget = null;
+    await fetchAll();
+    if (selectedDA) selectDA(selectedDA);
+  } catch (e) {
+    if (msg) { msg.className = 'edit-msg err'; msg.textContent = 'Erreur : ' + e.message; }
+  }
+}
+
+async function saveEditCom(id) {
+  const msg = document.getElementById('ec-msg');
+  const desig = document.getElementById('ec-desig').value;
+  const ref = document.getElementById('ec-ref').value;
+  const ghp = document.getElementById('ec-ghp').value;
+  const qte = parseFloat(document.getElementById('ec-qte').value) || 0;
+  const prix = parseFloat(document.getElementById('ec-prix').value) || 0;
+  const type = document.getElementById('ec-type').value;
+  const demRaw = document.getElementById('ec-dem').value.trim();
+  // Demandeur peut être une ChoiceList : on envoie ['L', ...valeurs] ou null
+  const demVals = demRaw ? demRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const demField = demVals.length ? ['L', ...demVals] : null;
+  const fields = {
+    Designation2: desig,
+    Reference_fournisseur: ref,
+    Code_GHP: ghp,
+    Quantite: qte,
+    Prix_unitaire_HT: prix,
+    Type_article: type,
+    Demandeur: demField,
+  };
+  try {
+    if (msg) { msg.className = 'edit-msg'; msg.textContent = 'Enregistrement…'; }
+    await grist.docApi.applyUserActions([['UpdateRecord', 'Commandes', id, fields]]);
+    editTarget = null;
+    await fetchAll();
+    if (selectedDA) selectDA(selectedDA);
+  } catch (e) {
+    if (msg) { msg.className = 'edit-msg err'; msg.textContent = 'Erreur : ' + e.message; }
   }
 }
 
@@ -675,6 +737,7 @@ function renderLibresContent() {
   return `
     <div style="max-width:560px;">
       <div class="panel-title">Assigner les articles libres à une DA en cours</div>
+      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
       <div class="assign-toolbar">
         <button onclick="selectAllLibres()">Tout sélectionner</button>
         <button onclick="deselectAllLibres()">Tout désélectionner</button>
@@ -682,8 +745,6 @@ function renderLibresContent() {
         <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
       ${artsHtml}
-      <div class="assign-da-label">Choisir la DA de destination :</div>
-      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
       <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
       <div class="msg" id="msg"></div>
     </div>`;
@@ -719,11 +780,12 @@ async function assignArticles() {
     await grist.docApi.applyUserActions([
       ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(()=>Number(daId)) }]
     ]);
+    const da = das.find(x => x.id == daId);
+    msg.className = 'msg ok';
+    msg.textContent = `${ids.length} article(s) assigné(s) à ${da ? da.num_da : ''}`;
     selectedArts.clear();
-    // Passar a la vista "En cours" i seleccionar la DA on s'han assignat
-    tab = 'En cours';
-    selectedDA = Number(daId);
     await fetchAll();
+    setTimeout(() => { if(document.getElementById('msg')){} }, 100);
   } catch(e) {
     msg.className = 'msg err';
     msg.textContent = 'Erreur : ' + e.message;
@@ -805,17 +867,6 @@ function onNewContratChange() {
     const c = l.contrat;
     const cid = typeof c === 'number' ? c : (Array.isArray(c) ? c[1] : null);
     return cid == contratId;
-  }).sort((a, b) => {
-    const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
-    const ord = lbl => {
-      const s = String(lbl); let cat = CAT.findIndex(c => s.includes(c)); if (cat < 0) cat = 99;
-      const low = s.toLowerCase(); const rang = low.includes('indirect') ? 1 : (low.includes('direct') ? 0 : 2);
-      return [cat, rang, low];
-    };
-    const oa = ord(a.label), ob = ord(b.label);
-    if (oa[0] !== ob[0]) return oa[0] - ob[0];
-    if (oa[1] !== ob[1]) return oa[1] - ob[1];
-    return oa[2].localeCompare(ob[2], 'fr');
   });
   sel.disabled = false;
   sel.innerHTML = '<option value="">— Choisir —</option>' +
