@@ -171,6 +171,7 @@ let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques =
 let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
 let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
+let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -258,6 +259,7 @@ function setTab(t) {
   tab = t;
   selectedDA = null;
   selectedArts.clear();
+  assignDAValue = '';
   render();
 }
 
@@ -662,6 +664,12 @@ function selectDA(id) {
 }
 
 function renderLibresContent() {
+  // Préserver la sélection courante du select avant de reconstruire le HTML
+  const selEl = document.getElementById('assign-da');
+  if (selEl) assignDAValue = selEl.value;
+  else if (preselectDA) assignDAValue = String(preselectDA);
+  preselectDA = null;  // ne s'applique qu'à la première apparition
+
   const libres = commandes.filter(c => !c.demande_achat);
   // DA en cours per assignar
   const dasEnCours = das.filter(d => d.statut === 'En cours')
@@ -681,10 +689,9 @@ function renderLibresContent() {
 
   let options = '<option value="">— Choisir une DA —</option>';
   dasEnCours.forEach(d => {
-    const sel = (preselectDA && d.id === preselectDA) ? 'selected' : '';
+    const sel = (assignDAValue && String(d.id) === String(assignDAValue)) ? 'selected' : '';
     options += `<option value="${d.id}" ${sel}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
   });
-  preselectDA = null;  // ne s'applique qu'une fois
 
   return `
     <div style="max-width:560px;">
@@ -717,8 +724,10 @@ function deselectAllLibres() {
   render();
 }
 function onAssignDAChange() {
+  const sel = document.getElementById('assign-da');
+  assignDAValue = sel ? sel.value : '';
   const btn = document.getElementById('btn-assign');
-  if (btn) btn.disabled = selectedArts.size === 0 || !document.getElementById('assign-da').value;
+  if (btn) btn.disabled = selectedArts.size === 0 || !assignDAValue;
 }
 
 async function assignArticles() {
@@ -734,6 +743,7 @@ async function assignArticles() {
       ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(()=>Number(daId)) }]
     ]);
     selectedArts.clear();
+    assignDAValue = '';
     // Passar a la vista "En cours" i seleccionar la DA on s'han assignat
     tab = 'En cours';
     selectedDA = Number(daId);
