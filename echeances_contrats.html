@@ -65,11 +65,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .header select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .header select { border-color: #444; } }
 .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.sub-filter-label { font-size: 12.5px; color: #888; margin: -6px 0 12px 0; }
 </style>
 <div class="header">
   <div class="title">Échéances des contrats</div>
   <select id="cat-filter"><option value="">Toutes catégories</option></select>
 </div>
+<div class="sub-filter-label" id="sub-filter-label"></div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
 </div>
@@ -124,12 +126,17 @@ function monthsUntil(d) {
 function updateView() {
   const v = document.getElementById('cat-filter').value;
   let filtered = allData;
+  const lbl = document.getElementById('sub-filter-label');
   if (v.startsWith('cat:')) {
     const cat = v.slice(4);
     filtered = allData.filter(d => getCat(d.label) === cat);
+    if (lbl) lbl.textContent = cat + ' (tout)';
   } else if (v.startsWith('sub:')) {
     const sub = v.slice(4);
     filtered = allData.filter(d => getSub(d.label) === sub);
+    if (lbl) lbl.textContent = sub;
+  } else {
+    if (lbl) lbl.textContent = '';
   }
   subFilterActif = v.startsWith('sub:');
   render(filtered);
@@ -346,7 +353,13 @@ function loadData() {
         html += '</optgroup>';
       });
       sel.innerHTML = html;
-      if (cur) sel.value = cur;
+      if (cur) {
+        sel.value = cur;
+      } else {
+        // Sélection par défaut : Fonctionnement – Coûts Directs (si présent)
+        const optDirects = [...sel.options].find(o => o.value.startsWith('sub:') && o.value.slice(4).includes('Coûts Directs') && o.value.slice(4).includes('Fonctionnement'));
+        if (optDirects) sel.value = optDirects.value;
+      }
 
       updateView();
     });
