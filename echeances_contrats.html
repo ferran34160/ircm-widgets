@@ -146,7 +146,7 @@ function render(data) {
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
     c.releve += d.montant_releve;
-    if (d.reste_notifier > 0) c.reste_notifier += d.reste_notifier;
+    c.reste_notifier += (d.reste_notifier || 0);
     // Mises à disposition actives (notifications postérieures au dernier relevé de la ligne)
     const list = notifsParLigne[d.id];
     if (list && list.length) {
@@ -228,7 +228,7 @@ function render(data) {
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
-        ${c.reste_notifier > 0 ? `<p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>` : ''}
+        <p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>
         ${miseHtml(c)}
         <span class="c-ech">${echStr}</span>
         ${subFilterActif ? '' : `<div class="cats">${catsHtml}</div>`}
