@@ -148,6 +148,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
 .btn-delete { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
 .btn-delete:hover { background: #E24B4A; color: #fff; }
+.btn-assign-link { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; }
+.btn-assign-link:hover { background: #9C6ADE; color: #fff; }
 .delete-confirm { padding: 11px 13px; border-top: 1px solid #eee; display: none; }
 .delete-confirm.open { display: block; }
 @media (prefers-color-scheme: dark) { .delete-confirm { border-top-color: #333; } }
@@ -168,6 +170,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
+let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -253,6 +256,14 @@ async function fetchAll() {
 
 function setTab(t) {
   tab = t;
+  selectedDA = null;
+  selectedArts.clear();
+  render();
+}
+
+function goAssignerArticles(daId) {
+  preselectDA = daId;
+  tab = 'libres';
   selectedDA = null;
   selectedArts.clear();
   render();
@@ -498,6 +509,7 @@ function renderDetail(d) {
           <span class="detail-num">${d.num_da}</span>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+            ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
             <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
           </div>
         </div>
@@ -669,8 +681,10 @@ function renderLibresContent() {
 
   let options = '<option value="">— Choisir une DA —</option>';
   dasEnCours.forEach(d => {
-    options += `<option value="${d.id}">${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+    const sel = (preselectDA && d.id === preselectDA) ? 'selected' : '';
+    options += `<option value="${d.id}" ${sel}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
   });
+  preselectDA = null;  // ne s'applique qu'une fois
 
   return `
     <div style="max-width:560px;">
