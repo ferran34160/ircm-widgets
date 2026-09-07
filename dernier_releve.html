@@ -72,6 +72,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tbl-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 13px; }
 @media (prefers-color-scheme: dark) { .tbl-wrap { border-color: #333; } }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hist-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .hist-layout { grid-template-columns: 1fr; } }
+.evo-card { border: 1px solid #e8e8e8; border-radius: 13px; padding: 14px; margin-top: 14px; }
+@media (prefers-color-scheme: dark) { .evo-card { border-color: #333; } }
+.evo-title { font-size: 12.5px; font-weight: 600; color: #888; margin-bottom: 10px; }
+.evo-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 11.5px; }
+.evo-legend span { display: flex; align-items: center; gap: 5px; }
+.evo-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .tbl th { text-align: right; padding: 11px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #888; background: #fafaf8; white-space: nowrap; border-bottom: 1px solid #e8e8e8; }
 @media (prefers-color-scheme: dark) { .tbl th { background: #202020; color: #999; border-bottom-color: #333; } }
 .tbl th.th-ligne { text-align: left; }
@@ -425,7 +433,7 @@ function renderHistorique() {
     return `<td class="td-val"><span class="cell-montant">${fmt(v)}</span>${dl}</td>`;
   };
 
-  html += `<div class="tbl-wrap"><table class="tbl">
+  html += `<div class="hist-layout"><div class="tbl-wrap"><table class="tbl">
     <thead><tr><th class="th-ligne">Ligne budgétaire</th>
       ${dates.map((d,i) => `<th>${dateCourte(d)}${i===dates.length-1?'<span class="th-badge">dernier</span>':''}</th>`).join('')}
     </tr></thead><tbody>`;
@@ -456,7 +464,80 @@ function renderHistorique() {
   });
   html += `</tr></tbody></table></div>`;
 
+  // ---------- Graphique d'évolution (Disponible + Reste) ----------
+  const totalOfficielAt = d => items.filter(x => x.date === d).reduce((s,x) => s + (x.officiel || 0), 0);
+  const totalResteAt = d => items.filter(x => x.date === d).reduce((s,x) => s + resteDe(x), 0);
+  const serieOfficiel = dates.map(d => totalOfficielAt(d));
+  const serieReste = dates.map(d => totalResteAt(d));
+  html += renderEvolutionChart(dates, serieOfficiel, serieReste, isDark);
+
+  html += `</div>`;  // .hist-layout
+
   wrap.innerHTML = html;
+}
+
+function renderEvolutionChart(dates, serieOfficiel, serieReste, isDark) {
+  const W = 300, H = 240, padL = 44, padR = 10, padT = 14, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const allVals = serieOfficiel.concat(serieReste);
+  let vMin = Math.min(0, ...allVals), vMax = Math.max(...allVals, 1);
+  if (vMax === vMin) vMax = vMin + 1;
+  const marge = (vMax - vMin) * 0.08;
+  vMin -= marge; vMax += marge;
+
+  const xOf = i => dates.length > 1 ? padL + (i / (dates.length - 1)) * plotW : padL + plotW / 2;
+  const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+
+  const colOfficiel = '#2563a8';
+  const colReste = '#C98A2C';
+  const colGrid = isDark ? '#333' : '#eee';
+  const colAxis = isDark ? '#888' : '#999';
+
+  const pathOf = serie => serie.map((v,i) => `${i===0?'M':'L'} ${xOf(i).toFixed(1)} ${yOf(v).toFixed(1)}`).join(' ');
+
+  // Lignes de grille horizontales (0 et max)
+  const yZero = yOf(0);
+  const gridZero = (vMin < 0 && vMax > 0)
+    ? `<line x1="${padL}" y1="${yZero.toFixed(1)}" x2="${W-padR}" y2="${yZero.toFixed(1)}" stroke="${colAxis}" stroke-dasharray="3,3" stroke-width="1"/>`
+    : '';
+
+  const pointsOfficiel = serieOfficiel.map((v,i) => `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(v).toFixed(1)}" r="3" fill="${colOfficiel}"/>`).join('');
+  const pointsReste = serieReste.map((v,i) => `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(v).toFixed(1)}" r="3" fill="${colReste}"/>`).join('');
+
+  // Labels d'axe X (première et dernière date seulement, pour ne pas surcharger)
+  const labelX = i => `<text x="${xOf(i).toFixed(1)}" y="${H-8}" font-size="9.5" fill="${colAxis}" text-anchor="${i===0?'start':i===dates.length-1?'end':'middle'}">${dateCourte(dates[i])}</text>`;
+  const xLabels = dates.length <= 6
+    ? dates.map((d,i) => labelX(i)).join('')
+    : [labelX(0), labelX(dates.length-1)].join('');
+
+  // Labels d'axe Y (min/max)
+  const fmtCourt = v => {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return (v/1000).toFixed(1).replace('.0','') + 'k€';
+    return Math.round(v) + '€';
+  };
+
+  return `
+    <div class="evo-card">
+      <div class="evo-title">Évolution</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto;">
+        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="${colAxis}" stroke-width="1"/>
+        <line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" stroke="${colAxis}" stroke-width="1"/>
+        ${gridZero}
+        <text x="${padL-4}" y="${padT+4}" font-size="9.5" fill="${colAxis}" text-anchor="end">${fmtCourt(vMax)}</text>
+        <text x="${padL-4}" y="${padT+plotH+2}" font-size="9.5" fill="${colAxis}" text-anchor="end">${fmtCourt(vMin)}</text>
+        <path d="${pathOf(serieOfficiel)}" fill="none" stroke="${colOfficiel}" stroke-width="2"/>
+        <path d="${pathOf(serieReste)}" fill="none" stroke="${colReste}" stroke-width="2"/>
+        ${pointsOfficiel}
+        ${pointsReste}
+        ${xLabels}
+      </svg>
+      <div class="evo-legend">
+        <span><span class="evo-dot" style="background:${colOfficiel}"></span>Disponible officiel</span>
+        <span><span class="evo-dot" style="background:${colReste}"></span>Reste à notifier</span>
+      </div>
+    </div>`;
 }
 
 const gs = document.createElement('script');
