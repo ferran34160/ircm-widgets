@@ -72,9 +72,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tbl-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 13px; }
 @media (prefers-color-scheme: dark) { .tbl-wrap { border-color: #333; } }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.hist-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .hist-layout { grid-template-columns: 1fr; } }
-.evo-card { border: 1px solid #e8e8e8; border-radius: 13px; padding: 14px; margin-top: 14px; }
+.hist-layout { display: flex; flex-direction: column; gap: 4px; }
+.evo-card { border: 1px solid #e8e8e8; border-radius: 13px; padding: 14px; margin-top: 14px; max-width: 500px; }
 @media (prefers-color-scheme: dark) { .evo-card { border-color: #333; } }
 .evo-title { font-size: 12.5px; font-weight: 600; color: #888; margin-bottom: 10px; }
 .evo-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 11.5px; }
@@ -477,7 +476,7 @@ function renderHistorique() {
 }
 
 function renderEvolutionChart(dates, serieOfficiel, serieReste, isDark) {
-  const W = 300, H = 240, padL = 44, padR = 10, padT = 14, padB = 28;
+  const W = 460, H = 200, padL = 50, padR = 14, padT = 14, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
 
   const allVals = serieOfficiel.concat(serieReste);
@@ -507,7 +506,7 @@ function renderEvolutionChart(dates, serieOfficiel, serieReste, isDark) {
 
   // Labels d'axe X (première et dernière date seulement, pour ne pas surcharger)
   const labelX = i => `<text x="${xOf(i).toFixed(1)}" y="${H-8}" font-size="9.5" fill="${colAxis}" text-anchor="${i===0?'start':i===dates.length-1?'end':'middle'}">${dateCourte(dates[i])}</text>`;
-  const xLabels = dates.length <= 6
+  const xLabels = dates.length <= 10
     ? dates.map((d,i) => labelX(i)).join('')
     : [labelX(0), labelX(dates.length-1)].join('');
 
