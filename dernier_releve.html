@@ -72,13 +72,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tbl-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 13px; }
 @media (prefers-color-scheme: dark) { .tbl-wrap { border-color: #333; } }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.hist-layout { display: flex; flex-direction: column; gap: 4px; }
-.evo-card { border: 1px solid #e8e8e8; border-radius: 13px; padding: 14px; margin-top: 14px; overflow-x: auto; }
-@media (prefers-color-scheme: dark) { .evo-card { border-color: #333; } }
-.evo-title { font-size: 12.5px; font-weight: 600; color: #888; margin-bottom: 10px; }
-.evo-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 11.5px; }
-.evo-legend span { display: flex; align-items: center; gap: 5px; }
-.evo-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .tbl th { text-align: right; padding: 11px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #888; background: #fafaf8; white-space: nowrap; border-bottom: 1px solid #e8e8e8; }
 @media (prefers-color-scheme: dark) { .tbl th { background: #202020; color: #999; border-bottom-color: #333; } }
 .tbl th.th-ligne { text-align: left; }
@@ -432,7 +425,7 @@ function renderHistorique() {
     return `<td class="td-val"><span class="cell-montant">${fmt(v)}</span>${dl}</td>`;
   };
 
-  html += `<div class="hist-layout"><div class="tbl-wrap"><table class="tbl">
+  html += `<div class="tbl-wrap"><table class="tbl">
     <thead><tr><th class="th-ligne">Ligne budgétaire</th>
       ${dates.map((d,i) => `<th>${dateCourte(d)}${i===dates.length-1?'<span class="th-badge">dernier</span>':''}</th>`).join('')}
     </tr></thead><tbody>`;
@@ -463,108 +456,8 @@ function renderHistorique() {
   });
   html += `</tr></tbody></table></div>`;
 
-  // ---------- Graphique d'évolution (Disponible + Reste) ----------
-  const totalOfficielAt = d => items.filter(x => x.date === d).reduce((s,x) => s + (x.officiel || 0), 0);
-  const totalResteAt = d => items.filter(x => x.date === d).reduce((s,x) => s + resteDe(x), 0);
-  const serieOfficiel = dates.map(d => totalOfficielAt(d));
-  const serieReste = dates.map(d => totalResteAt(d));
-
-  html += `
-    <div class="evo-card">
-      <div class="evo-title">Évolution</div>
-      <div id="evo-chart"></div>
-      <div class="evo-legend">
-        <span><span class="evo-dot" style="background:#2563a8"></span>Disponible officiel</span>
-        <span><span class="evo-dot" style="background:#C98A2C"></span>Reste à notifier</span>
-      </div>
-    </div>`;
-
-  html += `</div>`;  // .hist-layout
-
   wrap.innerHTML = html;
-
-  // Le tableau est maintenant dans le DOM : on peut mesurer ses colonnes
-  // et dessiner le graphique aligné dessus.
-  lastEvo = { dates, serieOfficiel, serieReste, isDark };
-  drawEvolutionChart();
 }
-
-let lastEvo = null;  // { dates, serieOfficiel, serieReste, isDark } — pour redessiner au resize
-
-function drawEvolutionChart() {
-  if (!lastEvo) return;
-  const { dates, serieOfficiel, serieReste, isDark } = lastEvo;
-  const table = document.querySelector('.tbl');
-  const holder = document.getElementById('evo-chart');
-  if (!table || !holder) return;
-
-  // Mesurer la position réelle de chaque colonne de date dans le tableau
-  const theadRow = table.querySelector('thead tr');
-  const ths = [...theadRow.querySelectorAll('th')].slice(1);  // on saute "Ligne budgétaire"
-  if (!ths.length) return;
-  const tableRect = table.getBoundingClientRect();
-  const xCenters = ths.map(th => {
-    const r = th.getBoundingClientRect();
-    return (r.left + r.right) / 2 - tableRect.left;
-  });
-
-  const W = Math.ceil(table.scrollWidth || table.offsetWidth);
-  const H = 190, padT = 14, padB = 24;
-  const plotH = H - padT - padB;
-
-  const allVals = serieOfficiel.concat(serieReste);
-  let vMin = Math.min(0, ...allVals), vMax = Math.max(...allVals, 1);
-  if (vMax === vMin) vMax = vMin + 1;
-  const marge = (vMax - vMin) * 0.08;
-  vMin -= marge; vMax += marge;
-
-  const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
-
-  const colOfficiel = '#2563a8';
-  const colReste = '#C98A2C';
-  const colAxis = isDark ? '#888' : '#999';
-
-  const pathOf = serie => serie.map((v,i) => `${i===0?'M':'L'} ${xCenters[i].toFixed(1)} ${yOf(v).toFixed(1)}`).join(' ');
-
-  const yZero = yOf(0);
-  const gridZero = (vMin < 0 && vMax > 0)
-    ? `<line x1="0" y1="${yZero.toFixed(1)}" x2="${W}" y2="${yZero.toFixed(1)}" stroke="${colAxis}" stroke-dasharray="3,3" stroke-width="1"/>`
-    : '';
-
-  const pointsOfficiel = serieOfficiel.map((v,i) => `<circle cx="${xCenters[i].toFixed(1)}" cy="${yOf(v).toFixed(1)}" r="3.5" fill="${colOfficiel}"/>`).join('');
-  const pointsReste = serieReste.map((v,i) => `<circle cx="${xCenters[i].toFixed(1)}" cy="${yOf(v).toFixed(1)}" r="3.5" fill="${colReste}"/>`).join('');
-
-  // Étiquettes de date sous chaque point (alignées avec les colonnes du tableau)
-  const xLabels = dates.map((d,i) => {
-    const anchor = i === 0 ? 'start' : (i === dates.length-1 ? 'end' : 'middle');
-    const x = i === 0 ? Math.max(2, xCenters[i]-2) : (i === dates.length-1 ? Math.min(W-2, xCenters[i]+2) : xCenters[i]);
-    return `<text x="${x.toFixed(1)}" y="${H-6}" font-size="9.5" fill="${colAxis}" text-anchor="${anchor}">${dateCourte(d)}</text>`;
-  }).join('');
-
-  const fmtCourt = v => {
-    const abs = Math.abs(v);
-    if (abs >= 1000) return (v/1000).toFixed(1).replace('.0','') + 'k€';
-    return Math.round(v) + '€';
-  };
-
-  // La zone sous "Ligne budgétaire" (avant le premier point) sert de zone d'étiquettes Y
-  const svg = `
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;">
-      <line x1="0" y1="${padT+plotH}" x2="${W}" y2="${padT+plotH}" stroke="${colAxis}" stroke-width="1"/>
-      ${gridZero}
-      <text x="4" y="${padT+4}" font-size="9.5" fill="${colAxis}">${fmtCourt(vMax)}</text>
-      <text x="4" y="${padT+plotH+2}" font-size="9.5" fill="${colAxis}">${fmtCourt(vMin)}</text>
-      <path d="${pathOf(serieOfficiel)}" fill="none" stroke="${colOfficiel}" stroke-width="2"/>
-      <path d="${pathOf(serieReste)}" fill="none" stroke="${colReste}" stroke-width="2"/>
-      ${pointsOfficiel}
-      ${pointsReste}
-      ${xLabels}
-    </svg>`;
-
-  holder.innerHTML = svg;
-}
-
-window.addEventListener('resize', () => { if (document.getElementById('evo-chart')) drawEvolutionChart(); });
 
 const gs = document.createElement('script');
 gs.src = 'https://docs.getgrist.com/grist-plugin-api.js';
