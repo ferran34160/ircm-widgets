@@ -90,6 +90,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .cell-delta.down { color: #E24B4A; }
 .total-row td { border-top: 2px solid #e0e0e0; font-weight: 600; padding-top: 11px; padding-bottom: 12px; }
 @media (prefers-color-scheme: dark) { .total-row td { border-top-color: #3a3a3a; } }
+.reste-row td { font-style: italic; color: #999; font-size: 12px; padding-top: 2px; padding-bottom: 8px; }
+.reste-row .td-reste-lbl { font-style: italic; padding-left: 14px; }
+.reste-row.total-row td { border-top: none; font-weight: 400; padding-top: 2px; }
+@media (prefers-color-scheme: dark) { .reste-row td { color: #888; } }
 </style>
 </head>
 <body>
@@ -114,7 +118,7 @@ const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', '
 function getCat(label) { for (const k of CAT_ORDER) if (String(label).includes(k)) return k; return 'Autre'; }
 function catStyle(c) { return CAT_COLORS[c] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
 
-let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '', modeReste = false;
+let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '', afficherReste = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
@@ -340,7 +344,7 @@ function dateCourte(ms) {
   return new Date(ms).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
 }
 
-function setMode(m) { modeReste = (m === 'reste'); render(); }
+function setMode(m) { afficherReste = !afficherReste; render(); }
 
 function renderHistorique() {
   const wrap = document.getElementById('wrap');
@@ -351,12 +355,13 @@ function renderHistorique() {
   if (!items.length) { wrap.innerHTML = '<div class="empty">Aucun relevé pour ce contrat.</div>'; return; }
 
   const resteDe = x => (x.reste != null ? x.reste : (LIGNES[x.ligne] ? LIGNES[x.ligne].reste : 0));
-  const valDe = x => modeReste ? resteDe(x) : x.officiel;
+  const valDe = x => x.officiel;
 
   // Dates du plus ancien au plus récent (lecture de l'évolution de gauche à droite)
   const dates = [...new Set(items.map(x => x.date))].sort((a,b) => a - b);
   const dLast = dates[dates.length - 1];
   const totalAt = d => items.filter(x => x.date === d).reduce((s,x) => s + valDe(x), 0);
+  const totalResteAt = d => items.filter(x => x.date === d).reduce((s,x) => s + resteDe(x), 0);
 
   const totalLast = totalAt(dLast);
   const totalPrev = dates.length > 1 ? totalAt(dates[dates.length - 2]) : null;
@@ -379,7 +384,7 @@ function renderHistorique() {
       <div class="hero-ago">Dernier relevé \u00b7 ${agoTxt}</div>
       <div class="hero-stats">
         <div>
-          <div class="hstat-label">${modeReste ? 'Reste à notifier' : 'Disponible officiel'}</div>
+          <div class="hstat-label">Disponible officiel</div>
           <div class="hstat-val">${fmt(totalLast)} ${deltaTotalHtml}</div>
         </div>
         <div>
@@ -390,8 +395,8 @@ function renderHistorique() {
     </div>
 
     <div class="mode-switch">
-      <button class="${modeReste?'':'on'}" onclick="setMode('officiel')">Disponible officiel</button>
-      <button class="${modeReste?'on':''}" onclick="setMode('reste')">Reste à notifier</button>
+      <button class="on">Disponible officiel</button>
+      <button class="${afficherReste?'on':''}" onclick="setMode()">Reste à notifier</button>
     </div>`;
 
   // ---------- Lignes groupées par catégorie ----------
@@ -411,6 +416,10 @@ function renderHistorique() {
     const row = items.find(x => x.ligne === ligneId && x.date === d);
     return row ? valDe(row) : null;
   };
+  const resteAt = (ligneId, d) => {
+    const row = items.find(x => x.ligne === ligneId && x.date === d);
+    return row ? resteDe(row) : null;
+  };
 
   const cellule = (v, vPrec) => {
     if (v == null) return '<td class="td-val vide">—</td>';
@@ -424,6 +433,18 @@ function renderHistorique() {
     }
     return `<td class="td-val"><span class="cell-montant">${fmt(v)}</span>${dl}</td>`;
   };
+  const celluleReste = (v, vPrec) => {
+    if (v == null) return '<td class="td-val vide td-reste">—</td>';
+    let dl = '';
+    if (vPrec != null) {
+      const diff = v - vPrec;
+      if (Math.abs(diff) >= 0.005) {
+        const up = diff > 0;
+        dl = `<span class="cell-delta ${up?'up':'down'}">${up?'\u25B2':'\u25BC'} ${fmt(Math.abs(diff))}</span>`;
+      }
+    }
+    return `<td class="td-val td-reste"><span class="cell-montant">${fmt(v)}</span>${dl}</td>`;
+  };
 
   html += `<div class="tbl-wrap"><table class="tbl">
     <thead><tr><th class="th-ligne">Ligne budgétaire</th>
@@ -436,6 +457,17 @@ function renderHistorique() {
     html += `<tr class="cat-row"><td colspan="${dates.length+1}" style="color:${col}">
       <span class="cat-dot" style="background:${st.c}"></span>${cat}</td></tr>`;
 
+    if (afficherReste) {
+      const idsCat = parCat[cat];
+      html += `<tr class="reste-row"><td class="td-ligne td-reste-lbl">Reste à notifier</td>`;
+      dates.forEach((d, i) => {
+        const v = idsCat.reduce((s,id) => { const r = resteAt(id, d); return r != null ? s + r : s; }, 0);
+        const vPrec = i > 0 ? idsCat.reduce((s,id) => { const r = resteAt(id, dates[i-1]); return r != null ? s + r : s; }, 0) : null;
+        html += celluleReste(v, vPrec);
+      });
+      html += `</tr>`;
+    }
+
     parCat[cat].forEach(id => {
       html += `<tr><td class="td-ligne" style="border-left-color:${st.c}">${esc(sousLibelle(LIGNES[id].label))}</td>`;
       dates.forEach((d, i) => {
@@ -444,6 +476,16 @@ function renderHistorique() {
         html += cellule(v, vPrec);
       });
       html += `</tr>`;
+
+      if (afficherReste) {
+        html += `<tr class="reste-row"><td class="td-ligne td-reste-lbl" style="border-left-color:${st.c}">Reste à notifier</td>`;
+        dates.forEach((d, i) => {
+          const v = resteAt(id, d);
+          const vPrec = i > 0 ? resteAt(id, dates[i-1]) : null;
+          html += celluleReste(v, vPrec);
+        });
+        html += `</tr>`;
+      }
     });
   });
 
@@ -454,7 +496,19 @@ function renderHistorique() {
     const vPrec = i > 0 ? totalAt(dates[i-1]) : null;
     html += cellule(v, vPrec);
   });
-  html += `</tr></tbody></table></div>`;
+  html += `</tr>`;
+
+  if (afficherReste) {
+    html += `<tr class="total-row reste-row"><td class="td-ligne td-reste-lbl">Reste à notifier (total)</td>`;
+    dates.forEach((d, i) => {
+      const v = totalResteAt(d);
+      const vPrec = i > 0 ? totalResteAt(dates[i-1]) : null;
+      html += celluleReste(v, vPrec);
+    });
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table></div>`;
 
   wrap.innerHTML = html;
 }
