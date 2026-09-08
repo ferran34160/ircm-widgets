@@ -118,7 +118,7 @@ const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', '
 function getCat(label) { for (const k of CAT_ORDER) if (String(label).includes(k)) return k; return 'Autre'; }
 function catStyle(c) { return CAT_COLORS[c] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
 
-let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '', afficherReste = false;
+let RELEVES = [], LIGNES = {}, MASQUES = new Set(), filterContrat = '', showOfficiel = true, showReste = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
@@ -344,7 +344,14 @@ function dateCourte(ms) {
   return new Date(ms).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
 }
 
-function setMode(m) { afficherReste = !afficherReste; render(); }
+function setMode(m) {
+  if (m === 'officiel') {
+    if (showReste) showOfficiel = !showOfficiel;  // ne peut pas être le seul à s'éteindre
+  } else {
+    if (showOfficiel) showReste = !showReste;
+  }
+  render();
+}
 
 function renderHistorique() {
   const wrap = document.getElementById('wrap');
@@ -365,13 +372,20 @@ function renderHistorique() {
 
   const totalLast = totalAt(dLast);
   const totalPrev = dates.length > 1 ? totalAt(dates[dates.length - 2]) : null;
+  const totalResteLast = totalResteAt(dLast);
+  const totalRestePrev = dates.length > 1 ? totalResteAt(dates[dates.length - 2]) : null;
 
   const jours = joursDepuis(dLast);
   const agoTxt = jours === 0 ? "aujourd'hui" : jours === 1 ? 'il y a 1 jour' : `il y a ${jours} jours`;
 
+  // Métrique principale du hero : Disponible officiel si actif, sinon Reste à notifier seul
+  const heroLabel = showOfficiel ? 'Disponible officiel' : 'Reste à notifier';
+  const heroVal = showOfficiel ? totalLast : totalResteLast;
+  const heroPrev = showOfficiel ? totalPrev : totalRestePrev;
+
   let deltaTotalHtml = '';
-  if (totalPrev != null) {
-    const d = totalLast - totalPrev;
+  if (heroPrev != null) {
+    const d = heroVal - heroPrev;
     const signe = d > 0 ? '+' : d < 0 ? '\u2212' : '';
     deltaTotalHtml = `<span class="hstat-delta">${signe} ${fmt(Math.abs(d))}</span>`;
   }
@@ -384,8 +398,8 @@ function renderHistorique() {
       <div class="hero-ago">Dernier relevé \u00b7 ${agoTxt}</div>
       <div class="hero-stats">
         <div>
-          <div class="hstat-label">Disponible officiel</div>
-          <div class="hstat-val">${fmt(totalLast)} ${deltaTotalHtml}</div>
+          <div class="hstat-label">${heroLabel}</div>
+          <div class="hstat-val">${fmt(heroVal)} ${deltaTotalHtml}</div>
         </div>
         <div>
           <div class="hstat-label">Relevés enregistrés</div>
@@ -395,8 +409,8 @@ function renderHistorique() {
     </div>
 
     <div class="mode-switch">
-      <button class="on">Disponible officiel</button>
-      <button class="${afficherReste?'on':''}" onclick="setMode()">Reste à notifier</button>
+      <button class="${showOfficiel?'on':''}" onclick="setMode('officiel')">Disponible officiel</button>
+      <button class="${showReste?'on':''}" onclick="setMode('reste')">Reste à notifier</button>
     </div>`;
 
   // ---------- Lignes groupées par catégorie ----------
@@ -451,14 +465,21 @@ function renderHistorique() {
       ${dates.map((d,i) => `<th>${dateCourte(d)}${i===dates.length-1?'<span class="th-badge">dernier</span>':''}</th>`).join('')}
     </tr></thead><tbody>`;
 
+  // Cas particulier : seul "Reste à notifier" est actif → on l'affiche comme
+  // métrique principale, en écriture normale (comme l'ancien mode unique).
+  const resteSeul = !showOfficiel && showReste;
+  const deuxMetriques = showOfficiel && showReste;
+
   cats.forEach(cat => {
     const st = catStyle(cat);
     const col = isDark ? st.dtxt : st.txt;
     html += `<tr class="cat-row"><td colspan="${dates.length+1}" style="color:${col}">
       <span class="cat-dot" style="background:${st.c}"></span>${cat}</td></tr>`;
 
-    if (afficherReste) {
-      const idsCat = parCat[cat];
+    const idsCat = parCat[cat];
+
+    if (deuxMetriques) {
+      // Sous-total Reste à notifier de la catégorie, sous l'en-tête
       html += `<tr class="reste-row"><td class="td-ligne td-reste-lbl">Reste à notifier</td>`;
       dates.forEach((d, i) => {
         const v = idsCat.reduce((s,id) => { const r = resteAt(id, d); return r != null ? s + r : s; }, 0);
@@ -468,16 +489,18 @@ function renderHistorique() {
       html += `</tr>`;
     }
 
-    parCat[cat].forEach(id => {
+    idsCat.forEach(id => {
+      // Ligne principale : Disponible (mode normal/deux) ou Reste seul (mode reste)
       html += `<tr><td class="td-ligne" style="border-left-color:${st.c}">${esc(sousLibelle(LIGNES[id].label))}</td>`;
       dates.forEach((d, i) => {
-        const v = valAt(id, d);
-        const vPrec = i > 0 ? valAt(id, dates[i-1]) : null;
+        const v = resteSeul ? resteAt(id, d) : valAt(id, d);
+        const vPrec = i > 0 ? (resteSeul ? resteAt(id, dates[i-1]) : valAt(id, dates[i-1])) : null;
         html += cellule(v, vPrec);
       });
       html += `</tr>`;
 
-      if (afficherReste) {
+      if (deuxMetriques) {
+        // Reste à notifier de la ligne, juste en-dessous du solde, en italique
         html += `<tr class="reste-row"><td class="td-ligne td-reste-lbl" style="border-left-color:${st.c}">Reste à notifier</td>`;
         dates.forEach((d, i) => {
           const v = resteAt(id, d);
@@ -490,15 +513,15 @@ function renderHistorique() {
   });
 
   // Ligne de total
-  html += `<tr class="total-row"><td class="td-ligne">Total</td>`;
+  html += `<tr class="total-row"><td class="td-ligne">Total${resteSeul?' (Reste à notifier)':''}</td>`;
   dates.forEach((d, i) => {
-    const v = totalAt(d);
-    const vPrec = i > 0 ? totalAt(dates[i-1]) : null;
+    const v = resteSeul ? totalResteAt(d) : totalAt(d);
+    const vPrec = i > 0 ? (resteSeul ? totalResteAt(dates[i-1]) : totalAt(dates[i-1])) : null;
     html += cellule(v, vPrec);
   });
   html += `</tr>`;
 
-  if (afficherReste) {
+  if (deuxMetriques) {
     html += `<tr class="total-row reste-row"><td class="td-ligne td-reste-lbl">Reste à notifier (total)</td>`;
     dates.forEach((d, i) => {
       const v = totalResteAt(d);
