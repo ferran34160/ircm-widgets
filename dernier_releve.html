@@ -478,17 +478,6 @@ function renderHistorique() {
 
     const idsCat = parCat[cat];
 
-    if (deuxMetriques) {
-      // Sous-total Reste à notifier de la catégorie, sous l'en-tête
-      html += `<tr class="reste-row"><td class="td-ligne td-reste-lbl">Reste à notifier</td>`;
-      dates.forEach((d, i) => {
-        const v = idsCat.reduce((s,id) => { const r = resteAt(id, d); return r != null ? s + r : s; }, 0);
-        const vPrec = i > 0 ? idsCat.reduce((s,id) => { const r = resteAt(id, dates[i-1]); return r != null ? s + r : s; }, 0) : null;
-        html += celluleReste(v, vPrec);
-      });
-      html += `</tr>`;
-    }
-
     idsCat.forEach(id => {
       // Ligne principale : Disponible (mode normal/deux) ou Reste seul (mode reste)
       html += `<tr><td class="td-ligne" style="border-left-color:${st.c}">${esc(sousLibelle(LIGNES[id].label))}</td>`;
