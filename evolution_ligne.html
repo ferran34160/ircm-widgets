@@ -436,6 +436,9 @@ function drawChart(points, ligne, dernierReleve) {
     </svg>`;
 
   const sub=ligne.label.includes('|')?ligne.label.split('|').slice(1).join('|').trim():ligne.label;
+  // "Opérations" ne doit compter que les vraies opérations (commandes, transferts,
+  // mouvements, notifications) — ni les relevés PGM, ni le point "Aujourd'hui".
+  const nbOperations = points.filter(p => p.type !== 'releve' && !p.today).length;
   const html=`
     <div class="legend">
       <div class="leg-item"><span class="leg-dot cmd"></span>Commande</div>
@@ -448,7 +451,7 @@ function drawChart(points, ligne, dernierReleve) {
     <div class="summary">
       <div class="sum">Dernier relevé<b>${dernierReleve ? fmtDate(dernierReleve.date) : '—'}</b></div>
       <div class="sum">Montant relevé<b>${dernierReleve ? fmt(dernierReleve.officiel) : '—'}</b></div>
-      <div class="sum">Opérations<b>${points.length-1}</b></div>
+      <div class="sum">Opérations<b>${nbOperations}</b></div>
       <div class="sum">Disponible actuel<b style="color:${finalDispo<0?'#E24B4A':'#1D9E75'}">${fmt(finalDispo)}</b></div>
     </div>`;
   document.getElementById('container').innerHTML=html;
