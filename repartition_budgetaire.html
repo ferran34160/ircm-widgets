@@ -14,25 +14,28 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .loading, .empty { padding: 40px; text-align: center; color: #888; font-size: 13px; }
 .layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; margin-top: 14px; }
 .chart-wrap { flex: 0 0 auto; }
-.legend { flex: 1 1 260px; min-width: 240px; }
-.legend-cat { margin-bottom: 16px; }
-.legend-cat-head { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
-.legend-total { margin-left: auto; font-weight: 600; font-size: 12.5px; color: #666; }
-@media (prefers-color-scheme: dark) { .legend-total { color: #999; } }
-.legend-row { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 3px 0 3px 17px; }
-.legend-row .legend-dot { width: 8px; height: 8px; opacity: .8; }
-.legend-row-label { flex: 1; color: #555; }
-@media (prefers-color-scheme: dark) { .legend-row-label { color: #bbb; } }
-.legend-row-val { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 500; }
-.legend-row-pct { color: #999; font-size: 11px; margin-left: 5px; }
+.legend-table { border-collapse: collapse; table-layout: fixed; width: 460px; flex: 0 0 460px; font-size: 12.5px; }
+.legend-table col.c-dot { width: 16px; }
+.legend-table col.c-label { width: 300px; }
+.legend-table col.c-val { width: 100px; }
+.legend-table col.c-pct { width: 60px; }
+.legend-table td { padding: 4px 4px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-table tr.cat-row td { padding-top: 14px; font-size: 13.5px; font-weight: 700; }
+.legend-table tr.cat-row:first-child td { padding-top: 0; }
+.legend-table tr.detail-row td { color: #555; }
+@media (prefers-color-scheme: dark) { .legend-table tr.detail-row td { color: #bbb; } }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend-table tr.detail-row .legend-dot { width: 8px; height: 8px; opacity: .8; }
+.legend-table .col-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.legend-table tr.cat-row .col-val { font-weight: 700; }
+.legend-table .col-pct { text-align: right; font-variant-numeric: tabular-nums; color: #999; }
 .seg-tooltip { position: fixed; pointer-events: none; background: #222; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; z-index: 10; box-shadow: 0 3px 10px rgba(0,0,0,.25); white-space: nowrap; opacity: 0; transition: opacity .1s; }
 .seg-tooltip.show { opacity: 1; }
 path.seg { cursor: pointer; transition: opacity .12s; }
 path.seg:hover { opacity: .82; }
 .grand-total { text-anchor: middle; }
-.grand-total .val { font-size: 20px; font-weight: 700; }
-.grand-total .lbl { font-size: 10.5px; fill: #999; }
+.grand-total .val { font-size: 36px; font-weight: 700; }
+.grand-total .lbl { font-size: 15px; fill: #999; }
 </style>
 </head>
 <body>
@@ -223,9 +226,9 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
 
 function drawSunburst(catSegs, detailSegs, grandTotal) {
   const holder = document.getElementById('chart-wrap');
-  const S = 380, cx = S/2, cy = S/2;
-  const rInnerRing0 = 58, rInnerRing1 = 108;   // anneau intérieur : catégories
-  const rOuterRing0 = 112, rOuterRing1 = 168;  // anneau extérieur : détail
+  const S = 760, cx = S/2, cy = S/2;
+  const rInnerRing0 = 116, rInnerRing1 = 216;   // anneau intérieur : catégories
+  const rOuterRing0 = 224, rOuterRing1 = 336;  // anneau extérieur : détail
 
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
 
@@ -261,8 +264,8 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   });
 
   // Centre : total général
-  svg += `<text x="${cx}" y="${cy-4}" class="grand-total val">${fmt(grandTotal)}</text>`;
-  svg += `<text x="${cx}" y="${cy+14}" class="grand-total lbl">TOTAL</text>`;
+  svg += `<text x="${cx}" y="${cy-6}" class="grand-total val">${fmt(grandTotal)}</text>`;
+  svg += `<text x="${cx}" y="${cy+22}" class="grand-total lbl">TOTAL</text>`;
 
   svg += `</svg>`;
   holder.innerHTML = svg;
@@ -282,41 +285,56 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 
 function drawLegend(catsPresentes, cats, grandTotal) {
   const legend = document.getElementById('legend');
-  let html = '';
+  let rows = '';
   catsPresentes.forEach(cat => {
     const st = catStyle(cat);
     const d = cats[cat];
     const sousNoms = Object.keys(d.sousCats).sort();
     let catTotal = 0;
-    let rowsHtml = '';
+    let detailRows = '';
     sousNoms.forEach((sous, i) => {
       const sc = d.sousCats[sous];
       const decal = i * 26;
       const solde = Math.max(sc.solde, 0), reste = Math.max(sc.reste, 0);
       catTotal += solde + reste;
-      rowsHtml += `
-        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,decal)}"></span>
-          <span class="legend-row-label">${esc(sous)} — Solde</span>
-          <span class="legend-row-val">${fmt(solde)}<span class="legend-row-pct">${(solde/grandTotal*100).toFixed(1)}%</span></span></div>
-        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,decal-40)}"></span>
-          <span class="legend-row-label">${esc(sous)} — Reste à notifier</span>
-          <span class="legend-row-val">${fmt(reste)}<span class="legend-row-pct">${(reste/grandTotal*100).toFixed(1)}%</span></span></div>`;
+      detailRows += `
+        <tr class="detail-row">
+          <td><span class="legend-dot" style="background:${shade(st.c,decal)}"></span></td>
+          <td>${esc(sous)} — Solde</td>
+          <td class="col-val">${fmt(solde)}</td>
+          <td class="col-pct">${(solde/grandTotal*100).toFixed(1)}%</td>
+        </tr>
+        <tr class="detail-row">
+          <td><span class="legend-dot" style="background:${shade(st.c,decal-40)}"></span></td>
+          <td>${esc(sous)} — Reste à notifier</td>
+          <td class="col-val">${fmt(reste)}</td>
+          <td class="col-pct">${(reste/grandTotal*100).toFixed(1)}%</td>
+        </tr>`;
     });
     const dep = Math.max(d.depense, 0);
     catTotal += dep;
-    rowsHtml += `
-        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,-70)}"></span>
-          <span class="legend-row-label">Dépense</span>
-          <span class="legend-row-val">${fmt(dep)}<span class="legend-row-pct">${(dep/grandTotal*100).toFixed(1)}%</span></span></div>`;
+    detailRows += `
+        <tr class="detail-row">
+          <td><span class="legend-dot" style="background:${shade(st.c,-70)}"></span></td>
+          <td>Dépense</td>
+          <td class="col-val">${fmt(dep)}</td>
+          <td class="col-pct">${(dep/grandTotal*100).toFixed(1)}%</td>
+        </tr>`;
 
-    html += `
-      <div class="legend-cat">
-        <div class="legend-cat-head"><span class="legend-dot" style="background:${st.c}"></span>${esc(cat)}
-          <span class="legend-total">${fmt(catTotal)} · ${(catTotal/grandTotal*100).toFixed(1)}%</span></div>
-        ${rowsHtml}
-      </div>`;
+    rows += `
+        <tr class="cat-row">
+          <td><span class="legend-dot" style="background:${st.c}"></span></td>
+          <td>${esc(cat)}</td>
+          <td class="col-val">${fmt(catTotal)}</td>
+          <td class="col-pct">${(catTotal/grandTotal*100).toFixed(1)}%</td>
+        </tr>${detailRows}`;
   });
-  legend.innerHTML = html;
+
+  legend.innerHTML = `
+    <table class="legend-table">
+      <colgroup><col class="c-dot"><col class="c-label"><col class="c-val"><col class="c-pct"></colgroup>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 const gs = document.createElement('script');
