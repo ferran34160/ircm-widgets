@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Répartition budgétaire</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 18px; color: #222; background: #fff; }
+@media (prefers-color-scheme: dark) { body { color: #eee; background: #1c1c1e; } }
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.title { font-size: 17px; font-weight: 700; }
+select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { select { border-color: #444; } }
+.loading, .empty { padding: 40px; text-align: center; color: #888; font-size: 13px; }
+.layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; margin-top: 14px; }
+.chart-wrap { flex: 0 0 auto; }
+.legend { flex: 1 1 260px; min-width: 240px; }
+.legend-cat { margin-bottom: 16px; }
+.legend-cat-head { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.legend-total { margin-left: auto; font-weight: 600; font-size: 12.5px; color: #666; }
+@media (prefers-color-scheme: dark) { .legend-total { color: #999; } }
+.legend-row { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 3px 0 3px 17px; }
+.legend-row .legend-dot { width: 8px; height: 8px; opacity: .8; }
+.legend-row-label { flex: 1; color: #555; }
+@media (prefers-color-scheme: dark) { .legend-row-label { color: #bbb; } }
+.legend-row-val { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 500; }
+.legend-row-pct { color: #999; font-size: 11px; margin-left: 5px; }
+.seg-tooltip { position: fixed; pointer-events: none; background: #222; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; z-index: 10; box-shadow: 0 3px 10px rgba(0,0,0,.25); white-space: nowrap; opacity: 0; transition: opacity .1s; }
+.seg-tooltip.show { opacity: 1; }
+path.seg { cursor: pointer; transition: opacity .12s; }
+path.seg:hover { opacity: .82; }
+.grand-total { text-anchor: middle; }
+.grand-total .val { font-size: 20px; font-weight: 700; }
+.grand-total .lbl { font-size: 10.5px; fill: #999; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">Répartition budgétaire</div>
+  <select id="contrat-filter"><option value="">Tous les contrats</option></select>
+</div>
+<div id="container"><div class="loading">Chargement…</div></div>
+<div class="seg-tooltip" id="tooltip"></div>
+
+<script>
+const CAT_COLORS = {
+  'Fonctionnement': { c: '#378ADD', bg: '#EAF3FB', dark: '#16314A', txt: '#0C447C', dtxt: '#9FC6EE' },
+  'Équipement':     { c: '#D97B3F', bg: '#FBF0E8', dark: '#3D2A1A', txt: '#8A4A18', dtxt: '#E0A87C' },
+  'Personnel':      { c: '#9C6ADE', bg: '#F0EAFB', dark: '#2A1F3D', txt: '#5E3A9E', dtxt: '#C4A6EC' },
+  'Prestation':     { c: '#1D9E75', bg: '#EAFBF3', dark: '#16402F', txt: '#0F6E56', dtxt: '#9FE1CB' },
+  'Mission':        { c: '#BA9517', bg: '#FBF8E8', dark: '#3D3A1A', txt: '#6B5A0B', dtxt: '#E0CC7C' },
+};
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label) { for (const k of CAT_ORDER) if (String(label).includes(k)) return k; return 'Autre'; }
+function getSub(label) {
+  const parts = String(label).split('|');
+  return (parts.length > 1 ? parts.slice(1).join('|') : label).trim();
+}
+function catStyle(c) { return CAT_COLORS[c] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
+function refId(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]; return v; }
+function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Nuance d'une couleur de base pour distinguer Solde / Reste / Dépense au sein d'une catégorie
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) + amt, g = ((n >> 8) & 0xff) + amt, b = (n & 0xff) + amt;
+  r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
+  return '#' + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
+}
+
+let LIGNES = [], CONTRATS = [], COMMANDES = [], DAS = {};
+let filterContrat = '';
+
+async function fetchAll() {
+  try {
+    const [l, c, cmd, da] = await Promise.all([
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Demandes_achat'),
+    ]);
+
+    const nomContrat = {};
+    (c.id||[]).forEach((id,i) => { nomContrat[id] = (c.Nom||c.Label||c.Name||[])[i] || ('#'+id); });
+    CONTRATS = (c.id||[]).map(id => ({ id, nom: nomContrat[id] })).sort((a,b) => String(a.nom).localeCompare(String(b.nom)));
+
+    LIGNES = (l.id||[]).map((id,i) => ({
+      id,
+      label: (l.Label_ligne||l.Label||[])[i] || '',
+      contrat: refId((l.Contrat||[])[i]),
+      disponible: (l.Disponible||[])[i] || 0,
+      reste: (l.Reste_a_notifier||[])[i] || 0,
+    }));
+
+    DAS = {};
+    (da.id||[]).forEach((id,i) => { DAS[id] = {
+      ligne: refId((da.Ligne_budgetaire||[])[i]),
+      statut: (da.Statut||[])[i] || '',
+    };});
+
+    COMMANDES = (cmd.id||[]).map((id,i) => ({
+      id,
+      da: refId((cmd.Demande_achat||[])[i]),
+      montant: (cmd.Montant2||[])[i] || ((cmd.Prix_unitaire_HT||[])[i]||0) * ((cmd.Quantite||[])[i]||1),
+    }));
+
+    buildFilterOptions();
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur : ' + esc(e.message) + '</div>';
+  }
+}
+
+function buildFilterOptions() {
+  const sel = document.getElementById('contrat-filter');
+  const cur = sel.value;
+  let html = '<option value="">Tous les contrats</option>';
+  CONTRATS.forEach(c => { html += `<option value="${c.id}">${esc(c.nom)}</option>`; });
+  sel.innerHTML = html;
+  if (cur) sel.value = cur;
+}
+
+document.getElementById('contrat-filter').addEventListener('change', () => {
+  filterContrat = document.getElementById('contrat-filter').value;
+  render();
+});
+
+// Dépense d'une ligne : somme de toutes les commandes rattachées, hors DA annulées
+function depenseDeLigne(ligneId) {
+  let total = 0;
+  COMMANDES.forEach(cmd => {
+    if (!cmd.da) return;
+    const da = DAS[cmd.da];
+    if (!da || da.ligne !== ligneId) return;
+    if (da.statut === 'Annulée') return;
+    total += cmd.montant;
+  });
+  return total;
+}
+
+function render() {
+  const container = document.getElementById('container');
+  const lignes = filterContrat ? LIGNES.filter(l => l.contrat === Number(filterContrat)) : LIGNES;
+
+  if (!lignes.length) {
+    container.innerHTML = '<div class="empty">Aucune ligne budgétaire trouvée.</div>';
+    return;
+  }
+
+  // Regrouper par catégorie puis sous-catégorie
+  const cats = {};  // { cat: { sousCats: { sous: {solde, reste} }, depense: n } }
+  lignes.forEach(l => {
+    const cat = getCat(l.label);
+    const sous = getSub(l.label);
+    if (!cats[cat]) cats[cat] = { sousCats: {}, depense: 0 };
+    if (!cats[cat].sousCats[sous]) cats[cat].sousCats[sous] = { solde: 0, reste: 0 };
+    cats[cat].sousCats[sous].solde += l.disponible;
+    cats[cat].sousCats[sous].reste += l.reste;
+    cats[cat].depense += depenseDeLigne(l.id);
+  });
+
+  const catsPresentes = CAT_ORDER.filter(c => cats[c]).concat(Object.keys(cats).filter(c => !CAT_ORDER.includes(c)));
+
+  // Construire les segments : anneau intérieur (catégories) + anneau extérieur (détail)
+  const catSegs = [];    // { cat, value, color }
+  const detailSegs = []; // { cat, label, value, color, kind }
+
+  catsPresentes.forEach(cat => {
+    const st = catStyle(cat);
+    const d = cats[cat];
+    let catTotal = 0;
+    const sousNoms = Object.keys(d.sousCats).sort();
+    sousNoms.forEach((sous, i) => {
+      const sc = d.sousCats[sous];
+      const decal = i * 26;  // nuance différente par sous-catégorie
+      catTotal += Math.max(sc.solde, 0) + Math.max(sc.reste, 0);
+      detailSegs.push({ cat, label: sous + ' — Solde', value: Math.max(sc.solde,0), color: shade(st.c, decal), kind:'solde' });
+      detailSegs.push({ cat, label: sous + ' — Reste à notifier', value: Math.max(sc.reste,0), color: shade(st.c, decal-40), kind:'reste' });
+    });
+    catTotal += Math.max(d.depense, 0);
+    detailSegs.push({ cat, label: 'Dépense', value: Math.max(d.depense,0), color: shade(st.c, -70), kind:'depense' });
+    catSegs.push({ cat, value: catTotal, color: st.c });
+  });
+
+  const grandTotal = catSegs.reduce((s,c) => s + c.value, 0);
+
+  if (grandTotal <= 0) {
+    container.innerHTML = '<div class="empty">Aucun montant à représenter.</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="layout">
+      <div class="chart-wrap" id="chart-wrap"></div>
+      <div class="legend" id="legend"></div>
+    </div>`;
+
+  drawSunburst(catSegs, detailSegs, grandTotal);
+  drawLegend(catsPresentes, cats, grandTotal);
+}
+
+function polarToXY(cx, cy, r, angleDeg) {
+  const a = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+}
+
+function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
+  const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+  const p1 = polarToXY(cx, cy, rOuter, startAngle);
+  const p2 = polarToXY(cx, cy, rOuter, endAngle);
+  const p3 = polarToXY(cx, cy, rInner, endAngle);
+  const p4 = polarToXY(cx, cy, rInner, startAngle);
+  return [
+    `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    `L ${p3.x.toFixed(2)} ${p3.y.toFixed(2)}`,
+    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${p4.x.toFixed(2)} ${p4.y.toFixed(2)}`,
+    'Z',
+  ].join(' ');
+}
+
+function drawSunburst(catSegs, detailSegs, grandTotal) {
+  const holder = document.getElementById('chart-wrap');
+  const S = 380, cx = S/2, cy = S/2;
+  const rInnerRing0 = 58, rInnerRing1 = 108;   // anneau intérieur : catégories
+  const rOuterRing0 = 112, rOuterRing1 = 168;  // anneau extérieur : détail
+
+  let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
+
+  // Anneau intérieur (catégories)
+  let angle = 0;
+  catSegs.forEach(seg => {
+    const sweep = (seg.value / grandTotal) * 360;
+    if (sweep > 0) {
+      const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
+      const pct = (seg.value / grandTotal * 100).toFixed(1);
+      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-label="${esc(seg.cat)}" data-val="${fmt(seg.value)}" data-pct="${pct}"/>`;
+    }
+    angle += sweep;
+  });
+
+  // Anneau extérieur (détail), aligné sur les mêmes secteurs de catégorie
+  angle = 0;
+  catSegs.forEach(catSeg => {
+    const items = detailSegs.filter(d => d.cat === catSeg.cat);
+    const sousTotalCat = items.reduce((s,d) => s + d.value, 0) || 1;
+    const sweepCat = (catSeg.value / grandTotal) * 360;
+    let a2 = angle;
+    items.forEach(d => {
+      const sweepD = (d.value / sousTotalCat) * sweepCat;
+      if (sweepD > 0.0001) {
+        const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
+        const pct = (d.value / grandTotal * 100).toFixed(1);
+        svg += `<path class="seg" d="${path}" fill="${d.color}" data-label="${esc(d.cat)} — ${esc(d.label)}" data-val="${fmt(d.value)}" data-pct="${pct}"/>`;
+      }
+      a2 += sweepD;
+    });
+    angle += sweepCat;
+  });
+
+  // Centre : total général
+  svg += `<text x="${cx}" y="${cy-4}" class="grand-total val">${fmt(grandTotal)}</text>`;
+  svg += `<text x="${cx}" y="${cy+14}" class="grand-total lbl">TOTAL</text>`;
+
+  svg += `</svg>`;
+  holder.innerHTML = svg;
+
+  // Tooltip au survol
+  const tooltip = document.getElementById('tooltip');
+  holder.querySelectorAll('path.seg').forEach(p => {
+    p.addEventListener('mousemove', e => {
+      tooltip.innerHTML = `<b>${p.dataset.label}</b><br>${p.dataset.val} · ${p.dataset.pct}%`;
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY + 14) + 'px';
+      tooltip.classList.add('show');
+    });
+    p.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+  });
+}
+
+function drawLegend(catsPresentes, cats, grandTotal) {
+  const legend = document.getElementById('legend');
+  let html = '';
+  catsPresentes.forEach(cat => {
+    const st = catStyle(cat);
+    const d = cats[cat];
+    const sousNoms = Object.keys(d.sousCats).sort();
+    let catTotal = 0;
+    let rowsHtml = '';
+    sousNoms.forEach((sous, i) => {
+      const sc = d.sousCats[sous];
+      const decal = i * 26;
+      const solde = Math.max(sc.solde, 0), reste = Math.max(sc.reste, 0);
+      catTotal += solde + reste;
+      rowsHtml += `
+        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,decal)}"></span>
+          <span class="legend-row-label">${esc(sous)} — Solde</span>
+          <span class="legend-row-val">${fmt(solde)}<span class="legend-row-pct">${(solde/grandTotal*100).toFixed(1)}%</span></span></div>
+        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,decal-40)}"></span>
+          <span class="legend-row-label">${esc(sous)} — Reste à notifier</span>
+          <span class="legend-row-val">${fmt(reste)}<span class="legend-row-pct">${(reste/grandTotal*100).toFixed(1)}%</span></span></div>`;
+    });
+    const dep = Math.max(d.depense, 0);
+    catTotal += dep;
+    rowsHtml += `
+        <div class="legend-row"><span class="legend-dot" style="background:${shade(st.c,-70)}"></span>
+          <span class="legend-row-label">Dépense</span>
+          <span class="legend-row-val">${fmt(dep)}<span class="legend-row-pct">${(dep/grandTotal*100).toFixed(1)}%</span></span></div>`;
+
+    html += `
+      <div class="legend-cat">
+        <div class="legend-cat-head"><span class="legend-dot" style="background:${st.c}"></span>${esc(cat)}
+          <span class="legend-total">${fmt(catTotal)} · ${(catTotal/grandTotal*100).toFixed(1)}%</span></div>
+        ${rowsHtml}
+      </div>`;
+  });
+  legend.innerHTML = html;
+}
+
+const gs = document.createElement('script');
+gs.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gs.onload = () => { grist.ready({ requiredAccess: 'full' }); fetchAll(); grist.onRecords(fetchAll); };
+gs.onerror = () => { document.getElementById('container').innerHTML = '<div class="empty">Grist non disponible.</div>'; };
+document.head.appendChild(gs);
+</script>
+</body>
+</html>
