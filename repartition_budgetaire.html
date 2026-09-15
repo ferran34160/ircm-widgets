@@ -60,6 +60,22 @@ function getSub(label) {
   const parts = String(label).split('|');
   return (parts.length > 1 ? parts.slice(1).join('|') : label).trim();
 }
+// Retire le préfixe de catégorie répété dans le sous-libellé
+// (ex. "Fonctionnement – Coûts Directs" + cat="Fonctionnement" → "Coûts Directs")
+function subShort(sous, cat) {
+  let s = String(sous);
+  if (s.startsWith(cat)) {
+    s = s.slice(cat.length).replace(/^[\s\u2013\u2014-]+/, '').trim();
+  }
+  return s || sous;
+}
+// Couleur de texte contrastée (noir/blanc) selon la luminosité du fond
+function textColorFor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n>>16)&255, g = (n>>8)&255, b = n&255;
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return lum > 0.55 ? '#222' : '#fff';
+}
 function catStyle(c) { return CAT_COLORS[c] || { c:'#999', bg:'#F5F5F3', dark:'#2A2A2A', txt:'#555', dtxt:'#aaa' }; }
 function refId(v){ if(v==null)return null; if(typeof v==='number')return v; if(Array.isArray(v))return v[1]; return v; }
 function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0); }
@@ -179,8 +195,9 @@ function render() {
       const sc = d.sousCats[sous];
       const decal = i * 26;  // nuance différente par sous-catégorie
       catTotal += Math.max(sc.solde, 0) + Math.max(sc.reste, 0);
-      detailSegs.push({ cat, label: sous + ' — Solde', value: Math.max(sc.solde,0), color: shade(st.c, decal), kind:'solde' });
-      detailSegs.push({ cat, label: sous + ' — Reste à notifier', value: Math.max(sc.reste,0), color: shade(st.c, decal-40), kind:'reste' });
+      const nomCourt = subShort(sous, cat);
+      detailSegs.push({ cat, label: nomCourt + ' — Solde', value: Math.max(sc.solde,0), color: shade(st.c, decal), kind:'solde' });
+      detailSegs.push({ cat, label: nomCourt + ' — Reste à notifier', value: Math.max(sc.reste,0), color: shade(st.c, decal-40), kind:'reste' });
     });
     catTotal += Math.max(d.depense, 0);
     detailSegs.push({ cat, label: 'Dépense', value: Math.max(d.depense,0), color: shade(st.c, -70), kind:'depense' });
@@ -224,6 +241,31 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
   ].join(' ');
 }
 
+// Tronque le texte pour qu'il tienne dans la longueur d'arc disponible
+function fitText(text, arcLenPx, fontSize) {
+  const charW = fontSize * 0.58;
+  const maxChars = Math.floor(arcLenPx / charW);
+  if (maxChars >= text.length) return text;
+  if (maxChars < 2) return '';
+  return text.slice(0, maxChars - 1) + '…';
+}
+
+// Étiquette radiale, toujours visible, centrée dans la bande de l'anneau
+function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, color) {
+  const midAngle = (startAngle + endAngle) / 2;
+  const midR = (rInner + rOuter) / 2;
+  const sweep = endAngle - startAngle;
+  const arcLenPx = 2 * Math.PI * midR * (sweep / 360);
+  const txt = fitText(text, arcLenPx, fontSize);
+  if (!txt) return '';
+  const p = polarToXY(cx, cy, midR, midAngle);
+  let rotate = midAngle - 90;
+  if (rotate > 90 && rotate < 270) rotate += 180;
+  return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
+    text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
+    style="pointer-events:none;">${esc(txt)}</text>`;
+}
+
 function drawSunburst(catSegs, detailSegs, grandTotal) {
   const holder = document.getElementById('chart-wrap');
   const S = 760, cx = S/2, cy = S/2;
@@ -231,6 +273,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   const rOuterRing0 = 224, rOuterRing1 = 336;  // anneau extérieur : détail
 
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
+  let labels = '';  // dessinées après les arcs, pour être toujours au-dessus
 
   // Anneau intérieur (catégories)
   let angle = 0;
@@ -239,7 +282,8 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
     if (sweep > 0) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
       const pct = (seg.value / grandTotal * 100).toFixed(1);
-      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-label="${esc(seg.cat)}" data-val="${fmt(seg.value)}" data-pct="${pct}"/>`;
+      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}"/>`;
+      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle+sweep, seg.cat, 16, textColorFor(seg.color));
     }
     angle += sweep;
   });
@@ -256,12 +300,15 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       if (sweepD > 0.0001) {
         const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
         const pct = (d.value / grandTotal * 100).toFixed(1);
-        svg += `<path class="seg" d="${path}" fill="${d.color}" data-label="${esc(d.cat)} — ${esc(d.label)}" data-val="${fmt(d.value)}" data-pct="${pct}"/>`;
+        svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}"/>`;
+        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2+sweepD, d.label, 11.5, textColorFor(d.color));
       }
       a2 += sweepD;
     });
     angle += sweepCat;
   });
+
+  svg += labels;
 
   // Centre : total général
   svg += `<text x="${cx}" y="${cy-6}" class="grand-total val">${fmt(grandTotal)}</text>`;
@@ -270,11 +317,11 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   svg += `</svg>`;
   holder.innerHTML = svg;
 
-  // Tooltip au survol
+  // Tooltip au survol : uniquement valeur + pourcentage (le libellé est déjà visible sur le graphique)
   const tooltip = document.getElementById('tooltip');
   holder.querySelectorAll('path.seg').forEach(p => {
     p.addEventListener('mousemove', e => {
-      tooltip.innerHTML = `<b>${p.dataset.label}</b><br>${p.dataset.val} · ${p.dataset.pct}%`;
+      tooltip.innerHTML = `${p.dataset.val} · ${p.dataset.pct}%`;
       tooltip.style.left = (e.clientX + 14) + 'px';
       tooltip.style.top = (e.clientY + 14) + 'px';
       tooltip.classList.add('show');
@@ -296,17 +343,18 @@ function drawLegend(catsPresentes, cats, grandTotal) {
       const sc = d.sousCats[sous];
       const decal = i * 26;
       const solde = Math.max(sc.solde, 0), reste = Math.max(sc.reste, 0);
+      const nomCourt = subShort(sous, cat);
       catTotal += solde + reste;
       detailRows += `
         <tr class="detail-row">
           <td><span class="legend-dot" style="background:${shade(st.c,decal)}"></span></td>
-          <td>${esc(sous)} — Solde</td>
+          <td>${esc(nomCourt)} — Solde</td>
           <td class="col-val">${fmt(solde)}</td>
           <td class="col-pct">${(solde/grandTotal*100).toFixed(1)}%</td>
         </tr>
         <tr class="detail-row">
           <td><span class="legend-dot" style="background:${shade(st.c,decal-40)}"></span></td>
-          <td>${esc(sous)} — Reste à notifier</td>
+          <td>${esc(nomCourt)} — Reste à notifier</td>
           <td class="col-val">${fmt(reste)}</td>
           <td class="col-pct">${(reste/grandTotal*100).toFixed(1)}%</td>
         </tr>`;
