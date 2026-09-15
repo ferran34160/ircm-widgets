@@ -231,7 +231,8 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
 
   if (!line1) return '';
 
-  return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
+  // Color de texto siempre blanco
+  return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="#fff"
     text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
     style="pointer-events:none;">
     <tspan x="${p.x.toFixed(2)}" dy="-0.45em">${esc(line1)}</tspan>
@@ -256,7 +257,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
       const pct = (seg.value / grandTotal * 100).toFixed(1);
       svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}" data-label="${esc(seg.cat)}"/>`;
-      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 12, textColorFor(seg.color));
+      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 12, seg.color);
     }
     angle += sweep;
   });
@@ -273,9 +274,8 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       if (sweepD > 0.0001) {
         const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
         const pct = (d.value / grandTotal * 100).toFixed(1);
-        // Solo el label de subcategoría (sin categoría principal)
         svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}" data-label="${esc(d.label)}"/>`;
-        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 9, textColorFor(d.color));
+        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 9, d.color);
       }
       a2 += sweepD;
     });
