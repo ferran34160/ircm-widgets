@@ -124,15 +124,12 @@ let filterContrat = '';
 
 async function fetchAll() {
   try {
-    console.log("Iniciando carga de datos...");
     const [l, c, cmd, da] = await Promise.all([
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Contrats'),
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Demandes_achat'),
     ]);
-
-    console.log("Datos cargados. Procesando...");
 
     const nomContrat = {};
     (c.id || []).forEach((id, i) => {
@@ -166,7 +163,6 @@ async function fetchAll() {
     buildFilterOptions();
     render();
   } catch (e) {
-    console.error("Error al cargar datos:", e);
     document.getElementById('container').innerHTML =
       '<div class="empty">Erreur : ' + esc(e.message) + '</div>';
   }
@@ -220,77 +216,34 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
   ].join(' ');
 }
 
-function fitText(text, arcLenPx, fontSize) {
-  const charW = fontSize * 0.58;
-  const maxChars = Math.floor(arcLenPx / charW);
-  if (maxChars >= text.length) return text;
-  if (maxChars < 2) return '';
-  return text.slice(0, maxChars - 1) + '…';
-}
-
-// Función optimizada para texto en 2 líneas
+// Etiqueta en 2 líneas obligatoriamente, separando por "—"
 function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, color) {
-  const sweep = endAngle - startAngle;
-  // Ocultar etiquetas si el segmento es demasiado pequeño (menos de 5 grados)
-  if (sweep < 5) return '';
-
   const midAngle = (startAngle + endAngle) / 2;
   const midR = (rInner + rOuter) / 2;
-  const arcLenPx = 2 * Math.PI * midR * (sweep / 360);
   const p = polarToXY(cx, cy, midR, midAngle);
   let rotate = midAngle - 90;
   if (rotate > 90 && rotate < 270) rotate += 180;
 
-  // Dividir texto en palabras
-  const words = text.split(' ');
-  const line1 = [];
-  const line2 = [];
-  let currentLength = 0;
-  const maxCharsPerLine = Math.max(8, Math.floor(arcLenPx / (fontSize * 0.6))); // Ajustado para más espacio
+  // Dividir el texto en 2 líneas por " — "
+  const parts = text.split(' — ');
+  const line1 = parts[0] || '';
+  const line2 = parts.length > 1 ? parts.slice(1).join(' — ') : '';
 
-  for (const word of words) {
-    if (currentLength + word.length <= maxCharsPerLine) {
-      line1.push(word);
-      currentLength += word.length + 1;
-    } else {
-      line2.push(word);
-    }
-  }
+  if (!line1) return '';
 
-  const txt1 = line1.join(' ');
-  const txt2 = line2.length > 0 ? line2.join(' ') : '';
-
-  if (!txt1) return '';
-
-  // Si el texto es muy largo, truncar
-  const maxTotalChars = maxCharsPerLine * 2;
-  if (text.length > maxTotalChars) {
-    return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
-      text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
-      style="pointer-events:none;">${esc(text.slice(0, maxTotalChars - 3))}…</text>`;
-  }
-
-  if (txt2) {
-    // Dos líneas
-    return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
-      text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
-      style="pointer-events:none;">
-      <tspan x="${p.x.toFixed(2)}" dy="-0.4em">${esc(txt1)}</tspan>
-      <tspan x="${p.x.toFixed(2)}" dy="0.8em">${esc(txt2)}</tspan>
-    </text>`;
-  } else {
-    // Una línea
-    return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
-      text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
-      style="pointer-events:none;">${esc(text)}</text>`;
-  }
+  return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
+    text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
+    style="pointer-events:none;">
+    <tspan x="${p.x.toFixed(2)}" dy="-0.45em">${esc(line1)}</tspan>
+    <tspan x="${p.x.toFixed(2)}" dy="0.9em">${esc(line2)}</tspan>
+  </text>`;
 }
 
 function drawSunburst(catSegs, detailSegs, grandTotal) {
   const holder = document.getElementById('chart-wrap');
-  const S = 836, cx = S/2, cy = S/2;
-  const rInnerRing0 = 128, rInnerRing1 = 238;  
-  const rOuterRing0 = 246, rOuterRing1 = 370;  
+  const S = 760, cx = S / 2, cy = S / 2;
+  const rInnerRing0 = 116, rInnerRing1 = 216;
+  const rOuterRing0 = 224, rOuterRing1 = 336;
 
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
   let labels = '';
@@ -302,8 +255,8 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
     if (sweep > 0) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
       const pct = (seg.value / grandTotal * 100).toFixed(1);
-      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}" data-cat="${seg.cat}"/>`;
-      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 10, textColorFor(seg.color));
+      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}" data-label="${esc(seg.cat)}"/>`;
+      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 12, textColorFor(seg.color));
     }
     angle += sweep;
   });
@@ -320,8 +273,9 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       if (sweepD > 0.0001) {
         const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
         const pct = (d.value / grandTotal * 100).toFixed(1);
-        svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}" data-cat="${d.cat}"/>`;
-        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 8, textColorFor(d.color));
+        // Solo el label de subcategoría (sin categoría principal)
+        svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}" data-label="${esc(d.label)}"/>`;
+        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 9, textColorFor(d.color));
       }
       a2 += sweepD;
     });
@@ -331,15 +285,16 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   svg += labels;
 
   // Centre
-  svg += `<text x="${cx}" y="${cy-7}" class="grand-total val" style="font-size: 39.6px">${fmt(grandTotal)}</text>`;
-  svg += `<text x="${cx}" y="${cy+24}" class="grand-total lbl" style="font-size: 16.5px">TOTAL</text>`;
+  svg += `<text x="${cx}" y="${cy - 6}" class="grand-total val">${fmt(grandTotal)}</text>`;
+  svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">TOTAL</text>`;
   svg += `</svg>`;
   holder.innerHTML = svg;
 
+  // Tooltip: mostrar label + valor + porcentaje
   const tooltip = document.getElementById('tooltip');
   holder.querySelectorAll('path.seg').forEach(p => {
     p.addEventListener('mousemove', e => {
-      tooltip.innerHTML = `${p.dataset.cat}: ${p.dataset.val} · ${p.dataset.pct}%`;
+      tooltip.innerHTML = `${p.dataset.label}<br>${p.dataset.val} · ${p.dataset.pct}%`;
       tooltip.style.left = (e.clientX + 14) + 'px';
       tooltip.style.top = (e.clientY + 14) + 'px';
       tooltip.classList.add('show');
