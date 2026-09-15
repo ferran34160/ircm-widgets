@@ -288,9 +288,9 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
 
 function drawSunburst(catSegs, detailSegs, grandTotal) {
   const holder = document.getElementById('chart-wrap');
-  const S = 760, cx = S / 2, cy = S / 2;
-  const rInnerRing0 = 116, rInnerRing1 = 216;
-  const rOuterRing0 = 224, rOuterRing1 = 336;
+  const S = 836, cx = S/2, cy = S/2;
+  const rInnerRing0 = 128, rInnerRing1 = 238;  
+  const rOuterRing0 = 246, rOuterRing1 = 370;  
 
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
   let labels = '';
@@ -331,8 +331,8 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   svg += labels;
 
   // Centre
-  svg += `<text x="${cx}" y="${cy - 6}" class="grand-total val">${fmt(grandTotal)}</text>`;
-  svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">TOTAL</text>`;
+  svg += `<text x="${cx}" y="${cy-7}" class="grand-total val" style="font-size: 39.6px">${fmt(grandTotal)}</text>`;
+  svg += `<text x="${cx}" y="${cy+24}" class="grand-total lbl" style="font-size: 16.5px">TOTAL</text>`;
   svg += `</svg>`;
   holder.innerHTML = svg;
 
