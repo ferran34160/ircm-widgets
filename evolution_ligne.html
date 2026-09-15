@@ -193,7 +193,6 @@ function fillLignes() {
     const sub=l.label.includes('|')?l.label.split('|').slice(1).join('|').trim():l.label;
     return `<option value="${l.id}">${sub.replace(/</g,'&lt;')}</option>`;
   }).join('');
-  // Si le contrat n'a qu'une seule ligne, la sélectionner d'office
   if (ls.length === 1) {
     selLigne = String(ls[0].id);
     sel.value = selLigne;
@@ -202,15 +201,12 @@ function fillLignes() {
 
 function buildEvents(ligneId) {
   const evts=[];
-  // Comandes agrupades per DA (un sol punt per DA, suma de tots els articles)
   const parDA={};
   commandes.forEach(c=>{
     if(!c.da) return;
     const da=das[c.da];
     if(!da || ligneIdOf(da.ligne)!==ligneId) return;
     if(da.statut!=='Envoyée PGM' && da.statut!=='BC reçu') return;
-    // Data de l'event: recepció del BC. Fallbacks : "BC reçu" sans date → Date_OrderPGM ;
-    // "Envoyée PGM" sans BC → Date_DA.
     let dEvt = da.date_bc;
     if(!dEvt) dEvt = (da.statut==='BC reçu' ? da.date_pgm : 0) || da.date_da;
     if(!dEvt) return;
@@ -230,21 +226,18 @@ function buildEvents(ligneId) {
                 extra: serviceOnly ? (d.nb+' service'+(d.nb>1?'s':'')) : (d.nb+' article'+(d.nb>1?'s':'')),
                 detail:{ kind:'cmd', num_da:d.num_da, num_bc:d.num_bc, total:d.total, articles:d.articles, statut:d.statut, fournisseur:d.fournisseur, serviceOnly:serviceOnly } });
   });
-  // Mouvements
   mouvements.forEach(m=>{
     if(ligneIdOf(m.ligne)!==ligneId) return;
     const isS=m.type==='Sortie';
     evts.push({ date:m.date, type:isS?'sortie':'entree', delta:isS?-m.montant:m.montant, label:m.motif||(isS?'Sortie':'Entrée'), extra:m.type,
                 detail:{ kind:'mvt', type:m.type, motif:m.motif, fournisseur:m.fournisseur, montant:m.montant } });
   });
-  // Transferts
   transferts.forEach(t=>{
     if(ligneIdOf(t.dest)===ligneId) evts.push({ date:t.date, type:'transf', delta:t.montant, label:t.motif||'Transfert entrant', extra:'Entrant',
                 detail:{ kind:'transf', sens:'Entrant', montant:t.montant, motif:t.motif, source:lblLigneShort(t.source), dest:lblLigneShort(t.dest) } });
     if(ligneIdOf(t.source)===ligneId) evts.push({ date:t.date, type:'transf', delta:-t.montant, label:t.motif||'Transfert sortant', extra:'Sortant',
                 detail:{ kind:'transf', sens:'Sortant', montant:t.montant, motif:t.motif, source:lblLigneShort(t.source), dest:lblLigneShort(t.dest) } });
   });
-  // Notifications de crédit (mise à disposition)
   notifications.forEach(n=>{
     if(ligneIdOf(n.ligne)!==ligneId || !n.date) return;
     evts.push({ date:n.date, type:'notif', delta:n.montant, label:n.ref||'Mise à disposition', extra:'Notification',
@@ -271,24 +264,29 @@ function render() {
   const evts=buildEvents(ligne.id);
   const rlvs=releves.filter(r=>ligneIdOf(r.ligne)===ligne.id && r.date).sort((a,b)=>a.date-b.date);
 
-  // Punt de départ: le premier relevé PGM disponible
   if(rlvs.length===0){ container.innerHTML='<div class="empty">Aucun relevé PGM sur cette ligne. Le graphique démarre au premier relevé.</div>'; return; }
 
   const premierReleve=rlvs[0];
   let running=premierReleve.officiel;
   const points=[{ date:premierReleve.date, dispo:running, type:'releve', label:'Premier relevé PGM', detail:{ kind:'releve', officiel:premierReleve.officiel } }];
 
-  // Ne considérer que les opérations postérieures au premier relevé,
-  // et les relevés suivants (qui recalibrent la ligne)
   const merged=[
     ...evts.filter(e=>e.date>premierReleve.date).map(e=>({...e, kind:'evt'})),
     ...rlvs.slice(1).map(r=>({date:r.date, kind:'releve', officiel:r.officiel, type:'releve', label:'Relevé PGM'})),
   ].sort((a,b)=>a.date-b.date);
 
+  // Calculer la différence pour les points de type 'releve'
+  merged.forEach((item, i) => {
+    if (item.type === 'releve' && i > 0) {
+      const prevPoint = points[points.length - 1];
+      item.diff = item.officiel - prevPoint.dispo;
+    }
+  });
+
   merged.forEach(item=>{
     if(item.kind==='releve'){
       running=item.officiel;
-      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', detail:{ kind:'releve', officiel:item.officiel } });
+      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', detail:{ kind:'releve', officiel:item.officiel }, diff: item.diff });
     } else {
       running+=item.delta;
       points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra, detail:item.detail, serviceOnly:item.serviceOnly });
@@ -305,14 +303,12 @@ function drawChart(points, ligne, dernierReleve) {
   const W=1150, H=340, padL=64, padR=110, padT=20, padB=40;
   const iw=W-padL-padR, ih=H-padT-padB;
 
-  // Prolonger la courbe jusqu'à aujourd'hui si le dernier événement est antérieur
   const aujourdhui = Date.now();
   const dernierPoint = points[points.length-1];
   if (dernierPoint && dernierPoint.date && dernierPoint.date < aujourdhui) {
     points = points.concat([{ date: aujourdhui, dispo: dernierPoint.dispo, type: 'today', label: "Aujourd'hui", today: true }]);
   }
 
-  // Tots els punts tenen data (el primer és el premier relevé)
   const dated=points.filter(p=>p.date);
   const minDate=dated.length?Math.min(...dated.map(p=>p.date)):Date.now();
   const maxDate=dated.length?Math.max(...dated.map(p=>p.date)):Date.now();
@@ -325,7 +321,6 @@ function drawChart(points, ligne, dernierReleve) {
   let minV=Math.min(0,...vals), maxV=Math.max(...vals);
   const rawRange=maxV-minV||1; minV-=rawRange*0.08; maxV+=rawRange*0.08;
 
-  // Pas « rond » pour la graduation (au moins 1000)
   function niceStep(range, target){
     const rough=range/target;
     const pow=Math.pow(10, Math.floor(Math.log10(rough)));
@@ -334,65 +329,54 @@ function drawChart(points, ligne, dernierReleve) {
     return Math.max(1000, step);
   }
   const step=niceStep(maxV-minV, 5);
-  // Aligner les bornes sur des multiples du pas
   minV=Math.floor(minV/step)*step;
   maxV=Math.ceil(maxV/step)*step;
   function yOf(v){ return padT + ih - ((v-minV)/(maxV-minV))*ih; }
 
   const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', notif:'#0E8A6B', start:'#888' };
 
-  // Path de la línia
   let d='';
   points.forEach((p,i)=>{ const x=xOf(p,i), y=yOf(p.dispo); d+=(i===0?'M':'L')+x.toFixed(1)+' '+y.toFixed(1)+' '; });
-  // Àrea
   const x0=xOf(points[0],0), xN=xOf(points[points.length-1],points.length-1);
   const area=d+`L${xN.toFixed(1)} ${yOf(minV).toFixed(1)} L${x0.toFixed(1)} ${yOf(minV).toFixed(1)} Z`;
 
-  // Grid horitzontal alineat a múltiples del pas
   let grid='';
   for(let v=minV; v<=maxV+0.5; v+=step){
     const y=yOf(v);
     grid+=`<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}"/>`;
     grid+=`<text class="axis-label" x="${padL-8}" y="${(y+3).toFixed(1)}" text-anchor="end">${Math.round(v).toLocaleString('fr-FR')}</text>`;
   }
-  // Línia del zero destacada si minV<0
+
   let zeroLine='';
   if(minV<0 && maxV>0){ const yz=yOf(0); zeroLine=`<line class="zero-line" x1="${padL}" y1="${yz.toFixed(1)}" x2="${W-padR}" y2="${yz.toFixed(1)}"/>`; }
 
-  // Punts
   let pts='';
   let releveLabels='';
   points.forEach((p,i)=>{
     if(p.type==='start') return;
-    if(p.today) return;  // pas de marqueur pour le point « aujourd'hui »
+    if(p.today) return;
     const x=xOf(p,i), y=yOf(p.dispo);
     const col=COLORS[p.type]||'#888';
     const isReleve=p.type==='releve';
     if(isReleve){
       pts+=`<rect class="pt" x="${(x-4).toFixed(1)}" y="${(y-4).toFixed(1)}" width="8" height="8" fill="${col}" data-i="${i}"/>`;
-      // Étiquette du montant au-dessus du relevé
       releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
     } else if(p.serviceOnly){
-      // Losange (DA composée uniquement de services)
       pts+=`<rect class="pt" x="${(x-5).toFixed(1)}" y="${(y-5).toFixed(1)}" width="10" height="10" fill="${col}" data-i="${i}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
     } else {
       pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" data-i="${i}"/>`;
     }
   });
 
-  // Etiquetes de dates a l'eix X: relevés i transferts (a més del primer i últim)
   let xlabels='';
   if(dated.length){
-    // Recollir les dates a etiquetar: primer punt, últim punt, relevés i transferts
     const labelPts=[];
     points.forEach((p,i)=>{
       if(p.type==='releve' || p.type==='transf') labelPts.push({date:p.date, x:xOf(p,i)});
     });
-    // Afegir primer i últim
     labelPts.push({date:minDate, x:padL+10});
     const today = points.some(p=>p.today);
     labelPts.push({date:maxDate, x:padL+10+((maxDate-minDate)/spanDate)*(iw-20), today});
-    // Ordenar per x i evitar solapaments (mínim 55px entre etiquetes)
     labelPts.sort((a,b)=>a.x-b.x);
     let lastX=-100;
     labelPts.forEach(lp=>{
@@ -405,14 +389,11 @@ function drawChart(points, ligne, dernierReleve) {
   }
 
   const finalDispo=points[points.length-1].dispo;
-
-  // Étiquette du disponible au bout de la ligne (aujourd'hui)
   const lastPt = points[points.length-1];
   const xEnd = xOf(lastPt, points.length-1);
   const yEnd = yOf(lastPt.dispo);
   const labelTxt = fmt(finalDispo);
   const labelW = labelTxt.length * 7 + 16;
-  // L'étiquette va toujours à droite du bout de la ligne (l'espace est réservé par padR)
   const labelX = xEnd + 10;
   const finalCol = finalDispo < 0 ? '#E24B4A' : '#1D9E75';
   const dateAuj = fmtDate(Date.now());
@@ -436,8 +417,6 @@ function drawChart(points, ligne, dernierReleve) {
     </svg>`;
 
   const sub=ligne.label.includes('|')?ligne.label.split('|').slice(1).join('|').trim():ligne.label;
-  // "Opérations" ne doit compter que les vraies opérations (commandes, transferts,
-  // mouvements, notifications) — ni les relevés PGM, ni le point "Aujourd'hui".
   const nbOperations = points.filter(p => p.type !== 'releve' && !p.today).length;
   const html=`
     <div class="legend">
@@ -456,7 +435,6 @@ function drawChart(points, ligne, dernierReleve) {
     </div>`;
   document.getElementById('container').innerHTML=html;
 
-  // Tooltips
   const tooltip=document.getElementById('tooltip');
   const wrap=document.querySelector('.chart-wrap');
   document.querySelectorAll('.pt').forEach(el=>{
@@ -467,21 +445,23 @@ function drawChart(points, ligne, dernierReleve) {
       if(p.extra) html+=` <span class="tt-date">(${p.extra})</span>`;
       html+=`<br><span class="tt-amount">Disponible : ${fmt(p.dispo)}</span>`;
       if(p.delta!=null) html+=`<br><span class="tt-amount" style="color:${p.delta<0?'#F09595':'#7FD9B8'}">${p.delta<0?'−':'+'} ${fmt(Math.abs(p.delta))}</span>`;
+      // Añadir la diferencia para los puntos de tipo 'releve'
+      if(p.type === 'releve' && p.diff !== undefined) {
+        const diffColor = p.diff < 0 ? '#F09595' : '#7FD9B8';
+        const diffSign = p.diff < 0 ? '−' : '+';
+        html += `<br><span class="tt-amount" style="color:${diffColor}">Différence : ${diffSign} ${fmt(Math.abs(p.diff))}</span>`;
+      }
       if(p.date) html+=`<br><span class="tt-date">${fmtDate(p.date)}</span>`;
       tooltip.innerHTML=html;
       tooltip.classList.add('show');
       tooltip.style.transform='none';
       const r=el.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
       const tw=tooltip.offsetWidth, th=tooltip.offsetHeight;
-      const cx=r.left-wr.left+r.width/2;   // centre del punt dins el wrap
-      const cyTop=r.top-wr.top;            // dalt del punt dins el wrap
-
-      // Horitzontal: centrat, però sense sortir dels límits del wrap
+      const cx=r.left-wr.left+r.width/2;
+      const cyTop=r.top-wr.top;
       let left=cx-tw/2;
       left=Math.max(4, Math.min(left, wr.width-tw-4));
       tooltip.style.left=left+'px';
-
-      // Vertical: per defecte a dalt; si no hi cap, a sota del punt
       let top=cyTop-th-2;
       if(top<2) top=cyTop+r.height+2;
       tooltip.style.top=top+'px';
