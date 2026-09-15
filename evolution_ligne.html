@@ -275,21 +275,44 @@ function render() {
     ...rlvs.slice(1).map(r=>({date:r.date, kind:'releve', officiel:r.officiel, type:'releve', label:'Relevé PGM'})),
   ].sort((a,b)=>a.date-b.date);
 
-  // Calculer la différence pour les points de type 'releve'
-  merged.forEach((item, i) => {
-    if (item.type === 'releve' && i > 0) {
-      const prevPoint = points[points.length - 1];
-      item.diff = item.officiel - prevPoint.dispo;
-    }
-  });
+  // Construir los puntos con el cálculo correcto de la diferencia
+  let lastPointWasReleve = false;
+  merged.forEach(item => {
+    if (item.kind === 'releve') {
+      const prevDispo = running;
+      running = item.officiel;
 
-  merged.forEach(item=>{
-    if(item.kind==='releve'){
-      running=item.officiel;
-      points.push({ date:item.date, dispo:running, type:'releve', label:'Relevé PGM', detail:{ kind:'releve', officiel:item.officiel }, diff: item.diff });
+      let diff;
+      if (points.length === 0) {
+        diff = undefined;
+      } else if (lastPointWasReleve) {
+        diff = 0;
+      } else {
+        diff = running - prevDispo;
+      }
+
+      points.push({
+        date: item.date,
+        dispo: running,
+        type: 'releve',
+        label: 'Relevé PGM',
+        detail: { kind: 'releve', officiel: item.officiel },
+        diff: diff
+      });
+      lastPointWasReleve = true;
     } else {
-      running+=item.delta;
-      points.push({ date:item.date, dispo:running, type:item.type, delta:item.delta, label:item.label, extra:item.extra, detail:item.detail, serviceOnly:item.serviceOnly });
+      running += item.delta;
+      points.push({
+        date: item.date,
+        dispo: running,
+        type: item.type,
+        delta: item.delta,
+        label: item.label,
+        extra: item.extra,
+        detail: item.detail,
+        serviceOnly: item.serviceOnly
+      });
+      lastPointWasReleve = false;
     }
   });
 
@@ -445,11 +468,12 @@ function drawChart(points, ligne, dernierReleve) {
       if(p.extra) html+=` <span class="tt-date">(${p.extra})</span>`;
       html+=`<br><span class="tt-amount">Disponible : ${fmt(p.dispo)}</span>`;
       if(p.delta!=null) html+=`<br><span class="tt-amount" style="color:${p.delta<0?'#F09595':'#7FD9B8'}">${p.delta<0?'−':'+'} ${fmt(Math.abs(p.delta))}</span>`;
-      // Añadir la diferencia para los puntos de tipo 'releve'
+      // Mostrar diferencia para Relevé PGM
       if(p.type === 'releve' && p.diff !== undefined) {
-        const diffColor = p.diff < 0 ? '#F09595' : '#7FD9B8';
-        const diffSign = p.diff < 0 ? '−' : '+';
-        html += `<br><span class="tt-amount" style="color:${diffColor}">Différence : ${diffSign} ${fmt(Math.abs(p.diff))}</span>`;
+        const diffColor = p.diff === 0 ? '#888' : (p.diff < 0 ? '#F09595' : '#7FD9B8');
+        const diffSign = p.diff === 0 ? '' : (p.diff < 0 ? '−' : '+');
+        const diffText = p.diff === 0 ? '0,00 €' : fmt(Math.abs(p.diff));
+        html += `<br><span class="tt-amount" style="color:${diffColor}">Différence : ${diffSign} ${diffText}</span>`;
       }
       if(p.date) html+=`<br><span class="tt-date">${fmtDate(p.date)}</span>`;
       tooltip.innerHTML=html;
