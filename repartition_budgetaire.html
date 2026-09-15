@@ -230,9 +230,12 @@ function fitText(text, arcLenPx, fontSize) {
 
 // Función optimizada para texto en 2 líneas
 function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, color) {
+  const sweep = endAngle - startAngle;
+  // Ocultar etiquetas si el segmento es demasiado pequeño (menos de 5 grados)
+  if (sweep < 5) return '';
+
   const midAngle = (startAngle + endAngle) / 2;
   const midR = (rInner + rOuter) / 2;
-  const sweep = endAngle - startAngle;
   const arcLenPx = 2 * Math.PI * midR * (sweep / 360);
   const p = polarToXY(cx, cy, midR, midAngle);
   let rotate = midAngle - 90;
@@ -243,10 +246,10 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
   const line1 = [];
   const line2 = [];
   let currentLength = 0;
-  const maxLineLength = Math.floor(arcLenPx / (fontSize * 0.58)) / 2;
+  const maxCharsPerLine = Math.max(8, Math.floor(arcLenPx / (fontSize * 0.6))); // Ajustado para más espacio
 
   for (const word of words) {
-    if (currentLength + word.length <= maxLineLength) {
+    if (currentLength + word.length <= maxCharsPerLine) {
       line1.push(word);
       currentLength += word.length + 1;
     } else {
@@ -258,6 +261,14 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
   const txt2 = line2.length > 0 ? line2.join(' ') : '';
 
   if (!txt1) return '';
+
+  // Si el texto es muy largo, truncar
+  const maxTotalChars = maxCharsPerLine * 2;
+  if (text.length > maxTotalChars) {
+    return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="${color}"
+      text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
+      style="pointer-events:none;">${esc(text.slice(0, maxTotalChars - 3))}…</text>`;
+  }
 
   if (txt2) {
     // Dos líneas
@@ -292,7 +303,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
       const pct = (seg.value / grandTotal * 100).toFixed(1);
       svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}" data-cat="${seg.cat}"/>`;
-      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 12, textColorFor(seg.color));
+      labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 10, textColorFor(seg.color));
     }
     angle += sweep;
   });
@@ -310,7 +321,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
         const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
         const pct = (d.value / grandTotal * 100).toFixed(1);
         svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}" data-cat="${d.cat}"/>`;
-        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 9, textColorFor(d.color));
+        labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 8, textColorFor(d.color));
       }
       a2 += sweepD;
     });
