@@ -291,7 +291,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
     if (sweep > 0) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
       const pct = (seg.value / grandTotal * 100).toFixed(1);
-      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}"/>`;
+      svg += `<path class="seg" d="${path}" fill="${seg.color}" data-val="${fmt(seg.value)}" data-pct="${pct}" data-cat="${seg.cat}"/>`;
       labels += arcLabel(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep, seg.cat, 12, textColorFor(seg.color));
     }
     angle += sweep;
@@ -309,7 +309,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
       if (sweepD > 0.0001) {
         const path = arcPath(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD);
         const pct = (d.value / grandTotal * 100).toFixed(1);
-        svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}"/>`;
+        svg += `<path class="seg" d="${path}" fill="${d.color}" data-val="${fmt(d.value)}" data-pct="${pct}" data-cat="${d.cat}"/>`;
         labels += arcLabel(cx, cy, rOuterRing0, rOuterRing1, a2, a2 + sweepD, d.label, 9, textColorFor(d.color));
       }
       a2 += sweepD;
@@ -328,7 +328,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   const tooltip = document.getElementById('tooltip');
   holder.querySelectorAll('path.seg').forEach(p => {
     p.addEventListener('mousemove', e => {
-      tooltip.innerHTML = `${p.dataset.val} · ${p.dataset.pct}%`;
+      tooltip.innerHTML = `${p.dataset.cat}: ${p.dataset.val} · ${p.dataset.pct}%`;
       tooltip.style.left = (e.clientX + 14) + 'px';
       tooltip.style.top = (e.clientY + 14) + 'px';
       tooltip.classList.add('show');
