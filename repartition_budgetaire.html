@@ -36,12 +36,16 @@ path.seg:hover { opacity: .82; }
 .grand-total { text-anchor: middle; }
 .grand-total .val { font-size: 36px; font-weight: 700; }
 .grand-total .lbl { font-size: 15px; fill: #999; }
+.filters { display: flex; gap: 10px; }
 </style>
 </head>
 <body>
 <div class="header">
   <div class="title">Répartition budgétaire</div>
-  <select id="contrat-filter"><option value="">Tous les contrats</option></select>
+  <div class="filters">
+    <select id="categorie-filter"><option value="">Toutes les catégories</option></select>
+    <select id="contrat-filter"><option value="">Tous les contrats</option></select>
+  </div>
 </div>
 <div id="container"><div class="loading">Chargement…</div></div>
 <div class="seg-tooltip" id="tooltip"></div>
@@ -121,6 +125,7 @@ function shade(hex, amt) {
 
 let LIGNES = [], CONTRATS = [], COMMANDES = [], DAS = {};
 let filterContrat = '';
+let filterCategorie = ''; // <-- Nuevo: filtro de categoría
 
 async function fetchAll() {
   try {
@@ -135,7 +140,6 @@ async function fetchAll() {
     const masquerValues = c.Masquer || [];
     const contratsMasques = new Set();
     (c.id || []).forEach((id, i) => {
-      // Si Masquer es true, 1, "true", "1", o cualquier valor truthy, ocultar el contrato
       if (masquerValues[i] === true || masquerValues[i] === 1 || masquerValues[i] === "true" || masquerValues[i] === "1") {
         contratsMasques.add(id);
       }
@@ -143,14 +147,13 @@ async function fetchAll() {
 
     const nomContrat = {};
     (c.id || []).forEach((id, i) => {
-      // Solo incluir contratos NO ocultos
       if (!contratsMasques.has(id)) {
         nomContrat[id] = (c.Nom || c.Label || c.Name || [])[i] || ('#' + id);
       }
     });
 
     CONTRATS = (c.id || []).map(id => ({ id, nom: nomContrat[id] }))
-      .filter(c => c.nom) // Filtrar contratos ocultos (sin nombre)
+      .filter(c => c.nom)
       .sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
 
     // --- FILTRAR LÍNEAS DE CONTRATOS OCULTOS ---
@@ -160,15 +163,11 @@ async function fetchAll() {
       contrat: refId((l.Contrat || [])[i]),
       disponible: (l.Disponible || [])[i] || 0,
       reste: (l.Reste_a_notifier || [])[i] || 0,
-    })).filter(ligne => {
-      // Solo incluir líneas de contratos NO ocultos
-      return !contratsMasques.has(ligne.contrat);
-    });
+    })).filter(ligne => !contratsMasques.has(ligne.contrat));
 
     DAS = {};
     (da.id || []).forEach((id, i) => {
       const ligneId = refId((da.Ligne_budgetaire || [])[i]);
-      // Solo incluir DAS de líneas de contratos NO ocultos
       if (ligneId && !contratsMasques.has(LIGNES.find(l => l.id === ligneId)?.contrat)) {
         DAS[id] = {
           ligne: ligneId,
@@ -177,13 +176,11 @@ async function fetchAll() {
       }
     });
 
-    // Filtrar comandas de DAS ocultos
     COMMANDES = (cmd.id || []).map((id, i) => ({
       id,
       da: refId((cmd.Demande_achat || [])[i]),
       montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
     })).filter(cmd => {
-      // Solo incluir comandas de DAS de contratos NO ocultos
       if (!cmd.da) return false;
       const daInfo = DAS[cmd.da];
       if (!daInfo) return false;
@@ -200,18 +197,37 @@ async function fetchAll() {
 }
 
 function buildFilterOptions() {
-  const sel = document.getElementById('contrat-filter');
-  const cur = sel.value;
-  let html = '<option value="">Tous les contrats</option>';
+  const selContrat = document.getElementById('contrat-filter');
+  const selCategorie = document.getElementById('categorie-filter');
+  const curContrat = selContrat.value;
+  const curCategorie = selCategorie.value;
+
+  // Opciones de contrato
+  let htmlContrat = '<option value="">Tous les contrats</option>';
   CONTRATS.forEach(c => {
-    html += `<option value="${c.id}">${esc(c.nom)}</option>`;
+    htmlContrat += `<option value="${c.id}">${esc(c.nom)}</option>`;
   });
-  sel.innerHTML = html;
-  if (cur) sel.value = cur;
+  selContrat.innerHTML = htmlContrat;
+  if (curContrat) selContrat.value = curContrat;
+
+  // Opciones de categoría (incluir todas las categorías posibles)
+  const allCategories = [...CAT_ORDER, 'Autre'];
+  let htmlCategorie = '<option value="">Toutes les catégories</option>';
+  allCategories.forEach(cat => {
+    htmlCategorie += `<option value="${cat}">${esc(cat)}</option>`;
+  });
+  selCategorie.innerHTML = htmlCategorie;
+  if (curCategorie) selCategorie.value = curCategorie;
 }
 
+// Event listeners para ambos filtros
 document.getElementById('contrat-filter').addEventListener('change', () => {
   filterContrat = document.getElementById('contrat-filter').value;
+  render();
+});
+
+document.getElementById('categorie-filter').addEventListener('change', () => {
+  filterCategorie = document.getElementById('categorie-filter').value;
   render();
 });
 
@@ -278,8 +294,12 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
   let labels = '';
 
+  // Si hay filtro de categoría, mostrar solo esa categoría
+  const catsToShow = filterCategorie ? [filterCategorie] : catSegs.map(c => c.cat);
+
   let angle = 0;
   catSegs.forEach(seg => {
+    if (!catsToShow.includes(seg.cat)) return; // <-- Filtrar por categoría
     const sweep = (seg.value / grandTotal) * 360;
     if (sweep > 0) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
@@ -292,6 +312,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 
   angle = 0;
   catSegs.forEach(catSeg => {
+    if (!catsToShow.includes(catSeg.cat)) return; // <-- Filtrar por categoría
     const items = detailSegs.filter(d => d.cat === catSeg.cat);
     const sousTotalCat = items.reduce((s, d) => s + d.value, 0) || 1;
     const sweepCat = (catSeg.value / grandTotal) * 360;
@@ -310,7 +331,6 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   });
 
   svg += labels;
-
   svg += `<text x="${cx}" y="${cy - 6}" class="grand-total val">${fmt(grandTotal)}</text>`;
   svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">TOTAL</text>`;
   svg += `</svg>`;
@@ -331,7 +351,11 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 function drawLegend(catsPresentes, cats, grandTotal) {
   const legend = document.getElementById('legend');
   let rows = '';
-  catsPresentes.forEach(cat => {
+
+  // Si hay filtro de categoría, mostrar solo esa categoría
+  const catsToShow = filterCategorie ? [filterCategorie].filter(c => cats[c]) : catsPresentes;
+
+  catsToShow.forEach(cat => {
     const st = catStyle(cat);
     const d = cats[cat];
     const sousNoms = Object.keys(d.sousCats).sort();
@@ -385,7 +409,17 @@ function drawLegend(catsPresentes, cats, grandTotal) {
 
 function render() {
   const container = document.getElementById('container');
-  const lignes = filterContrat ? LIGNES.filter(l => l.contrat === Number(filterContrat)) : LIGNES;
+  let lignes = LIGNES;
+
+  // Aplicar filtro de contrato
+  if (filterContrat) {
+    lignes = lignes.filter(l => l.contrat === Number(filterContrat));
+  }
+
+  // Aplicar filtro de categoría
+  if (filterCategorie) {
+    lignes = lignes.filter(l => getCat(l.label) === filterCategorie);
+  }
 
   if (!lignes.length) {
     container.innerHTML = '<div class="empty">Aucune ligne budgétaire trouvée.</div>';
