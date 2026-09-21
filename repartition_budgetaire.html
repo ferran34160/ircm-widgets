@@ -131,34 +131,65 @@ async function fetchAll() {
       grist.docApi.fetchTable('Demandes_achat'),
     ]);
 
+    // --- FILTRAR CONTRATOS CON Masquer seleccionado ---
+    const masquerValues = c.Masquer || [];
+    const contratsMasques = new Set();
+    (c.id || []).forEach((id, i) => {
+      // Si Masquer es true, 1, "true", "1", o cualquier valor truthy, ocultar el contrato
+      if (masquerValues[i] === true || masquerValues[i] === 1 || masquerValues[i] === "true" || masquerValues[i] === "1") {
+        contratsMasques.add(id);
+      }
+    });
+
     const nomContrat = {};
     (c.id || []).forEach((id, i) => {
-      nomContrat[id] = (c.Nom || c.Label || c.Name || [])[i] || ('#' + id);
+      // Solo incluir contratos NO ocultos
+      if (!contratsMasques.has(id)) {
+        nomContrat[id] = (c.Nom || c.Label || c.Name || [])[i] || ('#' + id);
+      }
     });
+
     CONTRATS = (c.id || []).map(id => ({ id, nom: nomContrat[id] }))
+      .filter(c => c.nom) // Filtrar contratos ocultos (sin nombre)
       .sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
 
+    // --- FILTRAR LÍNEAS DE CONTRATOS OCULTOS ---
     LIGNES = (l.id || []).map((id, i) => ({
       id,
       label: (l.Label_ligne || l.Label || [])[i] || '',
       contrat: refId((l.Contrat || [])[i]),
       disponible: (l.Disponible || [])[i] || 0,
       reste: (l.Reste_a_notifier || [])[i] || 0,
-    }));
+    })).filter(ligne => {
+      // Solo incluir líneas de contratos NO ocultos
+      return !contratsMasques.has(ligne.contrat);
+    });
 
     DAS = {};
     (da.id || []).forEach((id, i) => {
-      DAS[id] = {
-        ligne: refId((da.Ligne_budgetaire || [])[i]),
-        statut: (da.Statut || [])[i] || '',
-      };
+      const ligneId = refId((da.Ligne_budgetaire || [])[i]);
+      // Solo incluir DAS de líneas de contratos NO ocultos
+      if (ligneId && !contratsMasques.has(LIGNES.find(l => l.id === ligneId)?.contrat)) {
+        DAS[id] = {
+          ligne: ligneId,
+          statut: (da.Statut || [])[i] || '',
+        };
+      }
     });
 
+    // Filtrar comandas de DAS ocultos
     COMMANDES = (cmd.id || []).map((id, i) => ({
       id,
       da: refId((cmd.Demande_achat || [])[i]),
       montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
-    }));
+    })).filter(cmd => {
+      // Solo incluir comandas de DAS de contratos NO ocultos
+      if (!cmd.da) return false;
+      const daInfo = DAS[cmd.da];
+      if (!daInfo) return false;
+      const ligne = LIGNES.find(l => l.id === daInfo.ligne);
+      return ligne && !contratsMasques.has(ligne.contrat);
+    });
 
     buildFilterOptions();
     render();
@@ -209,14 +240,14 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
   const p4 = polarToXY(cx, cy, rInner, startAngle);
   return [
     `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`,
-    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x.toFixed(2)}
+ ${p2.y.toFixed(2)}`,
     `L ${p3.x.toFixed(2)} ${p3.y.toFixed(2)}`,
     `A ${rInner} ${rInner} 0 ${largeArc} 0 ${p4.x.toFixed(2)} ${p4.y.toFixed(2)}`,
     'Z',
   ].join(' ');
 }
 
-// Etiqueta en 2 líneas obligatoriamente, separando por "—"
 function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, color) {
   const midAngle = (startAngle + endAngle) / 2;
   const midR = (rInner + rOuter) / 2;
@@ -224,14 +255,12 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
   let rotate = midAngle - 90;
   if (rotate > 90 && rotate < 270) rotate += 180;
 
-  // Dividir el texto en 2 líneas por " — "
   const parts = text.split(' — ');
   const line1 = parts[0] || '';
   const line2 = parts.length > 1 ? parts.slice(1).join(' — ') : '';
 
   if (!line1) return '';
 
-  // Color de texto siempre blanco
   return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="#fff"
     text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
     style="pointer-events:none;">
@@ -249,7 +278,6 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
   let labels = '';
 
-  // Anneau intérieur (catégories) - 12px
   let angle = 0;
   catSegs.forEach(seg => {
     const sweep = (seg.value / grandTotal) * 360;
@@ -262,7 +290,6 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
     angle += sweep;
   });
 
-  // Anneau extérieur (détail) - 9px
   angle = 0;
   catSegs.forEach(catSeg => {
     const items = detailSegs.filter(d => d.cat === catSeg.cat);
@@ -284,13 +311,11 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 
   svg += labels;
 
-  // Centre
   svg += `<text x="${cx}" y="${cy - 6}" class="grand-total val">${fmt(grandTotal)}</text>`;
   svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">TOTAL</text>`;
   svg += `</svg>`;
   holder.innerHTML = svg;
 
-  // Tooltip: mostrar label + valor + porcentaje
   const tooltip = document.getElementById('tooltip');
   holder.querySelectorAll('path.seg').forEach(p => {
     p.addEventListener('mousemove', e => {
