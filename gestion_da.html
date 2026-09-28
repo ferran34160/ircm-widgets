@@ -175,6 +175,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 /* ===== Édition / suppression : panneaux EN LIGNE ===== */
 .btn-edit { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #378ADD; color: #378ADD; background: none; cursor: pointer; }
 .btn-edit:hover { background: #378ADD; color: #fff; }
+.assign-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px; padding: 10px 13px; border-radius: 8px; background: rgba(0,0,0,.045); font-size: 13px; }
+@media (prefers-color-scheme: dark) { .assign-total { background: rgba(255,255,255,.07); } }
+.assign-total-lbl { color: #777; }
+@media (prefers-color-scheme: dark) { .assign-total-lbl { color: #aaa; } }
+.assign-total-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.assign-total.vide .assign-total-val { color: #aaa; font-weight: 500; }
 .art-btns { display: inline-flex; gap: 6px; flex: none; align-items: center; white-space: nowrap; }
 .btn-art-edit, .btn-art-del { font-size: 11px; padding: 5px 10px; border-radius: 6px; background: none; cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1.3; }
 .btn-art-edit { border: 1px solid #378ADD; color: #378ADD; }
@@ -725,6 +731,15 @@ function renderLibresContent() {
   const dasEnCours = das.filter(d => d.statut === 'En cours')
     .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
+  // Somme des articles sélectionnés (avant d'assigner, pour avoir une idée du total)
+  const libresSel = libres.filter(a => selectedArts.has(a.id));
+  const sommeSel = libresSel.reduce((t, a) => t + (a.montant || 0), 0);
+  const sommeSelHtml = libres.length ? `
+      <div class="assign-total ${libresSel.length ? '' : 'vide'}">
+        <span class="assign-total-lbl">${libresSel.length ? 'Total des ' + libresSel.length + ' article' + (libresSel.length > 1 ? 's' : '') + ' sélectionné' + (libresSel.length > 1 ? 's' : '') : 'Aucun article sélectionné'}</span>
+        <span class="assign-total-val">${fmt(sommeSel)}</span>
+      </div>` : '';
+
   let artsHtml = libres.length ? libres.map(a => {
     const checked = selectedArts.has(a.id);
     const splitOpen = splitArticleId === a.id;
@@ -763,6 +778,7 @@ function renderLibresContent() {
         <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
       ${artsHtml}
+      ${sommeSelHtml}
       <div class="assign-da-label" style="${splitArticleId !== null ? 'opacity:.45;' : ''}">Choisir la DA de destination :</div>
       <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()" ${splitArticleId !== null ? 'disabled' : ''}>${options}</select>
       <button class="btn-assign" id="btn-assign" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
