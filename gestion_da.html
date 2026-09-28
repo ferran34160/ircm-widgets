@@ -195,6 +195,16 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ed-save:disabled { opacity: .5; cursor: default; }
 .ed-cancel { background: transparent; border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; color: inherit; }
 @media (prefers-color-scheme: dark) { .ed-cancel { border-color: #555; } }
+.art-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 7px; }
+.btn-art-edit, .btn-art-del { font-size: 12px; padding: 5px 12px; border-radius: 6px; background: none; cursor: pointer; font-family: inherit; }
+.btn-art-edit { border: 1px solid #378ADD; color: #378ADD; }
+.btn-art-edit:hover { background: #378ADD; color: #fff; }
+.btn-art-del { border: 1px solid #E24B4A; color: #E24B4A; }
+.btn-art-del:hover { background: #E24B4A; color: #fff; }
+.ed-save.danger { background: #c0392b; }
+.ed-save.danger:hover { background: #a02d21; }
+.ed-warn { font-size: 12px; padding: 8px 10px; border-radius: 6px; background: #FDF1E3; color: #8A4A18; border: 1px solid #F0D3AE; }
+@media (prefers-color-scheme: dark) { .ed-warn { background: #3D2A1A; color: #E0A87C; border-color: #5a3f24; } }
 .ed-msg { font-size: 12px; flex: 1; min-height: 16px; }
 .ed-msg.err { color: #A32D2D; }
 .ed-msg.ok { color: #0F6E56; }
@@ -487,10 +497,14 @@ function renderDetail(d) {
     <div class="art ${a.type_article==='Frais'?'svc':''}">
       <div class="art-main">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span><button class="btn-edit-art" onclick="openEdit('com',${a.id})" title="Modifier cet article">✎</button></span>
+        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
       </div>
       ${deviseHtml}
       ${demHtml}
+      <div class="art-actions">
+        <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
+        <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
+      </div>
     </div>`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
@@ -727,8 +741,11 @@ function renderLibresContent() {
             <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
             <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
           </div>
-          <button class="btn-edit-art" onclick="openEdit('com',${a.id})" title="Modifier cet article">✎</button>
           <button class="btn-split" onclick="toggleSplit(${a.id})">${splitOpen?'✕':'⚟ Répartir'}</button>
+        </div>
+        <div class="art-actions">
+          <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
+          <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
         </div>
         ${splitOpen ? renderSplitPanel(a) : ''}
       </div>`;
@@ -1084,7 +1101,7 @@ function edClose() {
   edCtx = null;
 }
 
-function edShow(title, bodyHtml, saveLabel) {
+function edShow(title, bodyHtml, saveLabel, saveClass) {
   // Retirer un éventuel panneau déjà ouvert SANS effacer le contexte qu'on vient de définir
   const previous = document.getElementById('ed-drawer');
   if (previous) previous.remove();
@@ -1094,7 +1111,7 @@ function edShow(title, bodyHtml, saveLabel) {
     <div class="ed-head"><span>${title}</span><button class="ed-x" onclick="edClose()" title="Fermer">✕</button></div>
     <div class="ed-body">${bodyHtml}</div>
     <div class="ed-foot">
-      <button class="ed-save" id="ed-save" onclick="edSave()">${saveLabel || 'Enregistrer'}</button>
+      <button class="ed-save ${saveClass || ''}" id="ed-save" onclick="edSave()">${saveLabel || 'Enregistrer'}</button>
       <button class="ed-cancel" onclick="edClose()">Annuler</button>
       <span class="ed-msg" id="ed-msg"></span>
     </div>`;
@@ -1105,7 +1122,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.g
 
 async function openEdit(kind, id) {
   try {
-    if (kind === 'da') await edOpenDA(id); else await edOpenCom(id);
+    if (kind === 'da') await edOpenDA(id);
+    else if (kind === 'del') edOpenDelete(id);
+    else await edOpenCom(id);
   } catch (e) {
     alert('Erreur : ' + e.message);
   }
@@ -1231,9 +1250,42 @@ async function edSaveCom() {
   return { table: 'Commandes', fields: f };
 }
 
+function edOpenDelete(id) {
+  const a = commandes.find(x => x.id === id);
+  if (!a) throw new Error('Article introuvable.');
+  const da = a.demande_achat ? das.find(x => x.id === a.demande_achat) : null;
+  edCtx = { kind: 'del', id };
+  const ou = da ? `Dans la DA <b>${edEsc(da.num_da)}</b> (${edEsc(da.statut)})` : 'Article libre (sans DA)';
+  const avert = da && da.statut !== 'En cours'
+    ? `<div class="ed-warn">⚠ Cette DA est « ${edEsc(da.statut)} » : supprimer cet article modifiera le disponible calculé du contrat.</div>` : '';
+  edShow('Supprimer cet article ?', `
+    <div class="ed-field"><label>Article</label>
+      <div style="font-size:14px; font-weight:600;">${a.qte > 1 ? a.qte + '× ' : ''}${edEsc(a.designation || '(sans nom)')}</div>
+      <div class="ed-hint">${a.ref ? 'Réf : ' + edEsc(a.ref) + ' · ' : ''}${fmt(a.montant)}</div></div>
+    <div class="ed-field"><label>Emplacement</label><div>${ou}</div></div>
+    ${avert}
+    <div class="ed-hint">Cette action supprime l'article de la base de données.</div>`, 'Supprimer', 'danger');
+}
+
 async function edSave() {
   if (!edCtx) return;
   const btn = document.getElementById('ed-save');
+  if (edCtx.kind === 'del') {
+    try {
+      if (btn) btn.disabled = true;
+      edMsg('Suppression…', '');
+      const id = edCtx.id;
+      await grist.docApi.applyUserActions([['RemoveRecord', 'Commandes', id]]);
+      if (typeof selectedArts !== 'undefined') selectedArts.delete(id);
+      if (typeof splitArticleId !== 'undefined' && splitArticleId === id) splitArticleId = null;
+      edClose();
+      await fetchAll();
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      edMsg('Erreur : ' + e.message, 'err');
+    }
+    return;
+  }
   try {
     const res = edCtx.kind === 'da' ? await edSaveDA() : await edSaveCom();
     if (!res) return;  // validation refusée (message déjà affiché)
