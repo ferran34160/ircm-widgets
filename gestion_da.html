@@ -12,7 +12,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
 .tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
 .bc-search { margin-left: 6px; }
-.bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 130px; }
+.bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 200px; }
 .bc-search input:focus { outline: none; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
 .libres-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #9C6ADE; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(156,106,222,0.25); width: 130px; }
@@ -216,6 +216,27 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ed-msg { font-size: 12px; min-height: 16px; }
 .ed-msg.err { color: #A32D2D; }
 .ed-msg.ok { color: #0F6E56; }
+
+/* ===== Améliorations : disponible, nouvelle DA depuis la sélection, répartitions ===== */
+.btn-assign-alt { width: 100%; margin-top: 8px; padding: 9px; background: none; color: #1D9E75; border: 1.5px solid #1D9E75; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-assign-alt:hover:not(:disabled) { background: #1D9E75; color: #fff; }
+.btn-assign-alt:disabled { opacity: .4; cursor: default; }
+.dispo-info { margin: 8px 0 4px; padding: 10px 13px; border-radius: 8px; background: #EAF3FB; border: 1px solid #cfe0f3; font-size: 12.5px; }
+@media (prefers-color-scheme: dark) { .dispo-info { background: #182430; border-color: #2b4258; } }
+.dispo-info.neg { background: #FDF3F3; border-color: #f0c4c3; }
+@media (prefers-color-scheme: dark) { .dispo-info.neg { background: #2e1a1a; border-color: #5a2f2f; } }
+.dispo-title { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+.dispo-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+.dispo-row.dispo-res { border-top: 1px solid rgba(128,128,128,.35); margin-top: 4px; padding-top: 6px; font-weight: 700; font-size: 13.5px; }
+.dispo-info.neg .dispo-res { color: #C0392B; }
+.dispo-hint { font-size: 11px; color: #999; margin-top: 6px; }
+.dispo-alert { font-size: 12px; color: #C0392B; margin-top: 6px; }
+.art-rep { font-size: 11px; color: #9C6ADE; margin-top: 3px; line-height: 1.6; }
+.btn-rep-merge { font-size: 10.5px; padding: 1px 8px; margin-left: 6px; border-radius: 10px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; }
+.btn-rep-merge:hover { background: #9C6ADE; color: #fff; }
+.ed-parts { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.ed-parts td { padding: 4px 6px; border-bottom: 1px solid rgba(128,128,128,.25); }
+.ed-parts td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -272,12 +293,14 @@ async function fetchAll() {
       id,
       label:(lb.Label||[])[i]||'',
       contrat:(lb.Contrat||[])[i],
+      dispo:(typeof (lb.Disponible||[])[i] === 'number') ? (lb.Disponible||[])[i] : null,
     }));
 
     das = (d.id||[]).map((id,i)=>({
       id,
       num_da:(d.Num_DA||[])[i]||('DA#'+id),
       contrat:resolveContrat((d.Contrat||[])[i]), masque:contratsMasques.has(String(resolveContrat((d.Contrat||[])[i])).trim()),
+      ligne:edRid((d.Ligne_budgetaire||[])[i]),
       fournisseur:resolveFour((d.Fournisseur||[])[i]),
       date_da:(d.Date_DA||[])[i],
       date_pgm:(d.Date_OrderPGM||[])[i],
@@ -303,6 +326,7 @@ async function fetchAll() {
       prix:(c.Prix_unitaire_HT||[])[i]||0,
       taux:(c.Taux_change||[])[i]||1,
       code_ghp:(c.Code_GHP||[])[i]||'',
+      rep:(c.Repartition||[])[i]||'',
       tva:((c.Taux_TVA||[])[i] !== undefined && (c.Taux_TVA||[])[i] !== null) ? (c.Taux_TVA||[])[i] : 0.2,
       statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
     }));
@@ -386,7 +410,7 @@ function renderFrame(centerAndRight) {
           <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
           <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
           <div class="bc-search">
-            <input type="text" id="bc-search-input" placeholder="🔍 N° BC…" value="${searchBC.replace(/"/g,'&quot;')}" oninput="onSearchBC(this.value)">
+            <input type="text" id="bc-search-input" placeholder="🔍 BC, article, réf…" value="${searchBC.replace(/"/g,'&quot;')}" oninput="onSearchBC(this.value)">
           </div>
         </div>
         <div class="frame-content">${centerAndRight}</div>
@@ -400,10 +424,7 @@ function renderListContent() {
   if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
   if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
   if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
-  if (searchBC.trim()) {
-    const q = searchBC.trim().toLowerCase();
-    list = list.filter(d => (d.num_bc || '').toLowerCase().includes(q));
-  }
+  if (searchBC.trim()) list = list.filter(d => daMatchesQuery(d, searchBC));
   const dateRef = (d) => {
     // A "Toutes": toujours par Date_DA (chronologie de création)
     if (tab === 'toutes') return toMs(d.date_da);
@@ -443,7 +464,7 @@ function renderListContent() {
       <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
         <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
         <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
-        <div class="da-item-foot"><span style="color:#999">${nb} art. · ${(d.statut==='Envoyée PGM'||d.statut==='BC reçu') ? 'PGM '+fmtDate(d.date_pgm) : fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
+        <div class="da-item-foot"><span style="color:#999">${listCountLabel(d.id)} · ${(d.statut==='Envoyée PGM'||d.statut==='BC reçu') ? 'PGM '+fmtDate(d.date_pgm) : fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
         ${livrBadge ? `<div class="da-item-livr">${livrBadge}</div>` : ''}
       </div>`;
   });
@@ -506,6 +527,7 @@ function renderDetail(d) {
       <div class="art-namecol">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
         ${deviseHtml}
+        ${repHtml(a)}
       </div>
       <div class="art-side">
         ${livrHtml}<span class="art-price">${fmt(a.montant)}</span>
@@ -515,7 +537,7 @@ function renderDetail(d) {
         </span>
         <div class="art-dem-col">${demHtml}</div>
       </div>
-    </div>${edInline('com', a.id)}${edInline('del', a.id)}`;
+    </div>${edInline('com', a.id)}${edInline('del', a.id)}${edInline('merge', a.id)}`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
   const parts = [];
@@ -697,22 +719,20 @@ function setFilterFour(v) {
 }
 function onSearchBC(v) {
   searchBC = v;
-  if (v.trim() && tab === 'libres') { tab = 'toutes'; }
-
-  // Si la recherche BC ne laisse qu'une seule DA, la sélectionner automatiquement
-  if (v.trim()) {
-    const q = v.trim().toLowerCase();
-    const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && (d.num_bc || '').toLowerCase().includes(q));
-    selectedDA = matches.length === 1 ? matches[0].id : null;
-  } else {
-    selectedDA = null;
+  // Sur « Articles libres », la recherche filtre les articles libres ; ailleurs, elle filtre les DA.
+  if (tab !== 'libres') {
+    // Si la recherche ne laisse qu'une seule DA, la sélectionner automatiquement
+    if (v.trim()) {
+      const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && daMatchesQuery(d, v));
+      selectedDA = matches.length === 1 ? matches[0].id : null;
+    } else {
+      selectedDA = null;
+    }
   }
-
-  // Re-renderitzar mantenint el focus a l'input
-  renderFrame(renderListContent());
+  render();
+  // Garder le focus dans le champ de recherche (render() reconstruit le DOM)
   const inp = document.getElementById('bc-search-input');
   if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-  render();
 }
 
 function setFilterDem(v) {
@@ -742,15 +762,16 @@ function renderLibresContent() {
   else if (preselectDA) assignDAValue = String(preselectDA);
   preselectDA = null;  // ne s'applique qu'à la première apparition
 
-  const libres = commandes.filter(c => !c.demande_achat);
+  const libresTous = commandes.filter(c => !c.demande_achat);
+  const libres = libresVisibles();
   // DA en cours per assignar
   const dasEnCours = das.filter(d => d.statut === 'En cours')
     .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
 
   // Somme des articles sélectionnés (avant d'assigner, pour avoir une idée du total)
-  const libresSel = libres.filter(a => selectedArts.has(a.id));
+  const libresSel = libresTous.filter(a => selectedArts.has(a.id));
   const sommeSel = libresSel.reduce((t, a) => t + (a.montant || 0), 0);
-  const sommeSelHtml = libres.length ? `
+  const sommeSelHtml = libresTous.length ? `
       <div class="assign-total ${libresSel.length ? '' : 'vide'}">
         <span class="assign-total-lbl">${libresSel.length ? 'Total des ' + libresSel.length + ' article' + (libresSel.length > 1 ? 's' : '') + ' sélectionné' + (libresSel.length > 1 ? 's' : '') : 'Aucun article sélectionné'}</span>
         <span class="assign-total-val">${fmt(sommeSel)}</span>
@@ -766,6 +787,7 @@ function renderLibresContent() {
           <div class="assign-art-info" onclick="toggleArt(${a.id})" style="flex:1; cursor:pointer;">
             <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
             <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
+            ${repHtml(a)}
           </div>
           <div class="art-btns">
             <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
@@ -773,10 +795,10 @@ function renderLibresContent() {
             <button class="btn-split" onclick="toggleSplit(${a.id})">${splitOpen?'✕':'⚟ Répartir'}</button>
           </div>
         </div>
-        ${edInline('com', a.id)}${edInline('del', a.id)}
+        ${edInline('com', a.id)}${edInline('del', a.id)}${edInline('merge', a.id)}
         ${splitOpen ? renderSplitPanel(a) : ''}
       </div>`;
-  }).join('') : '<div class="empty">Aucun article libre.</div>';
+  }).join('') : (libresTous.length ? '<div class="empty">Aucun article libre ne correspond à la recherche.</div>' : '<div class="empty">Aucun article libre.</div>');
 
   let options = '<option value="">— Choisir une DA —</option>';
   dasEnCours.forEach(d => {
@@ -797,7 +819,10 @@ function renderLibresContent() {
       ${sommeSelHtml}
       <div class="assign-da-label" style="${splitArticleId !== null ? 'opacity:.45;' : ''}">Choisir la DA de destination :</div>
       <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()" ${splitArticleId !== null ? 'disabled' : ''}>${options}</select>
+      <div id="assign-dispo">${dispoInfoHtml(assignDAValue, sommeSel, 'À ajouter (sélection)')}</div>
       <button class="btn-assign" id="btn-assign" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <button class="btn-assign-alt" id="btn-newda" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="openEdit('newda',0)">＋ Créer une DA avec la sélection</button>
+      ${edInline('newda', 0)}
       <div class="msg" id="msg"></div>
     </div>`;
 }
@@ -833,8 +858,9 @@ function renderSplitPanel(a) {
       </div>
       <div class="split-field">
         <label>DA de destination</label>
-        <select class="assign-da-select" id="split-da-${a.id}" style="margin-bottom:0;">${options}</select>
+        <select class="assign-da-select" id="split-da-${a.id}" style="margin-bottom:0;" onchange="updateSplitDispo(${a.id})">${options}</select>
       </div>
+      <div id="split-dispo-${a.id}"></div>
       <div style="display:flex; gap:8px; margin-top:10px;">
         <button class="btn-assign" style="margin-top:0;" onclick="confirmSplitAssign(${a.id})">Assigner ce montant</button>
       </div>
@@ -852,6 +878,7 @@ function updateSplitReste(articleId, total) {
   const v = parseFloat(input.value) || 0;
   const reste = Math.max(0, total - v);
   out.textContent = fmt(reste);
+  updateSplitDispo(articleId);
 }
 
 async function confirmSplitAssign(articleId) {
@@ -903,6 +930,10 @@ async function confirmSplitAssign(articleId) {
     const prixCopie = arrondi(prixBase * ratio);
     const prixRestant = arrondi(prixBase - prixCopie);
 
+    // Traçabilité : les deux parts partagent une clé de répartition (colonne « Repartition »)
+    const repKey = article.rep || ('REP-' + articleId);
+    const tagged = await edEnsureRepartition();
+
     await grist.docApi.applyUserActions([
       ['AddRecord', 'Commandes', null, {
         Designation2: article.designation,
@@ -916,8 +947,9 @@ async function confirmSplitAssign(articleId) {
         Type_article: article.type_article,
         Demandeur: article.demandeur,
         Demande_achat: Number(daId),
+        ...(tagged ? { Repartition: repKey } : {}),
       }],
-      ['UpdateRecord', 'Commandes', articleId, { Prix_unitaire_HT: prixRestant }],
+      ['UpdateRecord', 'Commandes', articleId, { Prix_unitaire_HT: prixRestant, ...(tagged ? { Repartition: repKey } : {}) }],
     ]);
 
     splitArticleId = null;
@@ -935,7 +967,7 @@ async function confirmSplitAssign(articleId) {
 }
 
 function selectAllLibres() {
-  commandes.filter(c => !c.demande_achat).forEach(c => selectedArts.add(c.id));
+  libresVisibles().forEach(c => selectedArts.add(c.id));
   render();
 }
 function deselectAllLibres() {
@@ -947,6 +979,8 @@ function onAssignDAChange() {
   assignDAValue = sel ? sel.value : '';
   const btn = document.getElementById('btn-assign');
   if (btn) btn.disabled = selectedArts.size === 0 || !assignDAValue || splitArticleId !== null;
+  const info = document.getElementById('assign-dispo');
+  if (info) info.innerHTML = dispoInfoHtml(assignDAValue, selSum(), 'À ajouter (sélection)');
 }
 
 async function assignArticles() {
@@ -1144,6 +1178,8 @@ async function openEdit(kind, id) {
   try {
     if (kind === 'da') await edOpenDA(id);
     else if (kind === 'del') edOpenDelete(id);
+    else if (kind === 'newda') edOpenNewDA();
+    else if (kind === 'merge') edOpenMerge(id);
     else await edOpenCom(id);
   } catch (e) {
     alert('Erreur : ' + e.message);
@@ -1222,6 +1258,8 @@ function edOpenDelete(id) {
 // ---------- Génération des panneaux ----------
 function edPanelHtml() {
   const c = edCtx, o = c.orig;
+  if (c.kind === 'newda') return edNewDAHtml();
+  if (c.kind === 'merge') return edMergeHtml();
 
   if (c.kind === 'del') {
     const a = commandes.find(x => x.id === c.id);
@@ -1373,6 +1411,257 @@ async function edDelete() {
   } catch (e) {
     if (btn) btn.disabled = false;
     edMsg('Erreur : ' + e.message, 'err');
+  }
+}
+
+// =====================================================================
+// AMÉLIORATIONS : recherche, disponible de la ligne, DA depuis la sélection,
+// traçabilité des répartitions. Bloc indépendant, appelé par les fonctions de rendu.
+// =====================================================================
+
+// ---------- Recherche (BC, N° DA, désignation, référence ; insensible aux accents) ----------
+function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function artMatchesQuery(a, q) { return normTxt(a.designation).includes(q) || normTxt(a.ref).includes(q); }
+function daMatchesQuery(d, raw) {
+  const q = normTxt(String(raw || '').trim());
+  if (!q) return true;
+  if (normTxt(d.num_bc).includes(q) || normTxt(d.num_da).includes(q)) return true;
+  return artsOf(d.id).some(a => artMatchesQuery(a, q));
+}
+function libresVisibles() {
+  const tous = commandes.filter(c => !c.demande_achat);
+  const q = normTxt(String(searchBC || '').trim());
+  return q ? tous.filter(a => artMatchesQuery(a, q)) : tous;
+}
+function selSum() { return commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).reduce((t, a) => t + (a.montant || 0), 0); }
+
+// ---------- Recompte dans la liste des DA (articles + services + frais) ----------
+function listCountLabel(daId) {
+  const arts = artsOf(daId);
+  const nbServ = arts.filter(a => a.type_article === 'Service').length;
+  const nbFrais = arts.filter(a => a.type_article === 'Frais').length;
+  const nbProd = arts.length - nbServ - nbFrais;
+  const p = [];
+  if (nbProd) p.push(nbProd + ' art.');
+  if (nbServ) p.push(nbServ + ' serv.');
+  if (nbFrais) p.push(nbFrais + ' frais');
+  return p.join(' + ') || '0 art.';
+}
+
+// ---------- Disponible de la ligne budgétaire (avant d'assigner) ----------
+function autresEnCoursLigne(ligneId, exceptDaId) {
+  return das.filter(d => d.ligne === ligneId && d.statut === 'En cours' && d.id !== exceptDaId).reduce((t, d) => t + totalOf(d.id), 0);
+}
+function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours) {
+  const lg = lignesList.find(l => l.id === ligneId);
+  if (!lg || typeof lg.dispo !== 'number') return '';
+  const apres = lg.dispo - dejaDA - ajout;
+  const neg = apres < -0.005;
+  const parts = String(lg.label).split('|');
+  const nom = parts.length > 1 ? parts.slice(1).join('|').trim() : lg.label;
+  const contrat = parts.length > 1 ? parts[0].trim() : '';
+  return `
+    <div class="dispo-info ${neg ? 'neg' : ''}">
+      <div class="dispo-title">Ligne : ${edEsc(nom)}${contrat ? ' · ' + edEsc(contrat) : ''}</div>
+      <div class="dispo-row"><span>Disponible actuel</span><span>${fmt(lg.dispo)}</span></div>
+      ${dejaDA > 0.005 ? `<div class="dispo-row"><span>− Déjà dans cette DA</span><span>${fmt(dejaDA)}</span></div>` : ''}
+      <div class="dispo-row"><span>− ${edEsc(labelAjout || 'À ajouter')}</span><span>${fmt(ajout)}</span></div>
+      <div class="dispo-row dispo-res"><span>= Disponible après envoi de la DA</span><span>${fmt(neg ? apres : Math.max(apres, 0))}</span></div>
+      ${neg ? '<div class="dispo-alert">⚠ Dépassement : le montant dépasse le disponible de la ligne.</div>' : ''}
+      ${autresEnCours > 0.005 ? `<div class="dispo-hint">Non déduits : ${fmt(autresEnCours)} dans d'autres DA « En cours » de cette même ligne.</div>` : ''}
+    </div>`;
+}
+function dispoInfoHtml(daId, ajout, labelAjout) {
+  try {
+    const da = daId ? das.find(x => x.id === Number(daId)) : null;
+    if (!da || !da.ligne) return '';
+    const deja = da.statut === 'En cours' ? totalOf(da.id) : 0;   // pas encore compté dans le « Disponible »
+    return dispoInfoCore(da.ligne, deja, ajout, labelAjout, autresEnCoursLigne(da.ligne, da.id));
+  } catch (e) { return ''; }
+}
+function updateSplitDispo(articleId) {
+  const box = document.getElementById('split-dispo-' + articleId);
+  if (!box) return;
+  const daId = edVal('split-da-' + articleId);
+  const v = parseFloat(edVal('split-montant-' + articleId)) || 0;
+  box.innerHTML = daId ? dispoInfoHtml(daId, v, 'À assigner') : '';
+}
+
+// ---------- Traçabilité des répartitions ----------
+// La colonne « Repartition » (Text) de Commandes reçoit une clé commune aux parts d'un même article.
+async function edEnsureRepartition() {
+  try {
+    const t = await grist.docApi.fetchTable('Commandes');
+    if (Object.prototype.hasOwnProperty.call(t, 'Repartition')) return true;
+    await grist.docApi.applyUserActions([['AddColumn', 'Commandes', 'Repartition', { type: 'Text', label: 'Répartition' }]]);
+    return true;
+  } catch (e) { return false; }   // sans traçabilité, la répartition fonctionne quand même
+}
+function repSiblings(a) { return a.rep ? commandes.filter(x => x.rep === a.rep && x.id !== a.id) : []; }
+function repHtml(a) {
+  try {
+    const sib = repSiblings(a);
+    if (!sib.length) return '';
+    const ou = x => { const d = x.demande_achat ? das.find(y => y.id === x.demande_achat) : null; return (d ? edEsc(d.num_da) : 'libre') + ' (' + fmt(x.montant) + ')'; };
+    return `<div class="art-rep">⚟ Répartie · autres parts : ${sib.map(ou).join(' · ')}
+      <button class="btn-rep-merge" onclick="openEdit('merge',${a.id})">⟲ Regrouper</button></div>`;
+  } catch (e) { return ''; }
+}
+
+function edOpenMerge(id) {
+  const a = commandes.find(x => x.id === id);
+  if (!a || !a.rep) throw new Error('Répartition introuvable.');
+  edCtx = { kind: 'merge', id, orig: null, draft: {} };
+  edRefresh();
+}
+function edMergeHtml() {
+  const a = commandes.find(x => x.id === edCtx.id);
+  if (!a || !a.rep) return '';
+  const parts = commandes.filter(x => x.rep === a.rep).sort((p, q) => p.id - q.id);
+  if (parts.length < 2) return '';
+  const daDe = p => p.demande_achat ? das.find(y => y.id === p.demande_achat) : null;
+  const verrou = parts.map(daDe).find(d => d && d.statut !== 'En cours');
+  const hetero = parts.some(p => (p.qte || 1) !== (parts[0].qte || 1) || p.devise !== parts[0].devise || (p.taux || 1) !== (parts[0].taux || 1));
+  const total = parts.reduce((t, p) => t + (p.montant || 0), 0);
+  const memeDA = parts.every(p => p.demande_achat === parts[0].demande_achat);
+  const dest = memeDA ? (daDe(parts[0]) ? 'dans la DA <b>' + edEsc(daDe(parts[0]).num_da) + '</b>' : 'article libre') : 'article libre (à réassigner ensuite à une DA)';
+  const rows = parts.map(p => { const d = daDe(p); return `<tr><td>${d ? edEsc(d.num_da) + ' (' + edEsc(d.statut) + ')' : 'libre'}</td><td>${fmt(p.montant)}</td></tr>`; }).join('');
+  const bloque = verrou ? `Impossible : une part est dans la DA « ${edEsc(verrou.num_da)} » déjà ${edEsc(verrou.statut)}.`
+    : (hetero ? 'Impossible : les parts ont des quantités ou devises différentes.' : '');
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">⟲ Regrouper les parts de « ${edEsc(a.designation || '(sans nom)')} » ?</div>
+      <table class="ed-parts">${rows}<tr><td><b>Total</b></td><td><b>${fmt(total)}</b></td></tr></table>
+      ${bloque ? `<div class="ed-warn">${bloque}</div>`
+               : `<div>Les parts seront fusionnées en <b>un seul article de ${fmt(total)}</b>, ${dest}.</div>`}
+      <div class="ed-inline-row">
+        ${bloque ? '' : '<button class="ed-save" id="ed-save" onclick="edMerge()">Regrouper</button>'}
+        <button class="btn-del-cancel" onclick="edClose()">${bloque ? 'Retour' : 'Annuler'}</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+async function edMerge() {
+  if (!edCtx || edCtx.kind !== 'merge') return;
+  const btn = document.getElementById('ed-save');
+  try {
+    const a0 = commandes.find(x => x.id === edCtx.id);
+    if (!a0 || !a0.rep) throw new Error('Répartition introuvable.');
+    const parts = commandes.filter(x => x.rep === a0.rep).sort((p, q) => p.id - q.id);
+    if (parts.length < 2) throw new Error("Il n'y a qu'une seule part.");
+    const bloque = parts.some(p => { const d = p.demande_achat ? das.find(y => y.id === p.demande_achat) : null; return d && d.statut !== 'En cours'; });
+    if (bloque) throw new Error('Une part est dans une DA déjà envoyée.');
+    const q0 = parts[0].qte || 1;
+    if (parts.some(p => (p.qte || 1) !== q0 || p.devise !== parts[0].devise || (p.taux || 1) !== (parts[0].taux || 1))) throw new Error('Les parts ont des quantités ou devises différentes.');
+    if (btn) btn.disabled = true;
+    edMsg('Regroupement…', '');
+    const keep = parts[0];
+    const somme = parts.reduce((t, p) => t + (p.prix || 0), 0);
+    const prixTotal = q0 === 1 ? Math.round(somme * 100) / 100 : Math.round(somme * 1e6) / 1e6;
+    const memeDA = parts.every(p => p.demande_achat === keep.demande_achat);
+    const actions = [['UpdateRecord', 'Commandes', keep.id, { Prix_unitaire_HT: prixTotal, Repartition: '', Demande_achat: memeDA ? (keep.demande_achat || null) : null }]];
+    parts.slice(1).forEach(p => actions.push(['RemoveRecord', 'Commandes', p.id]));
+    await grist.docApi.applyUserActions(actions);
+    parts.slice(1).forEach(p => { selectedArts.delete(p.id); if (splitArticleId === p.id) splitArticleId = null; });
+    edCtx = null;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
+  }
+}
+
+// ---------- Nouvelle DA à partir des articles sélectionnés ----------
+function edOpenNewDA() {
+  const n = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).length;
+  if (!n) throw new Error("Sélectionnez d'abord au moins un article libre.");
+  edCtx = { kind: 'newda', id: 0, orig: { num: nextNumDA(), date: new Date().toISOString().slice(0, 10) }, draft: {} };
+  edRefresh();
+}
+function edNewDAHtml() {
+  const o = edCtx.orig;
+  const cVal = String(edDv('ed-nd-contrat', ''));
+  const lVal = String(edDv('ed-nd-ligne', ''));
+  const fVal = String(edDv('ed-nd-four', ''));
+  const contratOpts = '<option value="">— Choisir —</option>' + contratsList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(x => `<option value="${x.id}" ${String(x.id) === cVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+  const fourOpts = '<option value="">— Choisir —</option>' + fournisseursList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(x => `<option value="${x.id}" ${String(x.id) === fVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+  const arts = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id));
+  const total = arts.reduce((t, a) => t + (a.montant || 0), 0);
+  const lId = lVal ? Number(lVal) : null;
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">＋ Nouvelle DA avec ${arts.length} article${arts.length > 1 ? 's' : ''} (${fmt(total)})</div>
+      <div class="ed-grid">
+        <div class="ed-field"><label>N° DA</label><input type="text" id="ed-nd-num" value="${edEsc(edDv('ed-nd-num', o.num))}"></div>
+        <div class="ed-field"><label>Contrat</label><select id="ed-nd-contrat" onchange="edNdOnContrat()">${contratOpts}</select></div>
+        <div class="ed-field"><label>Ligne budgétaire</label><select id="ed-nd-ligne" onchange="edNdUpdateDispo()">${edLigneOptions(cVal ? Number(cVal) : null, lId)}</select></div>
+        <div class="ed-field"><label>Fournisseur</label><select id="ed-nd-four">${fourOpts}</select></div>
+        <div class="ed-field"><label>Date DA</label><input type="date" id="ed-nd-date" value="${edEsc(edDv('ed-nd-date', o.date))}"></div>
+      </div>
+      <div id="ed-nd-dispo">${lId ? dispoInfoCore(lId, 0, total, 'À ajouter (sélection)', autresEnCoursLigne(lId, null)) : ''}</div>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="ed-save" onclick="edCreateDA()">Créer la DA et assigner</button>
+        <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+function edNdOnContrat() {
+  if (!edCtx) return;
+  const cid = edVal('ed-nd-contrat') ? Number(edVal('ed-nd-contrat')) : null;
+  const sel = document.getElementById('ed-nd-ligne');
+  if (sel) sel.innerHTML = edLigneOptions(cid, null);
+  edCtx.draft['ed-nd-ligne'] = '';
+  edNdUpdateDispo();
+}
+function edNdUpdateDispo() {
+  const box = document.getElementById('ed-nd-dispo');
+  if (!box) return;
+  const lId = edVal('ed-nd-ligne') ? Number(edVal('ed-nd-ligne')) : null;
+  box.innerHTML = lId ? dispoInfoCore(lId, 0, selSum(), 'À ajouter (sélection)', autresEnCoursLigne(lId, null)) : '';
+}
+async function edCreateDA() {
+  if (!edCtx || edCtx.kind !== 'newda') return;
+  const btn = document.getElementById('ed-save');
+  const num = edVal('ed-nd-num').trim();
+  const contrat = edVal('ed-nd-contrat') ? Number(edVal('ed-nd-contrat')) : null;
+  const ligne = edVal('ed-nd-ligne') ? Number(edVal('ed-nd-ligne')) : null;
+  const four = edVal('ed-nd-four') ? Number(edVal('ed-nd-four')) : null;
+  const dateVal = edVal('ed-nd-date');
+  const ids = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).map(c => c.id);
+  if (!num || !contrat || !ligne || !four) { edMsg('N° DA, contrat, ligne et fournisseur sont obligatoires.', 'err'); return; }
+  if (!ids.length) { edMsg('Aucun article libre sélectionné.', 'err'); return; }
+  if (das.some(d => d.statut !== 'Annulée' && String(d.num_da).trim() === num)) { edMsg('Ce N° DA existe déjà.', 'err'); return; }
+  let newId = null;
+  try {
+    if (btn) btn.disabled = true;
+    edMsg('Création de la DA…', '');
+    const res = await grist.docApi.applyUserActions([
+      ['AddRecord', 'Demandes_achat', null, { Num_DA: num, Contrat: contrat, Ligne_budgetaire: ligne, Fournisseur: four, Date_DA: edEpoch(dateVal), Statut: 'En cours' }]
+    ]);
+    newId = res && res.retValues && typeof res.retValues[0] === 'number' ? res.retValues[0] : null;
+    if (!newId) {   // repli : retrouver la DA créée par son numéro
+      const t = await grist.docApi.fetchTable('Demandes_achat');
+      for (let i = (t.id || []).length - 1; i >= 0; i--) { if (String((t.Num_DA || [])[i]).trim() === num) { newId = t.id[i]; break; } }
+    }
+    if (!newId) throw new Error("DA créée, mais introuvable pour l'assignation : assignez les articles manuellement.");
+    edMsg('Assignation des articles…', '');
+    await grist.docApi.applyUserActions([
+      ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(() => newId) }]
+    ]);
+    selectedArts.clear();
+    assignDAValue = '';
+    edCtx = null;
+    tab = 'En cours';
+    selectedDA = newId;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message + (newId ? ' (la DA ' + num + ' a été créée)' : ''), 'err');
   }
 }
 
