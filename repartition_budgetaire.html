@@ -29,13 +29,16 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .legend-table .col-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
 .legend-table tr.cat-row .col-val { font-weight: 700; }
 .legend-table .col-pct { text-align: right; font-variant-numeric: tabular-nums; color: #999; }
+.legend-table .col-val.neg { color: #C0392B; font-weight: 700; }
+@media (prefers-color-scheme: dark) { .legend-table .col-val.neg { color: #ff8a80; } }
+.legend-table tr.hint td { font-style: italic; color: #999; font-size: 11.5px; }
 .seg-tooltip { position: fixed; pointer-events: none; background: #222; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; z-index: 10; box-shadow: 0 3px 10px rgba(0,0,0,.25); white-space: nowrap; opacity: 0; transition: opacity .1s; }
 .seg-tooltip.show { opacity: 1; }
 path.seg { cursor: pointer; transition: opacity .12s; }
 path.seg:hover { opacity: .82; }
 .grand-total { text-anchor: middle; }
 .grand-total .val { font-size: 36px; font-weight: 700; }
-.grand-total .lbl { font-size: 15px; fill: #999; }
+.grand-total .lbl { font-size: 11px; fill: #999; letter-spacing: .04em; }
 .filters { display: flex; gap: 10px; }
 </style>
 </head>
@@ -79,10 +82,13 @@ function subShort(sous, cat) {
 }
 
 function textColorFor(hex) {
+  // Tria blanc o fosc segons el contrast (WCAG) amb el fons
   const n = parseInt(hex.slice(1), 16);
-  const r = (n>>16)&255, g = (n>>8)&255, b = n&255;
-  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return lum > 0.55 ? '#222' : '#fff';
+  const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  const cBlanc = 1.05 / (L + 0.05);
+  const cFosc = (L + 0.05) / (0.0159 + 0.05);   // #222 : luminància ≈ 0,0159
+  return cBlanc >= cFosc ? '#fff' : '#222';
 }
 
 function catStyle(c) {
@@ -109,7 +115,9 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function shade(hex, amt) {
@@ -125,7 +133,7 @@ function shade(hex, amt) {
 
 let LIGNES = [], CONTRATS = [], COMMANDES = [], DAS = {};
 let filterContrat = '';
-let filterCategorie = ''; // <-- Nuevo: filtro de categoría
+let filterCategorie = ''; // filtre de catégorie
 
 async function fetchAll() {
   try {
@@ -136,7 +144,7 @@ async function fetchAll() {
       grist.docApi.fetchTable('Demandes_achat'),
     ]);
 
-    // --- FILTRAR CONTRATOS CON Masquer seleccionado ---
+    // --- Contrats avec « Masquer » coché : exclus ---
     const masquerValues = c.Masquer || [];
     const contratsMasques = new Set();
     (c.id || []).forEach((id, i) => {
@@ -156,7 +164,7 @@ async function fetchAll() {
       .filter(c => c.nom)
       .sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
 
-    // --- FILTRAR LÍNEAS DE CONTRATOS OCULTOS ---
+    // --- Lignes des contrats masqués : exclues ---
     LIGNES = (l.id || []).map((id, i) => ({
       id,
       label: (l.Label_ligne || l.Label || [])[i] || '',
@@ -165,14 +173,13 @@ async function fetchAll() {
       reste: (l.Reste_a_notifier || [])[i] || 0,
     })).filter(ligne => !contratsMasques.has(ligne.contrat));
 
+    // DA i comandes : només les que pertanyen a una línia visible (contracte no amagat)
+    const idsLignes = new Set(LIGNES.map(l => l.id));
     DAS = {};
     (da.id || []).forEach((id, i) => {
       const ligneId = refId((da.Ligne_budgetaire || [])[i]);
-      if (ligneId && !contratsMasques.has(LIGNES.find(l => l.id === ligneId)?.contrat)) {
-        DAS[id] = {
-          ligne: ligneId,
-          statut: (da.Statut || [])[i] || '',
-        };
+      if (ligneId && idsLignes.has(ligneId)) {
+        DAS[id] = { ligne: ligneId, statut: (da.Statut || [])[i] || '' };
       }
     });
 
@@ -180,13 +187,7 @@ async function fetchAll() {
       id,
       da: refId((cmd.Demande_achat || [])[i]),
       montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
-    })).filter(cmd => {
-      if (!cmd.da) return false;
-      const daInfo = DAS[cmd.da];
-      if (!daInfo) return false;
-      const ligne = LIGNES.find(l => l.id === daInfo.ligne);
-      return ligne && !contratsMasques.has(ligne.contrat);
-    });
+    })).filter(cmd => cmd.da && DAS[cmd.da]);
 
     buildFilterOptions();
     render();
@@ -202,7 +203,7 @@ function buildFilterOptions() {
   const curContrat = selContrat.value;
   const curCategorie = selCategorie.value;
 
-  // Opciones de contrato
+  // Options de contrat
   let htmlContrat = '<option value="">Tous les contrats</option>';
   CONTRATS.forEach(c => {
     htmlContrat += `<option value="${c.id}">${esc(c.nom)}</option>`;
@@ -210,7 +211,7 @@ function buildFilterOptions() {
   selContrat.innerHTML = htmlContrat;
   if (curContrat) selContrat.value = curContrat;
 
-  // Opciones de categoría (incluir todas las categorías posibles)
+  // Options de catégorie (toutes les catégories possibles)
   const allCategories = [...CAT_ORDER, 'Autre'];
   let htmlCategorie = '<option value="">Toutes les catégories</option>';
   allCategories.forEach(cat => {
@@ -220,7 +221,7 @@ function buildFilterOptions() {
   if (curCategorie) selCategorie.value = curCategorie;
 }
 
-// Event listeners para ambos filtros
+// Écouteurs des deux filtres
 document.getElementById('contrat-filter').addEventListener('change', () => {
   filterContrat = document.getElementById('contrat-filter').value;
   render();
@@ -231,14 +232,24 @@ document.getElementById('categorie-filter').addEventListener('change', () => {
   render();
 });
 
+// Dépense = commandes de DA « Envoyée PGM » ou « BC reçu » (les seules que le Disponible de Grist a déjà déduites).
 function depenseDeLigne(ligneId) {
   let total = 0;
   COMMANDES.forEach(cmd => {
-    if (!cmd.da) return;
     const da = DAS[cmd.da];
     if (!da || da.ligne !== ligneId) return;
-    if (da.statut === 'Annulée') return;
+    if (da.statut !== 'Envoyée PGM' && da.statut !== 'BC reçu') return;
     total += cmd.montant;
+  });
+  return total;
+}
+
+// Montant des DA « En cours » : pas encore déduit du Disponible, donc pas compté dans la dépense.
+function encoursDeLigne(ligneId) {
+  let total = 0;
+  COMMANDES.forEach(cmd => {
+    const da = DAS[cmd.da];
+    if (da && da.ligne === ligneId && da.statut === 'En cours') total += cmd.montant;
   });
   return total;
 }
@@ -249,6 +260,8 @@ function polarToXY(cx, cy, r, angleDeg) {
 }
 
 function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
+  // Un arc de 360° a le même point de départ et d'arrivée : SVG l'omet. On le limite à 359,95°.
+  if (endAngle - startAngle > 359.95) endAngle = startAngle + 359.95;
   const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
   const p1 = polarToXY(cx, cy, rOuter, startAngle);
   const p2 = polarToXY(cx, cy, rOuter, endAngle);
@@ -256,8 +269,7 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
   const p4 = polarToXY(cx, cy, rInner, startAngle);
   return [
     `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`,
-    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x.toFixed(2)}
- ${p2.y.toFixed(2)}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
     `L ${p3.x.toFixed(2)} ${p3.y.toFixed(2)}`,
     `A ${rInner} ${rInner} 0 ${largeArc} 0 ${p4.x.toFixed(2)} ${p4.y.toFixed(2)}`,
     'Z',
@@ -265,6 +277,7 @@ function arcPath(cx, cy, rInner, rOuter, startAngle, endAngle) {
 }
 
 function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, color) {
+  const sweep = endAngle - startAngle;
   const midAngle = (startAngle + endAngle) / 2;
   const midR = (rInner + rOuter) / 2;
   const p = polarToXY(cx, cy, midR, midAngle);
@@ -274,15 +287,26 @@ function arcLabel(cx, cy, rInner, rOuter, startAngle, endAngle, text, fontSize, 
   const parts = text.split(' — ');
   const line1 = parts[0] || '';
   const line2 = parts.length > 1 ? parts.slice(1).join(' — ') : '';
-
   if (!line1) return '';
 
-  return `<text x="${p.x.toFixed(2)}" y="${p.y.toFixed(2)}" font-size="${fontSize}" fill="#fff"
-    text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${p.x.toFixed(2)} ${p.y.toFixed(2)})"
-    style="pointer-events:none;">
-    <tspan x="${p.x.toFixed(2)}" dy="-0.45em">${esc(line1)}</tspan>
-    <tspan x="${p.x.toFixed(2)}" dy="0.9em">${esc(line2)}</tspan>
-  </text>`;
+  // Le texte suit la tangente de l'anneau : sa largeur doit tenir dans la longueur de l'arc.
+  // Si non, on réduit la police ; si c'est encore trop étroit, on omet l'étiquette (visible au survol).
+  const arcLen = midR * sweep * Math.PI / 180;
+  const maxLen = Math.max(line1.length, line2.length);
+  let fs = fontSize;
+  if (maxLen * fs * 0.56 > arcLen * 0.92) {
+    fs = Math.floor(arcLen * 0.92 / (maxLen * 0.56));
+    if (fs < 7) return '';
+  }
+
+  const x = p.x.toFixed(2);
+  const tspans = line2
+    ? `<tspan x="${x}" dy="-0.45em">${esc(line1)}</tspan><tspan x="${x}" dy="0.9em">${esc(line2)}</tspan>`
+    : `<tspan x="${x}" dy="0">${esc(line1)}</tspan>`;
+
+  return `<text x="${x}" y="${p.y.toFixed(2)}" font-size="${fs}" fill="${textColorFor(color)}"
+    text-anchor="middle" dominant-baseline="middle" transform="rotate(${rotate.toFixed(2)} ${x} ${p.y.toFixed(2)})"
+    style="pointer-events:none;">${tspans}</text>`;
 }
 
 function drawSunburst(catSegs, detailSegs, grandTotal) {
@@ -294,12 +318,12 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
   let svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`;
   let labels = '';
 
-  // Si hay filtro de categoría, mostrar solo esa categoría
+  // Avec un filtre de catégorie, on n'affiche que celle-ci
   const catsToShow = filterCategorie ? [filterCategorie] : catSegs.map(c => c.cat);
 
   let angle = 0;
   catSegs.forEach(seg => {
-    if (!catsToShow.includes(seg.cat)) return; // <-- Filtrar por categoría
+    if (!catsToShow.includes(seg.cat)) return; // filtre de catégorie
     const sweep = (seg.value / grandTotal) * 360;
     if (sweep > 0) {
       const path = arcPath(cx, cy, rInnerRing0, rInnerRing1, angle, angle + sweep);
@@ -312,7 +336,7 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 
   angle = 0;
   catSegs.forEach(catSeg => {
-    if (!catsToShow.includes(catSeg.cat)) return; // <-- Filtrar por categoría
+    if (!catsToShow.includes(catSeg.cat)) return; // filtre de catégorie
     const items = detailSegs.filter(d => d.cat === catSeg.cat);
     const sousTotalCat = items.reduce((s, d) => s + d.value, 0) || 1;
     const sweepCat = (catSeg.value / grandTotal) * 360;
@@ -332,14 +356,17 @@ function drawSunburst(catSegs, detailSegs, grandTotal) {
 
   svg += labels;
   svg += `<text x="${cx}" y="${cy - 6}" class="grand-total val">${fmt(grandTotal)}</text>`;
-  svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">TOTAL</text>`;
+  svg += `<text x="${cx}" y="${cy + 22}" class="grand-total lbl">SOLDE + RESTE + DÉPENSE</text>`;
   svg += `</svg>`;
   holder.innerHTML = svg;
 
   const tooltip = document.getElementById('tooltip');
   holder.querySelectorAll('path.seg').forEach(p => {
     p.addEventListener('mousemove', e => {
-      tooltip.innerHTML = `${p.dataset.label}<br>${p.dataset.val} · ${p.dataset.pct}%`;
+      tooltip.textContent = '';
+      tooltip.appendChild(document.createTextNode(p.dataset.label));
+      tooltip.appendChild(document.createElement('br'));
+      tooltip.appendChild(document.createTextNode(p.dataset.val + ' · ' + p.dataset.pct + '%'));
       tooltip.style.left = (e.clientX + 14) + 'px';
       tooltip.style.top = (e.clientY + 14) + 'px';
       tooltip.classList.add('show');
@@ -352,7 +379,7 @@ function drawLegend(catsPresentes, cats, grandTotal) {
   const legend = document.getElementById('legend');
   let rows = '';
 
-  // Si hay filtro de categoría, mostrar solo esa categoría
+  // Avec un filtre de catégorie, on n'affiche que celle-ci
   const catsToShow = filterCategorie ? [filterCategorie].filter(c => cats[c]) : catsPresentes;
 
   catsToShow.forEach(cat => {
@@ -365,20 +392,22 @@ function drawLegend(catsPresentes, cats, grandTotal) {
       const sc = d.sousCats[sous];
       const decal = i * 26;
       const solde = Math.max(sc.solde, 0), reste = Math.max(sc.reste, 0);
+      // Un montant négatif (ligne dépassée) ne se dessine pas, mais on l'affiche tel quel, en rouge
+      const negS = sc.solde <= -0.5, negR = sc.reste <= -0.5;
       const nomCourt = subShort(sous, cat);
       catTotal += solde + reste;
       detailRows += `
         <tr class="detail-row">
           <td><span class="legend-dot" style="background:${shade(st.c, decal)}"></span></td>
           <td>${esc(nomCourt)} — Solde</td>
-          <td class="col-val">${fmt(solde)}</td>
-          <td class="col-pct">${(solde / grandTotal * 100).toFixed(1)}%</td>
+          <td class="col-val ${negS ? 'neg' : ''}">${fmt(negS ? sc.solde : solde)}</td>
+          <td class="col-pct">${negS ? '—' : (solde / grandTotal * 100).toFixed(1) + '%'}</td>
         </tr>
         <tr class="detail-row">
           <td><span class="legend-dot" style="background:${shade(st.c, decal - 40)}"></span></td>
           <td>${esc(nomCourt)} — Reste à notifier</td>
-          <td class="col-val">${fmt(reste)}</td>
-          <td class="col-pct">${(reste / grandTotal * 100).toFixed(1)}%</td>
+          <td class="col-val ${negR ? 'neg' : ''}">${fmt(negR ? sc.reste : reste)}</td>
+          <td class="col-pct">${negR ? '—' : (reste / grandTotal * 100).toFixed(1) + '%'}</td>
         </tr>`;
     });
     const dep = Math.max(d.depense, 0);
@@ -390,6 +419,15 @@ function drawLegend(catsPresentes, cats, grandTotal) {
           <td class="col-val">${fmt(dep)}</td>
           <td class="col-pct">${(dep / grandTotal * 100).toFixed(1)}%</td>
         </tr>`;
+    if (d.encours > 0.5) {
+      detailRows += `
+        <tr class="detail-row hint">
+          <td></td>
+          <td>DA en cours (déjà dans le solde)</td>
+          <td class="col-val">${fmt(d.encours)}</td>
+          <td class="col-pct"></td>
+        </tr>`;
+    }
 
     rows += `
         <tr class="cat-row">
@@ -411,12 +449,12 @@ function render() {
   const container = document.getElementById('container');
   let lignes = LIGNES;
 
-  // Aplicar filtro de contrato
+  // Filtre de contrat
   if (filterContrat) {
     lignes = lignes.filter(l => l.contrat === Number(filterContrat));
   }
 
-  // Aplicar filtro de categoría
+  // Filtre de catégorie
   if (filterCategorie) {
     lignes = lignes.filter(l => getCat(l.label) === filterCategorie);
   }
@@ -430,11 +468,12 @@ function render() {
   lignes.forEach(l => {
     const cat = getCat(l.label);
     const sous = getSub(l.label);
-    if (!cats[cat]) cats[cat] = { sousCats: {}, depense: 0 };
+    if (!cats[cat]) cats[cat] = { sousCats: {}, depense: 0, encours: 0 };
     if (!cats[cat].sousCats[sous]) cats[cat].sousCats[sous] = { solde: 0, reste: 0 };
     cats[cat].sousCats[sous].solde += l.disponible;
     cats[cat].sousCats[sous].reste += l.reste;
     cats[cat].depense += depenseDeLigne(l.id);
+    cats[cat].encours += encoursDeLigne(l.id);
   });
 
   const catsPresentes = CAT_ORDER.filter(c => cats[c]).concat(Object.keys(cats).filter(c => !CAT_ORDER.includes(c)));
