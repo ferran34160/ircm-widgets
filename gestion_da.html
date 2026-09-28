@@ -721,9 +721,9 @@ function renderLibresContent() {
         <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
       ${artsHtml}
-      <div class="assign-da-label">Choisir la DA de destination :</div>
-      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
-      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <div class="assign-da-label" style="${splitArticleId !== null ? 'opacity:.45;' : ''}">Choisir la DA de destination :</div>
+      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()" ${splitArticleId !== null ? 'disabled' : ''}>${options}</select>
+      <button class="btn-assign" id="btn-assign" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
       <div class="msg" id="msg"></div>
     </div>`;
 }
@@ -872,7 +872,7 @@ function onAssignDAChange() {
   const sel = document.getElementById('assign-da');
   assignDAValue = sel ? sel.value : '';
   const btn = document.getElementById('btn-assign');
-  if (btn) btn.disabled = selectedArts.size === 0 || !assignDAValue;
+  if (btn) btn.disabled = selectedArts.size === 0 || !assignDAValue || splitArticleId !== null;
 }
 
 async function assignArticles() {
