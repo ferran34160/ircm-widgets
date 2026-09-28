@@ -249,6 +249,7 @@ let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = ''
 let splitArticleId = null;  // id de l'article libre en cours de répartition partielle
 let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
 let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
+let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = pas encore choisie : on reprend assignDAValue)
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
@@ -806,6 +807,16 @@ function renderLibresContent() {
     options += `<option value="${d.id}" ${sel}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
   });
 
+  const bulkHtml = splitArticleId !== null ? '' : `
+      ${sommeSelHtml}
+      <div class="assign-da-label">Choisir la DA de destination :</div>
+      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
+      <div id="assign-dispo">${dispoInfoHtml(assignDAValue, sommeSel, 'À ajouter (sélection)')}</div>
+      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <button class="btn-assign-alt" id="btn-newda" ${selectedArts.size===0 ? 'disabled' : ''} onclick="openEdit('newda',0)">＋ Créer une DA avec la sélection</button>
+      ${edInline('newda', 0)}
+      <div class="msg" id="msg"></div>`;
+
   return `
     <div style="max-width:880px;">
       <div class="panel-title">Assigner les articles libres à une DA en cours</div>
@@ -816,14 +827,7 @@ function renderLibresContent() {
         <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
       ${artsHtml}
-      ${sommeSelHtml}
-      <div class="assign-da-label" style="${splitArticleId !== null ? 'opacity:.45;' : ''}">Choisir la DA de destination :</div>
-      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()" ${splitArticleId !== null ? 'disabled' : ''}>${options}</select>
-      <div id="assign-dispo">${dispoInfoHtml(assignDAValue, sommeSel, 'À ajouter (sélection)')}</div>
-      <button class="btn-assign" id="btn-assign" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
-      <button class="btn-assign-alt" id="btn-newda" ${(selectedArts.size===0 || splitArticleId !== null) ? 'disabled' : ''} onclick="openEdit('newda',0)">＋ Créer une DA avec la sélection</button>
-      ${edInline('newda', 0)}
-      <div class="msg" id="msg"></div>
+      ${bulkHtml}
     </div>`;
 }
 
@@ -834,15 +838,21 @@ function toggleArt(id) {
 }
 function toggleSplit(id) {
   splitArticleId = (splitArticleId === id) ? null : id;
+  splitDAValue = null;   // à l'ouverture, on repart de la DA choisie dans le sélecteur principal
   render();
 }
 
 function renderSplitPanel(a) {
   const dasEnCours = das.filter(d => d.statut === 'En cours')
     .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+  // DA présélectionnée : celle du panneau (si déjà choisie), sinon celle du sélecteur principal
+  const idsDA = new Set(dasEnCours.map(d => String(d.id)));
+  const pre = splitDAValue !== null
+    ? (idsDA.has(String(splitDAValue)) ? String(splitDAValue) : '')
+    : (idsDA.has(String(assignDAValue)) ? String(assignDAValue) : '');
   let options = '<option value="">— Choisir une DA —</option>';
   dasEnCours.forEach(d => {
-    options += `<option value="${d.id}">${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+    options += `<option value="${d.id}" ${String(d.id) === pre ? 'selected' : ''}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
   });
   return `
     <div class="split-panel" onclick="event.stopPropagation()">
@@ -860,7 +870,7 @@ function renderSplitPanel(a) {
         <label>DA de destination</label>
         <select class="assign-da-select" id="split-da-${a.id}" style="margin-bottom:0;" onchange="updateSplitDispo(${a.id})">${options}</select>
       </div>
-      <div id="split-dispo-${a.id}"></div>
+      <div id="split-dispo-${a.id}">${pre ? dispoInfoHtml(pre, a.montant, 'À assigner') : ''}</div>
       <div style="display:flex; gap:8px; margin-top:10px;">
         <button class="btn-assign" style="margin-top:0;" onclick="confirmSplitAssign(${a.id})">Assigner ce montant</button>
       </div>
@@ -1483,6 +1493,7 @@ function updateSplitDispo(articleId) {
   const box = document.getElementById('split-dispo-' + articleId);
   if (!box) return;
   const daId = edVal('split-da-' + articleId);
+  splitDAValue = daId;   // on mémorise le choix pour qu'il survive à un rafraîchissement
   const v = parseFloat(edVal('split-montant-' + articleId)) || 0;
   box.innerHTML = daId ? dispoInfoHtml(daId, v, 'À assigner') : '';
 }
