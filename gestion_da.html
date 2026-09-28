@@ -164,7 +164,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .delete-confirm.open { display: block; }
 @media (prefers-color-scheme: dark) { .delete-confirm { border-top-color: #333; } }
 .delete-confirm-title { font-size: 11px; color: #E24B4A; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; }
-.delete-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.delete-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.del-opt { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.del-opt > button { flex: none; min-width: 260px; text-align: left; }
+.del-opt-desc { font-size: 12px; color: #777; flex: 1 1 240px; }
+@media (prefers-color-scheme: dark) { .del-opt-desc { color: #aaa; } }
 .btn-del-only { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: none; background: #E24B4A; color: #fff; cursor: pointer; }
 .btn-del-only:hover { background: #c73e3d; }
 .btn-del-all { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
@@ -607,7 +611,7 @@ function renderDetail(d) {
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button class="btn-edit" onclick="openEdit('da',${d.id})">✎ Modifier</button>
-              <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
+              <button class="btn-delete" onclick="toggleDelete(${d.id})">🗑 Supprimer DA</button>
             </div>
           </div>
         </div>
@@ -625,11 +629,23 @@ function renderDetail(d) {
       </div>
       ${actionHtml}
       <div class="delete-confirm" id="del-confirm-${d.id}">
-        <div class="delete-confirm-title">⚠ Annuler cette DA ? (le numéro sera libéré)</div>
+        <div class="delete-confirm-title">⚠ Que faire de cette DA ? (le numéro ${d.num_da} sera libéré dans tous les cas)</div>
+        ${(d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') ? `<div class="ed-warn">⚠ Cette DA est « ${d.statut} » : la supprimer ou l'annuler modifiera le disponible calculé du contrat.</div>` : ''}
+        <div class="del-opt">
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, 'libres')">Supprimer DA (articles → libres)</button>
+          <span class="del-opt-desc">La DA est supprimée ; ses ${artsOf(d.id).length} article(s) redeviennent libres.</span>
+        </div>
+        <div class="del-opt">
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, 'tout')">Supprimer DA + articles</button>
+          <span class="del-opt-desc">Supprime définitivement la DA et ses ${artsOf(d.id).length} article(s) (${fmt(totalOf(d.id))}).</span>
+        </div>
+        <div class="del-opt">
+          <button class="btn-del-all" onclick="deleteDA(${d.id}, 'annuler')">Annuler DA</button>
+          <span class="del-opt-desc">Ne supprime rien : la DA est marquée « Annulée » et ses articles restent rattachés, pour garder une trace.</span>
+        </div>
         <div class="delete-confirm-row">
-          <button class="btn-del-only" onclick="deleteDA(${d.id}, false)">Annuler (articles → libres)</button>
-          <button class="btn-del-all" onclick="deleteDA(${d.id}, true)">Annuler DA + articles</button>
           <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Retour</button>
+          <span class="msg" id="del-msg-${d.id}"></span>
         </div>
       </div>
     </div>`;
@@ -640,37 +656,44 @@ function toggleDelete(id) {
   if (panel) panel.classList.toggle('open');
 }
 
-async function deleteDA(id, withArticles) {
+async function deleteDA(id, mode) {
+  // mode : 'libres' = supprimer la DA, ses articles redeviennent libres
+  //        'tout'   = supprimer la DA et ses articles
+  //        'annuler'= ne rien supprimer : la DA passe à « Annulée » (n° libéré), articles rattachés (trace)
   try {
     const da = das.find(x => x.id === id);
     const arts = commandes.filter(c => c.demande_achat === id);
     const actions = [];
 
-    if (withArticles) {
-      // Articles restent rattachés mais marqués via la DA annulée (on les laisse)
-      // -> on garde le lien pour traçabilité
-    } else {
-      // Désassigner les articles (ils repassent en libres)
+    if (mode === 'libres') {
       if (arts.length) {
-        actions.push(['BulkUpdateRecord', 'Commandes', arts.map(a => a.id), {
-          Demande_achat: arts.map(() => null)
-        }]);
+        actions.push(['BulkUpdateRecord', 'Commandes', arts.map(a => a.id), { Demande_achat: arts.map(() => null) }]);
       }
+      actions.push(['RemoveRecord', 'Demandes_achat', id]);
+    } else if (mode === 'tout') {
+      arts.forEach(a => actions.push(['RemoveRecord', 'Commandes', a.id]));
+      actions.push(['RemoveRecord', 'Demandes_achat', id]);
+    } else if (mode === 'annuler') {
+      // Marquer la DA comme annulée + libérer le numéro (suffixe -ANN)
+      const numOrig = da ? String(da.num_da) : '';
+      const numAnn = numOrig.endsWith('-ANN') ? numOrig : numOrig + '-ANN';
+      actions.push(['UpdateRecord', 'Demandes_achat', id, { Statut: 'Annulée', Num_DA: numAnn }]);
+    } else {
+      throw new Error('Action inconnue.');
     }
 
-    // Marquer la DA comme annulée + libérer le numéro (suffixe -ANN)
-    const numOrig = da ? String(da.num_da) : '';
-    const numAnn = numOrig.endsWith('-ANN') ? numOrig : numOrig + '-ANN';
-    actions.push(['UpdateRecord', 'Demandes_achat', id, {
-      Statut: 'Annulée',
-      Num_DA: numAnn,
-    }]);
-
+    const msg = document.getElementById('del-msg-' + id);
+    if (msg) { msg.className = 'msg'; msg.textContent = 'En cours…'; }
     await grist.docApi.applyUserActions(actions);
+    if (mode !== 'annuler') {
+      arts.forEach(a => { selectedArts.delete(a.id); if (splitArticleId === a.id) splitArticleId = null; });
+    }
     selectedDA = null;
     await fetchAll();
   } catch(e) {
-    alert('Erreur lors de l\'annulation : ' + e.message);
+    const msg = document.getElementById('del-msg-' + id);
+    if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
+    else alert('Erreur : ' + e.message);
   }
 }
 
