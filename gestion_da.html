@@ -561,9 +561,13 @@ function renderDetail(d) {
   return `
     <div class="detail">
       <div class="detail-head">
-        <div class="detail-head-top" style="align-items:flex-start;">
-          <span class="detail-num">${d.num_da}</span>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+        <div class="detail-head-top" style="align-items:flex-start; gap:12px;">
+          <div style="min-width:0;">
+            <span class="detail-num" style="display:block; margin-bottom:3px;">${d.num_da}</span>
+            <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+            <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:none;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
               ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
@@ -574,8 +578,6 @@ function renderDetail(d) {
             </div>
           </div>
         </div>
-        <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
-        <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
       </div>
       ${edInline('da', d.id)}
       <div class="detail-arts">${artsHtml}</div>
