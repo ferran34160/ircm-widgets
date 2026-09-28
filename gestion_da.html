@@ -61,7 +61,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .da-item-meta { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .da-item-foot { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; }
 .da-item-total { font-weight: 500; }
-.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; max-width: 640px; }
+.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; max-width: 1100px; }
 @media (prefers-color-scheme: dark) { .detail { border-color: #383838; } }
 .detail-head { background: #eef2f6; padding: 11px 13px; }
 @media (prefers-color-scheme: dark) { .detail-head { background: #283038; } }
@@ -181,12 +181,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .assign-total-lbl { color: #aaa; } }
 .assign-total-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .assign-total.vide .assign-total-val { color: #aaa; font-weight: 500; }
-/* Fila d'article del detall de la DA : nom | preu + botons (a la dreta) | demandeur */
-.detail-arts .art { align-items: center; }
-.detail-arts .art-main { flex: 1; min-width: 0; align-items: center; }
+/* Fila d'article del detall de la DA : el nom pren tot l'ample que pot; el grup
+   (preu + botons + demandeur) va a la dreta, i baixa a una 2a línia si no hi cap. */
+.detail-arts .art { align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.detail-arts .art-namecol { flex: 1 1 560px; min-width: 0; }
+.detail-arts .art-side { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; white-space: nowrap; }
 .detail-arts .art-price { min-width: 84px; text-align: right; }
-.detail-arts .art-devise { margin-top: 0; }
-.detail-arts .art-dem-col { flex: none; min-width: 66px; display: flex; justify-content: flex-end; }
+.detail-arts .art-dem-col { min-width: 56px; display: flex; justify-content: flex-end; }
 .detail-arts .art-dem-col .art-dem { margin-top: 0; justify-content: flex-end; }
 .art-btns { display: inline-flex; gap: 6px; flex: none; align-items: center; white-space: nowrap; }
 .btn-art-edit, .btn-art-del { font-size: 11px; padding: 5px 10px; border-radius: 6px; background: none; cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1.3; }
@@ -502,16 +503,18 @@ function renderDetail(d) {
       : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
     return `
     <div class="art ${a.type_article==='Frais'?'svc':''}">
-      <div class="art-main">
+      <div class="art-namecol">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span>
-          <span class="art-btns">
-            <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
-            <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
-          </span></span>
+        ${deviseHtml}
       </div>
-      ${deviseHtml}
-      <div class="art-dem-col">${demHtml}</div>
+      <div class="art-side">
+        ${livrHtml}<span class="art-price">${fmt(a.montant)}</span>
+        <span class="art-btns">
+          <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
+          <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
+        </span>
+        <div class="art-dem-col">${demHtml}</div>
+      </div>
     </div>${edInline('com', a.id)}${edInline('del', a.id)}`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
