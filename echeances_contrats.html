@@ -70,7 +70,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .hdr-btn, .resume-clear { font-size: 12px; padding: 5px 10px; border: 1px solid #999; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
 .hdr-btn:hover, .resume-clear:hover { background: rgba(128,128,128,.15); }
 .c-tools { display: flex; align-items: center; gap: 8px; }
-.c-sel { width: 16px; height: 16px; cursor: pointer; accent-color: #378ADD; }
+.c-check { display: none; width: 18px; height: 18px; border-radius: 50%; background: #378ADD; color: #fff; font-size: 11px; align-items: center; justify-content: center; }
+.card.selected .c-check { display: inline-flex; }
+.c-chevron { cursor: pointer; padding: 2px 6px; margin: -2px -6px; border-radius: 6px; }
+.c-chevron:hover { background: rgba(128,128,128,.2); opacity: .9; }
 .card.selected { box-shadow: 0 0 0 2px #378ADD; }
 #resume { position: sticky; bottom: 0; z-index: 5; margin-top: 14px; }
 .resume-card { border: 1px solid #b8c4d4; border-radius: 12px; background: #f5f9fe; padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0,0,0,.10); max-height: 70vh; overflow: auto; }
@@ -83,7 +86,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .resume-table th:first-child, .resume-table td:first-child { text-align: left; }
 .resume-table td { text-align: right; padding: 4px 8px; border-top: 1px solid rgba(128,128,128,.25); font-variant-numeric: tabular-nums; }
 .resume-table tfoot td { font-weight: 700; font-size: 13.5px; border-top: 2px solid rgba(128,128,128,.5); }
+.card { user-select: none; }
 .resume-table td.neg { color: #E24B4A; }
+.resume-table tfoot tr.resume-comb td { font-weight: 500; font-size: 12.5px; border-top: 1px dashed rgba(128,128,128,.4); opacity: .85; }
+.resume-table tfoot tr.resume-comb td:first-child { text-align: right; }
 .resume-table td.nul { opacity: .4; }
 .resume-sub { margin: 12px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .7; }
 </style>
@@ -253,15 +259,15 @@ function render(data) {
     });
 
     html += `
-      <div class="card ${state}${selectedContrats.has(c.nom) ? ' selected' : ''}" ${subFilterActif ? '' : 'onclick="this.classList.toggle(\'open\')"'}>
+      <div class="card ${state}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
             <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
           <div class="c-tools">
-            <input type="checkbox" class="c-sel" title="Ajouter à la sélection (sumatori)" data-nom="${escAttr(c.nom)}" ${selectedContrats.has(c.nom) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSel(this)">
-            ${subFilterActif ? '' : '<span class="c-chevron">▼</span>'}
+            <span class="c-check" title="Contrat sélectionné">✓</span>
+            ${subFilterActif ? '' : '<span class="c-chevron" title="Afficher / masquer les catégories" onclick="event.stopPropagation(); this.closest(\'.card\').classList.toggle(\'open\')">▼</span>'}
           </div>
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
@@ -280,27 +286,25 @@ function render(data) {
 
 
 // =====================================================================
-// SUMATORI DES CONTRATS SÉLECTIONNÉS
+// SUMATORI DES CONTRATS SÉLECTIONNÉS (un clic sur la carte sélectionne / désélectionne)
 // =====================================================================
 function escAttr(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function toggleSel(el) {
-  const nom = el.dataset.nom;
-  if (el.checked) selectedContrats.add(nom); else selectedContrats.delete(nom);
-  const card = el.closest('.card');
-  if (card) card.classList.toggle('selected', el.checked);
+function toggleSelCard(card) {
+  // Si l'utilisateur vient de sélectionner du texte (pour le copier), on ne change pas la sélection
+  try { if (window.getSelection && String(window.getSelection()).length) return; } catch (e) {}
+  const nom = card.dataset.nom;
+  if (selectedContrats.has(nom)) selectedContrats.delete(nom); else selectedContrats.add(nom);
+  card.classList.toggle('selected', selectedContrats.has(nom));
   renderResume();
 }
 
-// Aligne les cases et le surlignage des cartes sur la sélection (sans redessiner : les cartes ouvertes restent ouvertes)
+// Aligne le surlignage des cartes sur la sélection (sans redessiner : les cartes ouvertes restent ouvertes)
 function syncCards() {
-  document.querySelectorAll('#container .c-sel').forEach(cb => {
-    const on = selectedContrats.has(cb.dataset.nom);
-    cb.checked = on;
-    const card = cb.closest('.card');
-    if (card) card.classList.toggle('selected', on);
+  document.querySelectorAll('#container .card[data-nom]').forEach(card => {
+    card.classList.toggle('selected', selectedContrats.has(card.dataset.nom));
   });
 }
 function selectAllVisible() { lastList.forEach(c => selectedContrats.add(c.nom)); syncCards(); renderResume(); }
@@ -320,24 +324,28 @@ function renderResume() {
     return;
   }
 
-  const tot = { disp: 0, rel: 0, reste: 0, mise: 0 };
+  const tot = { disp: 0, reste: 0 };
   const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${fmt(v)}</td>`;
   const rows = visibles.map(c => {
-    tot.disp += c.disponible; tot.rel += c.releve; tot.reste += c.reste_notifier; tot.mise += c.mise;
-    return `<tr><td>${c.nom}</td>${cell(c.disponible, true)}${cell(c.releve)}${cell(c.reste_notifier)}${c.mise ? cell(c.mise) : '<td class="nul">—</td>'}</tr>`;
+    tot.disp += c.disponible; tot.reste += c.reste_notifier;
+    return `<tr><td>${c.nom}</td>${cell(c.disponible, true)}${cell(c.reste_notifier)}</tr>`;
   }).join('');
 
   // Détail par catégorie (uniquement s'il y en a au moins deux dans la sélection)
   const groupes = {};
-  visibles.forEach(c => c.lignes.filter(l => l.montant_releve > 0 || l.disponible !== 0).forEach(l => {
+  visibles.forEach(c => c.lignes.forEach(l => {
     const sub = getSub(l.label);
-    if (!groupes[sub]) groupes[sub] = { disp: 0, rang: catRank(l.label) };
+    if (!groupes[sub]) groupes[sub] = { disp: 0, reste: 0, rang: catRank(l.label) };
     groupes[sub].disp += l.disponible;
+    groupes[sub].reste += (l.reste_notifier || 0);
   }));
-  const cles = Object.keys(groupes).sort((a, b) => groupes[a].rang - groupes[b].rang || a.localeCompare(b, 'fr'));
+  const cles = Object.keys(groupes)
+    .filter(k => Math.abs(groupes[k].disp) > 0.005 || Math.abs(groupes[k].reste) > 0.005)
+    .sort((a, b) => groupes[a].rang - groupes[b].rang || a.localeCompare(b, 'fr'));
   const detail = cles.length >= 2
-    ? `<div class="resume-sub">Disponible par catégorie</div>
-       <table class="resume-table"><tbody>${cles.map(k => `<tr><td>${k}</td>${cell(groupes[k].disp, true)}</tr>`).join('')}</tbody></table>`
+    ? `<div class="resume-sub">Par catégorie</div>
+       <table class="resume-table"><thead><tr><th></th><th>Disponible</th><th>Reste à notifier</th></tr></thead>
+       <tbody>${cles.map(k => `<tr><td>${k}</td>${cell(groupes[k].disp, true)}${cell(groupes[k].reste)}</tr>`).join('')}</tbody></table>`
     : '';
 
   box.innerHTML = `
@@ -347,9 +355,12 @@ function renderResume() {
         <button class="resume-clear" onclick="clearSel()">✕ Tout désélectionner</button>
       </div>
       <table class="resume-table">
-        <thead><tr><th>Contrat</th><th>Disponible</th><th>Dernier relevé</th><th>Reste à notifier</th><th>Mise à disposition</th></tr></thead>
+        <thead><tr><th>Contrat</th><th>Disponible</th><th>Reste à notifier</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><td>Total</td>${cell(tot.disp, true)}${cell(tot.rel)}${cell(tot.reste)}${tot.mise ? cell(tot.mise) : '<td class="nul">—</td>'}</tr></tfoot>
+        <tfoot>
+          <tr><td>Total</td>${cell(tot.disp, true)}${cell(tot.reste)}</tr>
+          <tr class="resume-comb"><td colspan="2">Disponible + Reste à notifier</td>${cell(tot.disp + tot.reste, true)}</tr>
+        </tfoot>
       </table>
       ${detail}
     </div>`;
