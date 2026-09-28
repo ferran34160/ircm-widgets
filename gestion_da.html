@@ -847,8 +847,12 @@ async function confirmSplitAssign(articleId) {
     ]);
 
     splitArticleId = null;
-    // On reste sur "Articles libres" : l'article réduit y est toujours visible,
-    // prêt à être assigné (en tout ou en partie) à la DA suivante.
+    // Comme pour une assignation normale : on va sur la DA (« En cours ») où
+    // se trouve le bouton « Passer à Envoyée PGM ». Le reste de l'article
+    // demeure libre : on le retrouve dans « Articles libres » (ou via le bouton
+    // « Assigner des articles » de la DA suivante).
+    tab = 'En cours';
+    selectedDA = Number(daId);
     await fetchAll();
   } catch(e) {
     msg.className = 'msg err';
