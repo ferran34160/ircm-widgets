@@ -727,6 +727,7 @@ function renderLibresContent() {
             <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
             <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
           </div>
+          <button class="btn-edit-art" onclick="openEdit('com',${a.id})" title="Modifier cet article">✎</button>
           <button class="btn-split" onclick="toggleSplit(${a.id})">${splitOpen?'✕':'⚟ Répartir'}</button>
         </div>
         ${splitOpen ? renderSplitPanel(a) : ''}
