@@ -131,15 +131,25 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .assign-da-label { font-size: 12px; font-weight: 600; color: #666; margin: 14px 0 6px; }
 @media (prefers-color-scheme: dark) { .assign-da-label { color: #aaa; } }
 @media (prefers-color-scheme: dark) { .assign-da-select { border-color: #444; } }
-.assign-art { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 5px; cursor: pointer; }
+.assign-art { display: block; padding: 8px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 5px; }
 @media (prefers-color-scheme: dark) { .assign-art { border-color: #383838; } }
 .assign-art.checked { background: #E6F1FB; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .assign-art.checked { background: #0C2D4D; } }
-.assign-check { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: transparent; }
+.assign-check { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: transparent; cursor: pointer; }
 .assign-art.checked .assign-check { background: #378ADD; border-color: #378ADD; color: #fff; }
 .assign-art-info { flex: 1; min-width: 0; }
 .assign-art-name { font-size: 12px; font-weight: 500; }
 .assign-art-meta { font-size: 11px; color: #888; }
+.btn-split { flex-shrink: 0; font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; white-space: nowrap; }
+.btn-split:hover { background: #9C6ADE; color: #fff; }
+.split-panel { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd; }
+@media (prefers-color-scheme: dark) { .split-panel { border-top-color: #444; } }
+.split-row { display: flex; gap: 10px; }
+.split-field { flex: 1; margin-bottom: 8px; }
+.split-field label { font-size: 10.5px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 4px; }
+.split-field input { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .split-field input { border-color: #444; } }
+.split-total { font-size: 13px; font-weight: 600; padding: 7px 0; }
 .btn-assign { width: 100%; margin-top: 10px; padding: 10px; background: #378ADD; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
 .btn-assign:disabled { background: #ccc; cursor: not-allowed; }
 @media (prefers-color-scheme: dark) { .btn-assign:disabled { background: #444; } }
@@ -170,6 +180,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
+let splitArticleId = null;  // id de l'article libre en cours de répartition partielle
 let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
 let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
 
@@ -246,6 +257,8 @@ async function fetchAll() {
       devise:(c.Devise||[])[i]||'EUR',
       prix:(c.Prix_unitaire_HT||[])[i]||0,
       taux:(c.Taux_change||[])[i]||1,
+      code_ghp:(c.Code_GHP||[])[i]||'',
+      tva:((c.Taux_TVA||[])[i] !== undefined && (c.Taux_TVA||[])[i] !== null) ? (c.Taux_TVA||[])[i] : 0.2,
       statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
     }));
 
@@ -677,13 +690,18 @@ function renderLibresContent() {
 
   let artsHtml = libres.length ? libres.map(a => {
     const checked = selectedArts.has(a.id);
+    const splitOpen = splitArticleId === a.id;
     return `
-      <div class="assign-art ${checked?'checked':''}" onclick="toggleArt(${a.id})">
-        <div class="assign-check">✓</div>
-        <div class="assign-art-info">
-          <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
-          <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
+      <div class="assign-art ${checked?'checked':''}">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="assign-check" onclick="toggleArt(${a.id})">✓</div>
+          <div class="assign-art-info" onclick="toggleArt(${a.id})" style="flex:1; cursor:pointer;">
+            <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
+            <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
+          </div>
+          <button class="btn-split" onclick="toggleSplit(${a.id})">${splitOpen?'✕':'⚟ Répartir'}</button>
         </div>
+        ${splitOpen ? renderSplitPanel(a) : ''}
       </div>`;
   }).join('') : '<div class="empty">Aucun article libre.</div>';
 
@@ -715,6 +733,129 @@ function toggleArt(id) {
   else selectedArts.add(id);
   render();
 }
+function toggleSplit(id) {
+  splitArticleId = (splitArticleId === id) ? null : id;
+  render();
+}
+
+function renderSplitPanel(a) {
+  const dasEnCours = das.filter(d => d.statut === 'En cours')
+    .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+  let options = '<option value="">— Choisir une DA —</option>';
+  dasEnCours.forEach(d => {
+    options += `<option value="${d.id}">${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+  });
+  return `
+    <div class="split-panel" onclick="event.stopPropagation()">
+      <div class="split-row">
+        <div class="split-field">
+          <label>Montant à assigner à cette DA</label>
+          <input type="number" step="0.01" min="0.01" max="${a.montant.toFixed(2)}" id="split-montant-${a.id}" value="${a.montant.toFixed(2)}" oninput="updateSplitReste(${a.id}, ${a.montant})">
+        </div>
+        <div class="split-field">
+          <label>Sur un total de</label>
+          <div class="split-total">${fmt(a.montant)}</div>
+        </div>
+      </div>
+      <div class="split-field">
+        <label>DA de destination</label>
+        <select class="assign-da-select" id="split-da-${a.id}" style="margin-bottom:0;">${options}</select>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn-assign" style="margin-top:0;" onclick="confirmSplitAssign(${a.id})">Assigner ce montant</button>
+      </div>
+      <div class="msg" id="split-msg-${a.id}"></div>
+      <div style="font-size:11px; color:#888; margin-top:6px;">
+        Reste libre après cette assignation : <b id="split-reste-${a.id}">0,00 €</b>
+      </div>
+    </div>`;
+}
+
+function updateSplitReste(articleId, total) {
+  const input = document.getElementById('split-montant-' + articleId);
+  const out = document.getElementById('split-reste-' + articleId);
+  if (!input || !out) return;
+  const v = parseFloat(input.value) || 0;
+  const reste = Math.max(0, total - v);
+  out.textContent = fmt(reste);
+}
+
+async function confirmSplitAssign(articleId) {
+  const article = commandes.find(c => c.id === articleId);
+  const montantInput = document.getElementById('split-montant-' + articleId);
+  const daSel = document.getElementById('split-da-' + articleId);
+  const msg = document.getElementById('split-msg-' + articleId);
+  if (!article || !montantInput || !daSel) return;
+
+  const daId = daSel.value;
+  const montantSaisi = parseFloat(montantInput.value);
+
+  if (!daId) {
+    msg.className = 'msg err'; msg.textContent = 'Choisissez une DA de destination.'; return;
+  }
+  if (!(montantSaisi > 0)) {
+    msg.className = 'msg err'; msg.textContent = 'Montant invalide.'; return;
+  }
+  if (montantSaisi > article.montant + 0.005) {
+    msg.className = 'msg err'; msg.textContent = 'Le montant dépasse le total de l\'article.'; return;
+  }
+
+  msg.className = 'msg'; msg.textContent = 'Enregistrement…';
+
+  try {
+    const estQuasiTotal = Math.abs(montantSaisi - article.montant) < 0.01;
+
+    if (estQuasiTotal) {
+      // Montant ≈ total : simple assignation complète, sans division
+      await grist.docApi.applyUserActions([
+        ['UpdateRecord', 'Commandes', articleId, { Demande_achat: Number(daId) }]
+      ]);
+      splitArticleId = null;
+      selectedArts.delete(articleId);
+      tab = 'En cours';
+      selectedDA = Number(daId);
+      await fetchAll();
+      return;
+    }
+
+    // Répartition partielle : créer une copie pour la part assignée,
+    // et réduire l'article d'origine du montant restant (il reste libre).
+    // Calcul par proportion sur le prix unitaire d'origine : valable quelle que
+    // soit la devise (le montant affiché est en €, le prix unitaire dans la devise).
+    const qte = article.qte || 1;
+    const ratio = montantSaisi / article.montant;
+    const prixBase = article.prix > 0 ? article.prix : (article.montant / qte / (article.taux || 1));
+    const arrondi = v => qte === 1 ? Math.round(v * 100) / 100 : Math.round(v * 1e6) / 1e6;
+    const prixCopie = arrondi(prixBase * ratio);
+    const prixRestant = arrondi(prixBase - prixCopie);
+
+    await grist.docApi.applyUserActions([
+      ['AddRecord', 'Commandes', null, {
+        Designation2: article.designation,
+        Reference_fournisseur: article.ref,
+        Code_GHP: article.code_ghp,
+        Devise: article.devise,
+        Taux_change: article.taux,
+        Quantite: qte,
+        Prix_unitaire_HT: prixCopie,
+        Taux_TVA: article.tva,
+        Type_article: article.type_article,
+        Demandeur: article.demandeur,
+        Demande_achat: Number(daId),
+      }],
+      ['UpdateRecord', 'Commandes', articleId, { Prix_unitaire_HT: prixRestant }],
+    ]);
+
+    splitArticleId = null;
+    // On reste sur "Articles libres" : l'article réduit y est toujours visible,
+    // prêt à être assigné (en tout ou en partie) à la DA suivante.
+    await fetchAll();
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
+  }
+}
+
 function selectAllLibres() {
   commandes.filter(c => !c.demande_achat).forEach(c => selectedArts.add(c.id));
   render();
