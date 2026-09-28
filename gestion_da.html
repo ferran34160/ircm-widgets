@@ -181,6 +181,13 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .assign-total-lbl { color: #aaa; } }
 .assign-total-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .assign-total.vide .assign-total-val { color: #aaa; font-weight: 500; }
+/* Fila d'article del detall de la DA : nom | preu + botons (a la dreta) | demandeur */
+.detail-arts .art { align-items: center; }
+.detail-arts .art-main { flex: 1; min-width: 0; align-items: center; }
+.detail-arts .art-price { min-width: 84px; text-align: right; }
+.detail-arts .art-devise { margin-top: 0; }
+.detail-arts .art-dem-col { flex: none; min-width: 66px; display: flex; justify-content: flex-end; }
+.detail-arts .art-dem-col .art-dem { margin-top: 0; justify-content: flex-end; }
 .art-btns { display: inline-flex; gap: 6px; flex: none; align-items: center; white-space: nowrap; }
 .btn-art-edit, .btn-art-del { font-size: 11px; padding: 5px 10px; border-radius: 6px; background: none; cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1.3; }
 .btn-art-edit { border: 1px solid #378ADD; color: #378ADD; }
@@ -504,7 +511,7 @@ function renderDetail(d) {
           </span></span>
       </div>
       ${deviseHtml}
-      ${demHtml}
+      <div class="art-dem-col">${demHtml}</div>
     </div>${edInline('com', a.id)}${edInline('del', a.id)}`;
   }).join('') : '<div class="empty">Aucun article.</div>';
 
