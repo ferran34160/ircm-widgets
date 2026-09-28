@@ -561,13 +561,17 @@ function renderDetail(d) {
   return `
     <div class="detail">
       <div class="detail-head">
-        <div class="detail-head-top">
+        <div class="detail-head-top" style="align-items:flex-start;">
           <span class="detail-num">${d.num_da}</span>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
-            <button class="btn-edit" onclick="openEdit('da',${d.id})">✎ Modifier</button>
-            ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
-            <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+              ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn-edit" onclick="openEdit('da',${d.id})">✎ Modifier</button>
+              <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
+            </div>
           </div>
         </div>
         <div class="detail-route">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
