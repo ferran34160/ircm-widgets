@@ -66,21 +66,47 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .header select { border-color: #444; } }
 .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .sub-filter-label { font-size: 12.5px; color: #888; margin: -6px 0 12px 0; }
+.hdr-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hdr-btn, .resume-clear { font-size: 12px; padding: 5px 10px; border: 1px solid #999; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+.hdr-btn:hover, .resume-clear:hover { background: rgba(128,128,128,.15); }
+.c-tools { display: flex; align-items: center; gap: 8px; }
+.c-sel { width: 16px; height: 16px; cursor: pointer; accent-color: #378ADD; }
+.card.selected { box-shadow: 0 0 0 2px #378ADD; }
+#resume { position: sticky; bottom: 0; z-index: 5; margin-top: 14px; }
+.resume-card { border: 1px solid #b8c4d4; border-radius: 12px; background: #f5f9fe; padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0,0,0,.10); max-height: 70vh; overflow: auto; }
+@media (prefers-color-scheme: dark) { .resume-card { background: #182430; border-color: #2b4258; } }
+.resume-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.resume-title { font-size: 13px; font-weight: 600; }
+.resume-note { font-size: 11px; opacity: .7; font-weight: 400; margin-left: 6px; }
+.resume-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.resume-table th { text-align: right; font-weight: 500; font-size: 11px; opacity: .7; padding: 3px 8px; }
+.resume-table th:first-child, .resume-table td:first-child { text-align: left; }
+.resume-table td { text-align: right; padding: 4px 8px; border-top: 1px solid rgba(128,128,128,.25); font-variant-numeric: tabular-nums; }
+.resume-table tfoot td { font-weight: 700; font-size: 13.5px; border-top: 2px solid rgba(128,128,128,.5); }
+.resume-table td.neg { color: #E24B4A; }
+.resume-table td.nul { opacity: .4; }
+.resume-sub { margin: 12px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .7; }
 </style>
 <div class="header">
   <div class="title">Échéances des contrats</div>
-  <select id="cat-filter"><option value="">Toutes catégories</option></select>
+  <div class="hdr-right">
+    <button class="hdr-btn" id="btn-sel-all" onclick="selectAllVisible()" title="Cocher tous les contrats affichés">☑ Tout sélectionner</button>
+    <select id="cat-filter"><option value="">Toutes catégories</option></select>
+  </div>
 </div>
 <div class="sub-filter-label" id="sub-filter-label"></div>
 <div id="container">
   <div class="loading" id="loading">Chargement…</div>
 </div>
+<div id="resume"></div>
 
 <script>
 let allData = [];
 let contratsMasques = new Set();
 let notifsParLigne = {};
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
+let selectedContrats = new Set();   // contrats cochés pour le sumatori (par nom) : survit aux rafraîchissements
+let lastList = [];                  // contrats (agrégés) affichés au dernier rendu
 
 function fmt(v) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
@@ -184,8 +210,10 @@ function render(data) {
     return 0;
   });
 
+  lastList = list;
   if (list.length === 0) {
     container.innerHTML = '<div class="loading">Aucun contrat.</div>';
+    renderResume();
     return;
   }
 
@@ -225,13 +253,16 @@ function render(data) {
     });
 
     html += `
-      <div class="card ${state}" ${subFilterActif ? '' : 'onclick="this.classList.toggle(\'open\')"'}>
+      <div class="card ${state}${selectedContrats.has(c.nom) ? ' selected' : ''}" ${subFilterActif ? '' : 'onclick="this.classList.toggle(\'open\')"'}>
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
             <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
-          ${subFilterActif ? '' : '<span class="c-chevron">▼</span>'}
+          <div class="c-tools">
+            <input type="checkbox" class="c-sel" title="Ajouter à la sélection (sumatori)" data-nom="${escAttr(c.nom)}" ${selectedContrats.has(c.nom) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSel(this)">
+            ${subFilterActif ? '' : '<span class="c-chevron">▼</span>'}
+          </div>
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
@@ -244,6 +275,84 @@ function render(data) {
   html += '</div>';
 
   container.innerHTML = html;
+  renderResume();
+}
+
+
+// =====================================================================
+// SUMATORI DES CONTRATS SÉLECTIONNÉS
+// =====================================================================
+function escAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function toggleSel(el) {
+  const nom = el.dataset.nom;
+  if (el.checked) selectedContrats.add(nom); else selectedContrats.delete(nom);
+  const card = el.closest('.card');
+  if (card) card.classList.toggle('selected', el.checked);
+  renderResume();
+}
+
+// Aligne les cases et le surlignage des cartes sur la sélection (sans redessiner : les cartes ouvertes restent ouvertes)
+function syncCards() {
+  document.querySelectorAll('#container .c-sel').forEach(cb => {
+    const on = selectedContrats.has(cb.dataset.nom);
+    cb.checked = on;
+    const card = cb.closest('.card');
+    if (card) card.classList.toggle('selected', on);
+  });
+}
+function selectAllVisible() { lastList.forEach(c => selectedContrats.add(c.nom)); syncCards(); renderResume(); }
+function clearSel() { selectedContrats.clear(); syncCards(); renderResume(); }
+
+function renderResume() {
+  const box = document.getElementById('resume');
+  if (!box) return;
+  const visibles = lastList.filter(c => selectedContrats.has(c.nom));
+  const nbHors = [...selectedContrats].filter(n => !lastList.some(c => c.nom === n)).length;
+  const noteHors = nbHors ? `<span class="resume-note">(+ ${nbHors} sélectionné${nbHors > 1 ? 's' : ''} hors du filtre actuel)</span>` : '';
+
+  if (!visibles.length) {
+    box.innerHTML = nbHors
+      ? `<div class="resume-card"><div class="resume-head"><span class="resume-title">Aucun contrat sélectionné dans ce filtre ${noteHors}</span><button class="resume-clear" onclick="clearSel()">✕ Tout désélectionner</button></div></div>`
+      : '';
+    return;
+  }
+
+  const tot = { disp: 0, rel: 0, reste: 0, mise: 0 };
+  const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${fmt(v)}</td>`;
+  const rows = visibles.map(c => {
+    tot.disp += c.disponible; tot.rel += c.releve; tot.reste += c.reste_notifier; tot.mise += c.mise;
+    return `<tr><td>${c.nom}</td>${cell(c.disponible, true)}${cell(c.releve)}${cell(c.reste_notifier)}${c.mise ? cell(c.mise) : '<td class="nul">—</td>'}</tr>`;
+  }).join('');
+
+  // Détail par catégorie (uniquement s'il y en a au moins deux dans la sélection)
+  const groupes = {};
+  visibles.forEach(c => c.lignes.filter(l => l.montant_releve > 0 || l.disponible !== 0).forEach(l => {
+    const sub = getSub(l.label);
+    if (!groupes[sub]) groupes[sub] = { disp: 0, rang: catRank(l.label) };
+    groupes[sub].disp += l.disponible;
+  }));
+  const cles = Object.keys(groupes).sort((a, b) => groupes[a].rang - groupes[b].rang || a.localeCompare(b, 'fr'));
+  const detail = cles.length >= 2
+    ? `<div class="resume-sub">Disponible par catégorie</div>
+       <table class="resume-table"><tbody>${cles.map(k => `<tr><td>${k}</td>${cell(groupes[k].disp, true)}</tr>`).join('')}</tbody></table>`
+    : '';
+
+  box.innerHTML = `
+    <div class="resume-card">
+      <div class="resume-head">
+        <span class="resume-title">Sélection : ${visibles.length} contrat${visibles.length > 1 ? 's' : ''} ${noteHors}</span>
+        <button class="resume-clear" onclick="clearSel()">✕ Tout désélectionner</button>
+      </div>
+      <table class="resume-table">
+        <thead><tr><th>Contrat</th><th>Disponible</th><th>Dernier relevé</th><th>Reste à notifier</th><th>Mise à disposition</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td>Total</td>${cell(tot.disp, true)}${cell(tot.rel)}${cell(tot.reste)}${tot.mise ? cell(tot.mise) : '<td class="nul">—</td>'}</tr></tfoot>
+      </table>
+      ${detail}
+    </div>`;
 }
 
 function toMs(g) { if (!g) return 0; if (g > 1e15) return g/1000; if (g > 1e11) return g; return g*1000; }
