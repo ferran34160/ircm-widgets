@@ -171,6 +171,33 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-del-all:hover { background: #FCEBEB; }
 .btn-del-cancel { font-size: 12px; padding: 7px 14px; border-radius: 7px; border: 1px solid #ccc; color: inherit; background: none; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .btn-del-cancel { border-color: #444; } }
+
+/* ===== Édition (panneau latéral indépendant) ===== */
+.btn-edit { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #378ADD; color: #378ADD; background: none; cursor: pointer; }
+.btn-edit:hover { background: #378ADD; color: #fff; }
+.btn-edit-art { background: none; border: none; cursor: pointer; color: #999; font-size: 13px; padding: 0 5px; margin-left: 4px; border-radius: 4px; }
+.btn-edit-art:hover { color: #378ADD; background: rgba(55,138,221,.12); }
+#ed-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 340px; max-width: 100%; background: #fff; color: #222; border-left: 1px solid #d5d5d5; box-shadow: -6px 0 22px rgba(0,0,0,.18); z-index: 1000; display: flex; flex-direction: column; font-size: 13px; }
+@media (prefers-color-scheme: dark) { #ed-drawer { background: #1f1f21; color: #eee; border-left-color: #3a3a3a; } }
+.ed-head { padding: 13px 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
+@media (prefers-color-scheme: dark) { .ed-head { border-bottom-color: #333; } }
+.ed-x { background: none; border: none; cursor: pointer; color: inherit; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+.ed-x:hover { background: rgba(128,128,128,.2); }
+.ed-body { padding: 14px 15px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 11px; }
+.ed-field label { font-size: 10.5px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 4px; }
+.ed-field input, .ed-field select { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; font-family: inherit; }
+@media (prefers-color-scheme: dark) { .ed-field input, .ed-field select { border-color: #444; } }
+.ed-hint { font-size: 11px; color: #999; margin-top: 3px; }
+.ed-foot { padding: 12px 15px; border-top: 1px solid #eee; display: flex; gap: 8px; align-items: center; }
+@media (prefers-color-scheme: dark) { .ed-foot { border-top-color: #333; } }
+.ed-save { background: #2563a8; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.ed-save:hover { background: #1d4e85; }
+.ed-save:disabled { opacity: .5; cursor: default; }
+.ed-cancel { background: transparent; border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; color: inherit; }
+@media (prefers-color-scheme: dark) { .ed-cancel { border-color: #555; } }
+.ed-msg { font-size: 12px; flex: 1; min-height: 16px; }
+.ed-msg.err { color: #A32D2D; }
+.ed-msg.ok { color: #0F6E56; }
 </style>
 </head>
 <body>
@@ -460,7 +487,7 @@ function renderDetail(d) {
     <div class="art ${a.type_article==='Frais'?'svc':''}">
       <div class="art-main">
         <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
-        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span></span>
+        <span class="art-right">${livrHtml}<span class="art-price">${fmt(a.montant)}</span><button class="btn-edit-art" onclick="openEdit('com',${a.id})" title="Modifier cet article">✎</button></span>
       </div>
       ${deviseHtml}
       ${demHtml}
@@ -524,6 +551,7 @@ function renderDetail(d) {
           <span class="detail-num">${d.num_da}</span>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+            <button class="btn-edit" onclick="openEdit('da',${d.id})">✎ Modifier</button>
             ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
             <button class="btn-delete" onclick="toggleDelete(${d.id})">✕ Annuler la DA</button>
           </div>
@@ -1030,6 +1058,193 @@ async function createDA() {
   } catch(e) {
     msg.className = 'msg err';
     msg.textContent = 'Erreur : ' + e.message;
+  }
+}
+
+// =====================================================================
+// ÉDITION D'UNE DA / D'UN ARTICLE — panneau latéral indépendant.
+// N'utilise aucune fonction de rendu existante : les données sont lues
+// dans Grist à l'ouverture, et seuls les champs modifiés sont écrits.
+// =====================================================================
+const ED_STATUTS = ['En cours', 'Envoyée PGM', 'BC reçu'];
+const ED_TYPES = ['Produit', 'Service', 'Frais'];
+let edCtx = null;
+
+function edEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function edRid(v) { if (v == null) return null; if (typeof v === 'number') return v; if (Array.isArray(v)) return v[1] || null; return null; }
+function edIso(v) { const ms = toMs(v); if (!ms) return ''; const d = new Date(ms); if (isNaN(d) || d.getFullYear() > 3000) return ''; return d.toISOString().slice(0, 10); }
+function edEpoch(s) { return s ? Math.floor(new Date(s + 'T00:00:00Z').getTime() / 1000) : null; }
+function edVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function edMsg(txt, cls) { const m = document.getElementById('ed-msg'); if (m) { m.className = 'ed-msg ' + (cls || ''); m.textContent = txt || ''; } }
+
+function edClose() {
+  const el = document.getElementById('ed-drawer');
+  if (el) el.remove();
+  edCtx = null;
+}
+
+function edShow(title, bodyHtml, saveLabel) {
+  // Retirer un éventuel panneau déjà ouvert SANS effacer le contexte qu'on vient de définir
+  const previous = document.getElementById('ed-drawer');
+  if (previous) previous.remove();
+  const el = document.createElement('div');
+  el.id = 'ed-drawer';
+  el.innerHTML = `
+    <div class="ed-head"><span>${title}</span><button class="ed-x" onclick="edClose()" title="Fermer">✕</button></div>
+    <div class="ed-body">${bodyHtml}</div>
+    <div class="ed-foot">
+      <button class="ed-save" id="ed-save" onclick="edSave()">${saveLabel || 'Enregistrer'}</button>
+      <button class="ed-cancel" onclick="edClose()">Annuler</button>
+      <span class="ed-msg" id="ed-msg"></span>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('ed-drawer')) edClose(); });
+
+async function openEdit(kind, id) {
+  try {
+    if (kind === 'da') await edOpenDA(id); else await edOpenCom(id);
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+
+// ---------- DA ----------
+function edLigneOptions(contratId, selectedId) {
+  const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+  const rang = l => { const i = CAT.findIndex(c => String(l.label).includes(c)); return i < 0 ? 99 : i; };
+  const lignes = lignesList.filter(l => contratId != null && edRid(l.contrat) === contratId)
+    .sort((a, b) => rang(a) - rang(b) || String(a.label).localeCompare(String(b.label), 'fr'));
+  let html = '<option value="">— Choisir —</option>';
+  lignes.forEach(l => {
+    const parts = String(l.label).split('|');
+    const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+    html += `<option value="${l.id}" ${l.id === selectedId ? 'selected' : ''}>${edEsc(sub)}</option>`;
+  });
+  return html;
+}
+
+function edOnContrat() {
+  const cid = edVal('ed-contrat') ? Number(edVal('ed-contrat')) : null;
+  const sel = document.getElementById('ed-ligne');
+  if (!sel || !edCtx) return;
+  // Si on revient au contrat d'origine, on réselectionne sa ligne d'origine
+  sel.innerHTML = edLigneOptions(cid, cid === edCtx.orig.contrat ? edCtx.orig.ligne : null);
+}
+
+async function edOpenDA(id) {
+  const t = await grist.docApi.fetchTable('Demandes_achat');
+  const i = (t.id || []).indexOf(id);
+  if (i < 0) throw new Error('DA introuvable.');
+  const g = k => (t[k] || [])[i];
+  const orig = {
+    contrat: edRid(g('Contrat')), ligne: edRid(g('Ligne_budgetaire')), four: edRid(g('Fournisseur')),
+    statut: g('Statut') || '', num_bc: g('Num_BC') || '',
+    date_da: edIso(g('Date_DA')), date_pgm: edIso(g('Date_OrderPGM')), date_bc: edIso(g('Date_reception_BC')),
+  };
+  edCtx = { kind: 'da', id, orig };
+
+  const contratOpts = '<option value="">— Choisir —</option>' + contratsList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(c => `<option value="${c.id}" ${c.id === orig.contrat ? 'selected' : ''}>${edEsc(c.nom)}</option>`).join('');
+  const fourOpts = '<option value="">— Choisir —</option>' + fournisseursList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(f => `<option value="${f.id}" ${f.id === orig.four ? 'selected' : ''}>${edEsc(f.nom)}</option>`).join('');
+  const statutList = ED_STATUTS.includes(orig.statut) ? ED_STATUTS : ED_STATUTS.concat(orig.statut ? [orig.statut] : []);
+  const statutOpts = statutList.map(s => `<option value="${edEsc(s)}" ${s === orig.statut ? 'selected' : ''}>${edEsc(s)}</option>`).join('');
+  const da = das.find(x => x.id === id);
+
+  edShow('Modifier ' + edEsc(da ? da.num_da : 'la DA'), `
+    <div class="ed-field"><label>Contrat</label><select id="ed-contrat" onchange="edOnContrat()">${contratOpts}</select></div>
+    <div class="ed-field"><label>Ligne budgétaire</label><select id="ed-ligne">${edLigneOptions(orig.contrat, orig.ligne)}</select>
+      <div class="ed-hint">Si vous changez de contrat, choisissez la ligne correspondante.</div></div>
+    <div class="ed-field"><label>Fournisseur</label><select id="ed-four">${fourOpts}</select></div>
+    <div class="ed-field"><label>Statut</label><select id="ed-statut">${statutOpts}</select></div>
+    <div class="ed-field"><label>Date DA</label><input type="date" id="ed-date-da" value="${orig.date_da}"></div>
+    <div class="ed-field"><label>Date envoi PGM</label><input type="date" id="ed-date-pgm" value="${orig.date_pgm}"></div>
+    <div class="ed-field"><label>Date réception BC</label><input type="date" id="ed-date-bc" value="${orig.date_bc}"></div>
+    <div class="ed-field"><label>N° BC</label><input type="text" id="ed-num-bc" value="${edEsc(orig.num_bc)}"></div>`);
+}
+
+async function edSaveDA() {
+  const o = edCtx.orig, f = {};
+  const contrat = edVal('ed-contrat') ? Number(edVal('ed-contrat')) : null;
+  const ligne = edVal('ed-ligne') ? Number(edVal('ed-ligne')) : null;
+  const four = edVal('ed-four') ? Number(edVal('ed-four')) : null;
+  if (!contrat || !ligne || !four) { edMsg('Contrat, ligne et fournisseur sont obligatoires.', 'err'); return null; }
+  if (contrat !== o.contrat) f.Contrat = contrat;
+  if (ligne !== o.ligne) f.Ligne_budgetaire = ligne;
+  if (four !== o.four) f.Fournisseur = four;
+  if (edVal('ed-statut') !== o.statut) f.Statut = edVal('ed-statut');
+  if (edVal('ed-date-da') !== o.date_da) f.Date_DA = edEpoch(edVal('ed-date-da'));
+  if (edVal('ed-date-pgm') !== o.date_pgm) f.Date_OrderPGM = edEpoch(edVal('ed-date-pgm'));
+  if (edVal('ed-date-bc') !== o.date_bc) f.Date_reception_BC = edEpoch(edVal('ed-date-bc'));
+  if (edVal('ed-num-bc').trim() !== String(o.num_bc).trim()) f.Num_BC = edVal('ed-num-bc').trim();
+  return { table: 'Demandes_achat', fields: f };
+}
+
+// ---------- Article (commande) ----------
+async function edOpenCom(id) {
+  const t = await grist.docApi.fetchTable('Commandes');
+  const i = (t.id || []).indexOf(id);
+  if (i < 0) throw new Error('Article introuvable.');
+  const g = k => (t[k] || [])[i];
+  // Demandeur : liste de choix ou texte simple, selon le format réellement utilisé dans la colonne
+  const demIsList = (t.Demandeur || []).some(v => Array.isArray(v));
+  const orig = {
+    designation: g('Designation2') || '', ref: g('Reference_fournisseur') || '', ghp: g('Code_GHP') || '',
+    qte: g('Quantite'), prix: g('Prix_unitaire_HT'), type: g('Type_article') || '',
+    dem: choixList(g('Demandeur')).join(', '), demIsList,
+  };
+  edCtx = { kind: 'com', id, orig };
+  const typeList = ED_TYPES.includes(orig.type) ? ED_TYPES : ED_TYPES.concat(orig.type ? [orig.type] : []);
+  const typeOpts = typeList.map(x => `<option value="${edEsc(x)}" ${x === orig.type ? 'selected' : ''}>${edEsc(x)}</option>`).join('');
+
+  edShow("Modifier l'article", `
+    <div class="ed-field"><label>Désignation</label><input type="text" id="ec-desig" value="${edEsc(orig.designation)}"></div>
+    <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="ec-ref" value="${edEsc(orig.ref)}"></div>
+    <div class="ed-field"><label>Code GHP</label><input type="text" id="ec-ghp" value="${edEsc(orig.ghp)}"></div>
+    <div class="ed-field"><label>Quantité</label><input type="number" step="any" min="0" id="ec-qte" value="${orig.qte == null ? '' : orig.qte}"></div>
+    <div class="ed-field"><label>Prix unitaire HT</label><input type="number" step="any" min="0" id="ec-prix" value="${orig.prix == null ? '' : orig.prix}"></div>
+    <div class="ed-field"><label>Type d'article</label><select id="ec-type">${typeOpts}</select></div>
+    <div class="ed-field"><label>Demandeur</label><input type="text" id="ec-dem" value="${edEsc(orig.dem)}">
+      <div class="ed-hint">Plusieurs demandeurs : séparés par des virgules.</div></div>`);
+}
+
+async function edSaveCom() {
+  const o = edCtx.orig, f = {};
+  const qte = parseFloat(edVal('ec-qte')), prix = parseFloat(edVal('ec-prix'));
+  if (!isFinite(qte) || qte <= 0) { edMsg('Quantité invalide.', 'err'); return null; }
+  if (!isFinite(prix) || prix < 0) { edMsg('Prix invalide.', 'err'); return null; }
+  if (edVal('ec-desig') !== o.designation) f.Designation2 = edVal('ec-desig');
+  if (edVal('ec-ref') !== o.ref) f.Reference_fournisseur = edVal('ec-ref');
+  if (edVal('ec-ghp') !== o.ghp) f.Code_GHP = edVal('ec-ghp');
+  if (qte !== o.qte) f.Quantite = qte;
+  if (prix !== o.prix) f.Prix_unitaire_HT = prix;
+  if (edVal('ec-type') !== o.type) f.Type_article = edVal('ec-type');
+  const demTxt = edVal('ec-dem').split(',').map(s => s.trim()).filter(Boolean);
+  if (demTxt.join(', ') !== o.dem) {
+    f.Demandeur = demTxt.length ? (o.demIsList ? ['L', ...demTxt] : demTxt.join(', ')) : null;
+  }
+  return { table: 'Commandes', fields: f };
+}
+
+async function edSave() {
+  if (!edCtx) return;
+  const btn = document.getElementById('ed-save');
+  try {
+    const res = edCtx.kind === 'da' ? await edSaveDA() : await edSaveCom();
+    if (!res) return;  // validation refusée (message déjà affiché)
+    if (!Object.keys(res.fields).length) { edMsg('Aucune modification.', ''); return; }
+    if (btn) btn.disabled = true;
+    edMsg('Enregistrement…', '');
+    await grist.docApi.applyUserActions([['UpdateRecord', res.table, edCtx.id, res.fields]]);
+    edClose();
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
   }
 }
 
