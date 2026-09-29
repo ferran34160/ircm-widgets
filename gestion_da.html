@@ -1490,10 +1490,12 @@ function listCountLabel(daId) {
 function autresEnCoursLigne(ligneId, exceptDaId) {
   return das.filter(d => d.ligne === ligneId && d.statut === 'En cours' && d.id !== exceptDaId).reduce((t, d) => t + totalOf(d.id), 0);
 }
-function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours) {
+function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours, compte = true) {
   const lg = lignesList.find(l => l.id === ligneId);
   if (!lg || typeof lg.dispo !== 'number') return '';
-  const apres = lg.dispo - dejaDA - ajout;
+  // Si la commande ne sera pas comptée (date antérieure ou égale au dernier relevé PGM connu),
+  // le disponible après envoi reste identique au disponible actuel.
+  const apres = lg.dispo - dejaDA - (compte ? ajout : 0);
   const neg = apres < -0.005;
   const parts = String(lg.label).split('|');
   const nom = parts.length > 1 ? parts.slice(1).join('|').trim() : lg.label;
@@ -1503,7 +1505,7 @@ function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours) {
       <div class="dispo-title">Ligne : ${edEsc(nom)}${contrat ? ' · ' + edEsc(contrat) : ''}</div>
       <div class="dispo-row"><span>Disponible actuel</span><span>${fmt(lg.dispo)}</span></div>
       ${dejaDA > 0.005 ? `<div class="dispo-row"><span>− Déjà dans cette DA</span><span>${fmt(dejaDA)}</span></div>` : ''}
-      <div class="dispo-row"><span>− ${edEsc(labelAjout || 'À ajouter')}</span><span>${fmt(ajout)}</span></div>
+      ${compte ? `<div class="dispo-row"><span>− ${edEsc(labelAjout || 'À ajouter')}</span><span>${fmt(ajout)}</span></div>` : ''}
       <div class="dispo-row dispo-res"><span>= Disponible après envoi de la DA</span><span>${fmt(neg ? apres : Math.max(apres, 0))}</span></div>
       ${neg ? '<div class="dispo-alert">⚠ Dépassement : le montant dépasse le disponible de la ligne.</div>' : ''}
       ${autresEnCours > 0.005 ? `<div class="dispo-hint">Non déduits : ${fmt(autresEnCours)} dans d'autres DA « En cours » de cette même ligne.</div>` : ''}
@@ -1641,7 +1643,7 @@ function edNewDAHtml() {
         <div class="ed-field"><label>Fournisseur</label><select id="ed-nd-four">${fourOpts}</select></div>
         <div class="ed-field"><label>Date DA</label><input type="date" id="ed-nd-date" value="${edEsc(edDv('ed-nd-date', o.date))}" onchange="edNdUpdateDispo()"></div>
       </div>
-      <div id="ed-nd-dispo">${lId ? dispoInfoCore(lId, 0, total, 'À ajouter (sélection)', autresEnCoursLigne(lId, null)) : ''}${dateAvantReleveHtml(lId, edDv('ed-nd-date', o.date))}</div>
+      <div id="ed-nd-dispo">${lId ? dispoInfoCore(lId, 0, total, 'À ajouter (sélection)', autresEnCoursLigne(lId, null), !estAvantRelevePgm(lId, edDv('ed-nd-date', o.date))) : ''}${dateAvantReleveHtml(lId, edDv('ed-nd-date', o.date))}</div>
       <div class="ed-inline-row">
         <button class="ed-save" id="ed-save" onclick="edCreateDA()">Créer la DA et assigner</button>
         <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
@@ -1659,20 +1661,27 @@ function edNdOnContrat() {
 }
 // Avertit que le disponible affiché ne bougera pas si la date choisie pour la DA
 // est antérieure (ou égale) au dernier relevé PGM connu de la ligne.
-function dateAvantReleveHtml(ligneId, dateStr) {
+function estAvantRelevePgm(ligneId, dateStr) {
   const lg = ligneId ? lignesList.find(l => l.id === ligneId) : null;
-  if (!lg || !lg.date_dernier_releve || !dateStr) return '';
+  if (!lg || !lg.date_dernier_releve || !dateStr) return false;
   const dateChoisie = edEpoch(dateStr);
-  if (dateChoisie == null || dateChoisie > toMs(lg.date_dernier_releve) / 1000) return '';
-  return `<div class="ed-warn">⚠ Cette date (${fmtDate(dateChoisie)}) est antérieure ou égale au dernier relevé PGM de cette ligne (${fmtDate(lg.date_dernier_releve)}) : le disponible affiché ne changera pas tant qu'un nouveau relevé n'aura pas été importé.</div>`;
+  if (dateChoisie == null) return false;
+  return dateChoisie <= toMs(lg.date_dernier_releve) / 1000;
+}
+function dateAvantReleveHtml(ligneId, dateStr) {
+  if (!estAvantRelevePgm(ligneId, dateStr)) return '';
+  const lg = lignesList.find(l => l.id === ligneId);
+  const dateChoisie = edEpoch(dateStr);
+  return `<div class="ed-warn">⚠ Cette date (${fmtDate(dateChoisie)}) est antérieure ou égale au dernier relevé PGM de cette ligne (${fmtDate(lg.date_dernier_releve)}) : le disponible affiché ne changera pas.</div>`;
 }
 
 function edNdUpdateDispo() {
   const box = document.getElementById('ed-nd-dispo');
   if (!box) return;
   const lId = edVal('ed-nd-ligne') ? Number(edVal('ed-nd-ligne')) : null;
-  box.innerHTML = (lId ? dispoInfoCore(lId, 0, selSum(), 'À ajouter (sélection)', autresEnCoursLigne(lId, null)) : '')
-    + dateAvantReleveHtml(lId, edVal('ed-nd-date'));
+  const dateVal = edVal('ed-nd-date');
+  box.innerHTML = (lId ? dispoInfoCore(lId, 0, selSum(), 'À ajouter (sélection)', autresEnCoursLigne(lId, null), !estAvantRelevePgm(lId, dateVal)) : '')
+    + dateAvantReleveHtml(lId, dateVal);
 }
 async function edCreateDA() {
   if (!edCtx || edCtx.kind !== 'newda') return;
