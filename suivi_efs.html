@@ -60,6 +60,14 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .ligne-item .lm { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .btn-bc { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #1D9E75; color: #0F6E56; background: none; cursor: pointer; white-space: nowrap; }
 .btn-bc:hover { background: #1D9E75; color: #fff; }
+.btn-pj { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #378ADD; color: #0C447C; background: none; cursor: pointer; }
+.btn-pj:hover { background: #378ADD; color: #fff; }
+@media (prefers-color-scheme: dark) { .btn-pj { color: #9FC6EE; border-color: #378ADD; } .btn-pj:hover { background: #378ADD; color: #16314A; } }
+.pj-list { display: none; margin-top: 6px; padding-left: 2px; }
+.pj-list.open { display: block; }
+.pj-list button { display: block; font-size: 11.5px; padding: 3px 4px; background: none; border: none; color: #378ADD; cursor: pointer; text-align: left; }
+.pj-list button:hover { text-decoration: underline; }
+@media (prefers-color-scheme: dark) { .pj-list button { color: #9FC6EE; } }
 @media (prefers-color-scheme: dark) { .btn-bc { color: #9FE1CB; border-color: #1D9E75; } .btn-bc:hover { background: #1D9E75; color: #16402F; } }
 .autres-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
 .qautres { padding: 10px 13px 0; }
@@ -119,6 +127,12 @@ function attachIds(v) {
   }
   return [];
 }
+function togglePjList(btn) {
+  const list = btn.nextElementSibling;
+  list.classList.toggle('open');
+  btn.textContent = btn.textContent.replace(list.classList.contains('open') ? '📄' : '📂', list.classList.contains('open') ? '📂' : '📄');
+}
+
 function handleImgError(imgEl, attId) {
   const btn = document.createElement('button');
   btn.className = 'autres-link';
@@ -182,6 +196,7 @@ async function fetchAll() {
         date_bc: (da.Date_reception_BC || [])[i] || null,
         num_bc: (da.Num_BC || [])[i] || '',
         bc_ids: attachIds((da.BC || [])[i]),
+        pj_ids: attachIds((da.PJ || [])[i]),
         autres_ids: attachIds((da.Autres || [])[i]),
         isEFS: String(fournisseur).trim().toLowerCase() === FOURNISSEUR_EFS,
       };
@@ -258,6 +273,12 @@ function dacardHtml(d, showAutres = true) {
     ? d.bc_ids.map((id, i) => `<button class="btn-bc" onclick="openAttachment(${id})">📎 Voir le BC${d.bc_ids.length > 1 ? ' (' + (i + 1) + ')' : ''}</button>`).join(' ')
     : '';
 
+  // Bordereaux (PJ) : un seul bouton dépliable, plutôt qu'un bouton par fichier (il peut y en avoir 5-6 par DA)
+  const pjHtml = (d.pj_ids && d.pj_ids.length)
+    ? `<button class="btn-pj" onclick="togglePjList(this)">📄 Bordereaux (${d.pj_ids.length})</button>
+       <div class="pj-list">${d.pj_ids.map((id, i) => `<button onclick="openAttachment(${id})">Bordereau ${i + 1}</button>`).join('')}</div>`
+    : '';
+
   // Une pièce jointe « Autres » couvre en général tout le trimestre (le calendrier des
   // sessions), pas une seule DA : dans une carte de mois, elle est déjà montrée une fois
   // au niveau du trimestre (voir plus bas) — ici on ne la réaffiche que si showAutres=true
@@ -278,6 +299,7 @@ function dacardHtml(d, showAutres = true) {
       ${dateLine ? `<div class="da-sub">${dateLine}</div>` : ''}
       <div class="lignes">${lignesHtml}</div>
       ${bcBtn ? `<div style="margin-top:7px;">${bcBtn}</div>` : ''}
+      ${pjHtml ? `<div style="margin-top:7px;">${pjHtml}</div>` : ''}
       ${autresHtml}
     </div>`;
 }
