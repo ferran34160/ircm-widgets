@@ -100,7 +100,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .detail-files { border-top-color: #333; } }
 .detail-files-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
 .detail-files-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.file-cat { display: flex; gap: 4px; }
+.file-cat { display: flex; gap: 4px; align-items: center; }
+.file-add { width: 18px; height: 18px; line-height: 16px; text-align: center; padding: 0; border-radius: 50%; border: 1px solid #378ADD; color: #378ADD; background: none; cursor: pointer; font-size: 13px; flex: none; }
+.file-add:hover { background: #378ADD; color: #fff; }
+.file-add:disabled { opacity: .4; cursor: default; }
+@media (prefers-color-scheme: dark) { .file-add { border-color: #7ab3f0; color: #7ab3f0; } .file-add:hover { background: #378ADD; color: #16314A; } }
 .file-link { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #E6F1FB; color: #0C447C; text-decoration: none; border: 1px solid #C5DFF5; cursor: pointer; }
 .file-link:hover { background: #D5E8FA; }
 .file-empty { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #f2f2f0; color: #bbb; border: 1px dashed #ddd; }
@@ -593,7 +597,10 @@ function renderDetail(d) {
     const links = has
       ? f.ids.map((aid,idx) => `<a class="file-link" href="#" onclick="openAttachment(${aid}); return false;">${f.label}${f.ids.length>1?' '+(idx+1):''}</a>`).join('')
       : `<span class="file-empty">${f.label}</span>`;
-    return `<div class="file-cat ${has?'has':''}">${links}</div>`;
+    return `<div class="file-cat ${has?'has':''}">${links}
+      <button class="file-add" id="add-${f.field}" title="Ajouter un fichier à ${f.label}" onclick="document.getElementById('upload-${f.field}').click()">＋</button>
+      <input type="file" id="upload-${f.field}" style="display:none" onchange="handleFileUpload(this, ${d.id}, '${f.field}')">
+    </div>`;
   }).join('');
 
   return `
@@ -696,6 +703,43 @@ async function deleteDA(id, mode) {
     const msg = document.getElementById('del-msg-' + id);
     if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
     else alert('Erreur : ' + e.message);
+  }
+}
+
+// Champ Grist (ex. "PJ") -> clé locale correspondante dans das[] (ex. "pj")
+const CHAMP_VERS_CLE = { PJ: 'pj', BC: 'bc', DA: 'da', Autres: 'autres' };
+
+async function handleFileUpload(inputEl, daId, champ) {
+  const file = inputEl.files[0];
+  inputEl.value = '';   // permet de re-choisir le même fichier une prochaine fois
+  if (!file) return;
+  const btn = document.getElementById('add-' + champ);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    // 1. Jeton avec droits d'écriture
+    const tokenInfo = await grist.docApi.getAccessToken({ readOnly: false });
+    // 2. Envoi du fichier (stocké, pas encore lié à une ligne)
+    const formData = new FormData();
+    formData.append('upload', file, file.name);
+    const response = await fetch(`${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) throw new Error('Échec de l\'envoi (' + response.status + ')');
+    const result = await response.json();
+    const newId = result[0];
+    // 3. Lier le nouveau fichier à la DA, en gardant ceux déjà présents
+    const da = das.find(x => x.id === daId);
+    const existants = da ? attachIds(da[CHAMP_VERS_CLE[champ]]) : [];
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', daId, { [champ]: ['L', ...existants, newId] }]
+    ]);
+    await fetchAll();
+  } catch (e) {
+    alert("Impossible d'ajouter le fichier : " + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '＋'; }
   }
 }
 
