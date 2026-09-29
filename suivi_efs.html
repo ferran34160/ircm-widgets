@@ -135,14 +135,16 @@ function attachIds(v) {
 function friendlyPjName(raw) {
   if (!raw) return null;
   const nom = String(raw).trim();
-  let m = nom.match(/^(\d{2})(\d{2})(\d{2})_734CT_734ECA_([A-Z0-9]+)_T\d_\d{2}_\d+/);
+  // Pas d'ancrage ^ : le nom peut porter un préfixe (ex. le n° de BC ajouté après coup,
+  // « 4526013834_260408_734CT_... »). On cherche juste le repère « 734CT_734ECA » où qu'il soit.
+  let m = nom.match(/(\d{2})(\d{2})(\d{2})_734CT_734ECA_([A-Z0-9]+)_T\d_\d{2}_\d+/);
   if (m) {
     const [, aa, mm, jj, code] = m;
     return `${code} – ${jj}/${mm}/20${aa}`;
   }
-  m = nom.match(/^\d{2}\d{2}_734CT_734ECA \d{4}_([a-zàâäéèêëîïôöùûüç]+)_CONS2/i);
+  m = nom.match(/(\d{2})(\d{2})_734CT_734ECA \d{4}_([a-zàâäéèêëîïôöùûüç]+)_CONS2/i);
   if (m) {
-    const mois = m[1];
+    const mois = m[3];
     return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1);
   }
   return nom.replace(/\.xlsx?$/i, '');
