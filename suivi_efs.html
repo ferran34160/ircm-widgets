@@ -15,16 +15,33 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 16px; font-size: 12.5px; color: #666; }
 @media (prefers-color-scheme: dark) { .summary { color: #aaa; } }
 .summary b { color: inherit; font-size: 14px; }
-.quarters { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-.qcard { border: 1px solid #e2e2e2; border-radius: 12px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { .qcard { border-color: #3a3a3a; } }
-.qhead { background: #f2f5f8; padding: 10px 13px; display: flex; justify-content: space-between; align-items: baseline; }
-@media (prefers-color-scheme: dark) { .qhead { background: #26282b; } }
+/* Grille partagée : 4 colonnes (T1..T4) × 5 lignes (en-tête, image, mois 1, mois 2, mois 3).
+   Chaque « ligne logique » est émise pour les 4 trimestres d'affilée : le navigateur aligne
+   alors automatiquement la hauteur de chaque ligne sur la plus grande cellule de cette ligne,
+   trimestre avec ou sans image / avec plus ou moins d'articles. */
+.qgrid { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); column-gap: 14px; row-gap: 0; }
+@media (max-width: 900px) { .qgrid { grid-template-columns: repeat(2, minmax(230px, 1fr)); } }
+@media (max-width: 480px) { .qgrid { grid-template-columns: 1fr; } }
+.qcell { padding: 10px 13px; }
+.qhead-cell { display: flex; justify-content: space-between; align-items: baseline; border-radius: 12px 12px 0 0; }
 .qtitle { font-size: 13.5px; font-weight: 700; }
 .qstat { font-size: 18px; color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
-.mrow { padding: 10px 13px; border-top: 1px solid #eee; }
-@media (prefers-color-scheme: dark) { .mrow { border-top-color: #333; } }
-.mrow:first-of-type { border-top: none; }
+.qimg-cell { padding-top: 0; }
+.qimg-cell:empty { padding: 0; }
+.mrow { border-top: 1px solid rgba(0,0,0,.07); }
+@media (prefers-color-scheme: dark) { .mrow { border-top-color: rgba(255,255,255,.08); } }
+.qcell.qcell-bottom { border-radius: 0 0 12px 12px; padding-bottom: 13px; }
+/* Teinte douce par trimestre, cohérente avec la palette déjà utilisée ailleurs dans la suite */
+.qcolor-1 { background: #EAF3FB; }
+.qcolor-2 { background: #EAFBF3; }
+.qcolor-3 { background: #FBF0E8; }
+.qcolor-4 { background: #F0EAFB; }
+@media (prefers-color-scheme: dark) {
+  .qcolor-1 { background: #16314A; }
+  .qcolor-2 { background: #16402F; }
+  .qcolor-3 { background: #3D2A1A; }
+  .qcolor-4 { background: #2A1F3D; }
+}
 .mname { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; }
 .mtag { font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 8px; }
 .mtag.futur { background: #eee; color: #999; }
@@ -179,8 +196,10 @@ function friendlyPjName(raw) {
   return nom;
 }
 
-function togglePjList(btn) {
-  const list = btn.nextElementSibling;
+function togglePjList(daId) {
+  const list = document.getElementById('pj-list-' + daId);
+  const btn = document.getElementById('pj-btn-' + daId);
+  if (!list || !btn) return;
   list.classList.toggle('open');
   btn.textContent = btn.textContent.replace(list.classList.contains('open') ? '📄' : '📂', list.classList.contains('open') ? '📂' : '📄');
 }
@@ -326,10 +345,13 @@ function dacardHtml(d, showAutres = true) {
     ? d.bc_ids.map((id, i) => `<button class="btn-bc" onclick="openAttachment(${id})">📎 Voir le BC${d.bc_ids.length > 1 ? ' (' + (i + 1) + ')' : ''}</button>`).join(' ')
     : '';
 
-  // Bordereaux (PJ) : un seul bouton dépliable, plutôt qu'un bouton par fichier (il peut y en avoir 5-6 par DA)
-  const pjHtml = (d.pj_ids && d.pj_ids.length)
-    ? `<button class="btn-pj" onclick="togglePjList(this)">📄 Bordereaux (${d.pj_ids.length})</button>
-       <div class="pj-list">${d.pj_ids.map((id, i) => {
+  // Bordereaux (PJ) : un seul bouton dépliable, plutôt qu'un bouton par fichier (il peut y en avoir 5-6 par DA).
+  // Bouton et liste séparés : le bouton reste à côté de « Voir le BC », la liste s'ouvre en dessous des deux.
+  const pjBtn = (d.pj_ids && d.pj_ids.length)
+    ? `<button class="btn-pj" id="pj-btn-${d.id}" onclick="togglePjList(${d.id})">📄 Bordereaux (${d.pj_ids.length})</button>`
+    : '';
+  const pjListHtml = (d.pj_ids && d.pj_ids.length)
+    ? `<div class="pj-list" id="pj-list-${d.id}">${d.pj_ids.map((id, i) => {
          const label = esc(friendlyPjName(d.pj_noms[i]) || ('Bordereau ' + (i + 1)));
          return `<button onclick="openAttachment(${id})">${label}</button>`;
        }).join('')}</div>`
@@ -354,8 +376,8 @@ function dacardHtml(d, showAutres = true) {
       </div>
       ${dateLine ? `<div class="da-sub">${dateLine}</div>` : ''}
       <div class="lignes">${lignesHtml}</div>
-      ${bcBtn ? `<div style="margin-top:7px;">${bcBtn}</div>` : ''}
-      ${pjHtml ? `<div style="margin-top:7px;">${pjHtml}</div>` : ''}
+      ${(bcBtn || pjBtn) ? `<div style="margin-top:7px; display:flex; gap:6px; flex-wrap:wrap;">${bcBtn}${pjBtn}</div>` : ''}
+      ${pjListHtml}
       ${autresHtml}
     </div>`;
 }
@@ -388,35 +410,39 @@ function render() {
     <span><b>${fmt(totalAnnee)}</b> engagés en ${selectedYear}</span>
   </div>`;
 
-  html += '<div class="quarters">';
+  // Précalcul des 4 trimestres, en gardant en-tête / image / chaque mois séparés :
+  // on les recompose ensuite ligne par ligne pour que la grille aligne les hauteurs.
+  const quartersData = [];
   for (let t = 1; t <= 4; t++) {
     const moisT = [1, 2, 3].map(k => (t - 1) * 3 + k);
     let subtotal = 0;
-    let rows = '';
-    moisT.forEach(m => {
+    const moisCells = [];
+    moisT.forEach((m, mi) => {
       const key = selectedYear + '-' + m;
       const list = (parMois[key] || []).sort((a, b) => (a.montant < b.montant ? 1 : -1));
       const estFutur = selectedYear > NOW.getFullYear() || (selectedYear === NOW.getFullYear() && m > NOW.getMonth() + 1);
       list.forEach(d => subtotal += d.montant);
       let tag = '';
       if (!list.length) tag = estFutur ? '<span class="mtag futur">à venir</span>' : '<span class="mtag manque">⚠ Aucune DA</span>';
-      rows += `<div class="mrow"><div class="mname">${MOIS[m - 1]}${tag}</div>${
+      const dernier = mi === 2 ? ' qcell-bottom' : '';
+      moisCells.push(`<div class="qcell mrow qcolor-${t}${dernier}"><div class="mname">${MOIS[m - 1]}${tag}</div>${
         list.length ? list.map(d => dacardHtml(d, false)).join('') : ''
-      }</div>`;
+      }</div>`);
     });
     // Pièces jointes « Autres » de toutes les DA du trimestre, regroupées et dédoublonnées
     // (même image collée sur plusieurs DA => affichée une seule fois).
     const autresQ = [...new Set(moisT.flatMap(m => (parMois[selectedYear + '-' + m] || []).flatMap(d => d.autres_ids || [])))];
-    html += `
-      <div class="qcard">
-        <div class="qhead">
-          <span class="qtitle">T${t} · ${MOIS[moisT[0] - 1]}–${MOIS[moisT[2] - 1]}</span>
-          <span class="qstat">${fmt(subtotal)}</span>
-        </div>
-        ${autresQ.length ? `<div class="qautres">${thumbsHtml(autresQ)}</div>` : ''}
-        ${rows}
-      </div>`;
+    quartersData.push({
+      headerCell: `<div class="qcell qhead-cell qcolor-${t}"><span class="qtitle">T${t} · ${MOIS[moisT[0] - 1]}–${MOIS[moisT[2] - 1]}</span><span class="qstat">${fmt(subtotal)}</span></div>`,
+      imageCell: `<div class="qcell qimg-cell qcolor-${t}">${autresQ.length ? thumbsHtml(autresQ) : ''}</div>`,
+      moisCells,
+    });
   }
+
+  html += '<div class="qgrid">';
+  quartersData.forEach(q => html += q.headerCell);
+  quartersData.forEach(q => html += q.imageCell);
+  for (let mi = 0; mi < 3; mi++) quartersData.forEach(q => html += q.moisCells[mi]);
   html += '</div>';
 
   if (sansDate.length) {
