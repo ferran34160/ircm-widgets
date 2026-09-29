@@ -15,8 +15,8 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 16px; font-size: 12.5px; color: #666; }
 @media (prefers-color-scheme: dark) { .summary { color: #aaa; } }
 .summary b { color: inherit; font-size: 14px; }
-.quarters { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-.qcard { border: 1px solid #e2e2e2; border-radius: 12px; overflow: hidden; }
+.quarters { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.qcard { border: 1px solid #e2e2e2; border-radius: 12px; overflow: hidden; max-width: 300px; }
 @media (prefers-color-scheme: dark) { .qcard { border-color: #3a3a3a; } }
 .qhead { background: #f2f5f8; padding: 10px 13px; display: flex; justify-content: space-between; align-items: baseline; }
 @media (prefers-color-scheme: dark) { .qhead { background: #26282b; } }
@@ -34,7 +34,8 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .dacard { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
 .dacard:last-child { margin-bottom: 0; }
 @media (prefers-color-scheme: dark) { .dacard { background: #232323; border-color: #333; } }
-.da-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.da-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.da-left { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .da-num { font-weight: 600; font-size: 12.5px; }
 .da-montant { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12.5px; }
 .badge { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 9px; white-space: nowrap; }
@@ -208,9 +209,9 @@ function buildYearOptions() {
 document.getElementById('year-filter').addEventListener('change', e => { selectedYear = Number(e.target.value); render(); });
 
 function dacardHtml(d) {
-  let dateLine = 'Créée le ' + fmtDate(d.date_da);
-  if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') dateLine += ' · Envoyée PGM le ' + fmtDate(d.date_pgm);
-  if (d.statut === 'BC reçu') dateLine += ' · BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
+  let dateLine = '';
+  if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') dateLine = 'Envoyée PGM le ' + fmtDate(d.date_pgm);
+  if (d.statut === 'BC reçu') dateLine += (dateLine ? ' · ' : '') + 'BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
 
   const lignesHtml = (d.lignes || [])
     .map(a => `<div class="ligne-item"><span>${esc(CODE_LABELS[a.ref] || a.designation)}</span><span class="lm">${fmt(a.montant)}</span></div>`)
@@ -223,11 +224,13 @@ function dacardHtml(d) {
   return `
     <div class="dacard">
       <div class="da-top">
-        <span class="da-num">${esc(d.num_da)}</span>
-        <span class="badge ${badgeClass(d.statut)}">${esc(d.statut)}</span>
+        <div class="da-left">
+          <span class="da-num">${esc(d.num_da)}</span>
+          <span class="badge ${badgeClass(d.statut)}">${esc(d.statut)}</span>
+        </div>
         <span class="da-montant">${fmt(d.montant)}</span>
       </div>
-      <div class="da-sub">${dateLine}</div>
+      ${dateLine ? `<div class="da-sub">${dateLine}</div>` : ''}
       <div class="lignes">${lignesHtml}</div>
       ${bcBtn ? `<div style="margin-top:7px;">${bcBtn}</div>` : ''}
     </div>`;
@@ -255,13 +258,10 @@ function render() {
   // Résumé de l'année
   const dasAnnee = Object.values(DAS).filter(d => d.moisCible && d.moisCible.year === selectedYear);
   const totalAnnee = dasAnnee.reduce((s, d) => s + d.montant, 0);
-  const nbBC = dasAnnee.filter(d => d.statut === 'BC reçu').length;
   const dernierMoisEcoule = selectedYear === NOW.getFullYear() ? NOW.getMonth() + 1 : 12;
 
   let html = `<div class="summary">
     <span><b>${fmt(totalAnnee)}</b> engagés en ${selectedYear}</span>
-    <span><b>${dasAnnee.length}</b> DA</span>
-    <span><b>${nbBC}</b> BC reçu${nbBC > 1 ? 's' : ''}</span>
   </div>`;
 
   html += '<div class="quarters">';
