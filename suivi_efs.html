@@ -21,7 +21,7 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .qhead { background: #f2f5f8; padding: 10px 13px; display: flex; justify-content: space-between; align-items: baseline; }
 @media (prefers-color-scheme: dark) { .qhead { background: #26282b; } }
 .qtitle { font-size: 13.5px; font-weight: 700; }
-.qstat { font-size: 11.5px; color: #888; }
+.qstat { font-size: 18px; color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mrow { padding: 10px 13px; border-top: 1px solid #eee; }
 @media (prefers-color-scheme: dark) { .mrow { border-top-color: #333; } }
 .mrow:first-of-type { border-top: none; }
@@ -213,7 +213,6 @@ function dacardHtml(d) {
   if (d.statut === 'BC reçu') dateLine += ' · BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
 
   const lignesHtml = (d.lignes || [])
-    .slice().sort((a, b) => b.montant - a.montant)
     .map(a => `<div class="ligne-item"><span>${esc(CODE_LABELS[a.ref] || a.designation)}</span><span class="lm">${fmt(a.montant)}</span></div>`)
     .join('');
 
@@ -268,14 +267,13 @@ function render() {
   html += '<div class="quarters">';
   for (let t = 1; t <= 4; t++) {
     const moisT = [1, 2, 3].map(k => (t - 1) * 3 + k);
-    let subtotal = 0, nbDA = 0;
+    let subtotal = 0;
     let rows = '';
     moisT.forEach(m => {
       const key = selectedYear + '-' + m;
       const list = (parMois[key] || []).sort((a, b) => (a.montant < b.montant ? 1 : -1));
       const estFutur = selectedYear > NOW.getFullYear() || (selectedYear === NOW.getFullYear() && m > NOW.getMonth() + 1);
       list.forEach(d => subtotal += d.montant);
-      nbDA += list.length;
       let tag = '';
       if (!list.length) tag = estFutur ? '<span class="mtag futur">à venir</span>' : '<span class="mtag manque">⚠ Aucune DA</span>';
       rows += `<div class="mrow"><div class="mname">${MOIS[m - 1]}${tag}</div>${
@@ -286,7 +284,7 @@ function render() {
       <div class="qcard">
         <div class="qhead">
           <span class="qtitle">T${t} · ${MOIS[moisT[0] - 1]}–${MOIS[moisT[2] - 1]}</span>
-          <span class="qstat">${fmt(subtotal)}${nbDA ? ' · ' + nbDA + ' DA' : ''}</span>
+          <span class="qstat">${fmt(subtotal)}</span>
         </div>
         ${rows}
       </div>`;
