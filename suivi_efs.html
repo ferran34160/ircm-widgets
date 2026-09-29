@@ -61,6 +61,13 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .btn-bc { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #1D9E75; color: #0F6E56; background: none; cursor: pointer; white-space: nowrap; }
 .btn-bc:hover { background: #1D9E75; color: #fff; }
 @media (prefers-color-scheme: dark) { .btn-bc { color: #9FE1CB; border-color: #1D9E75; } .btn-bc:hover { background: #1D9E75; color: #16402F; } }
+.autres-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.qautres { padding: 10px 13px 0; }
+.qautres .autres-wrap { margin-top: 0; }
+.autres-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 7px; border: 1px solid #ddd; cursor: pointer; background: #f2f2f2; }
+@media (prefers-color-scheme: dark) { .autres-thumb { border-color: #444; background: #2a2a2a; } }
+.autres-link { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #999; background: none; cursor: pointer; color: inherit; }
+.autres-link:hover { background: rgba(128,128,128,.15); }
 .absent-line { font-size: 11.5px; color: #aaa; font-style: italic; }
 .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #888; margin: 22px 0 10px; }
 .warn-box { border: 1px solid #F0D3AE; background: #FDF1E3; border-radius: 10px; padding: 10px 13px; font-size: 12.5px; margin-bottom: 8px; }
@@ -89,6 +96,19 @@ function fmt(v) { return new Intl.NumberFormat('fr-FR', { style: 'currency', cur
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function refId(v) { if (v == null) return null; if (typeof v === 'number') return v; if (Array.isArray(v)) return v[1] || null; return null; }
 function badgeClass(s) { return s === 'BC reçu' ? 'b-bc' : s === 'Envoyée PGM' ? 'b-pgm' : s === 'Annulée' ? 'b-ann' : 'b-cours'; }
+async function loadAutresThumbs() {
+  const imgs = [...document.querySelectorAll('img.autres-thumb[data-attach-id]')];
+  if (!imgs.length) return;
+  try {
+    const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
+    imgs.forEach(img => {
+      img.src = `${tokenInfo.baseUrl}/attachments/${img.dataset.attachId}/download?auth=${tokenInfo.token}&inline=true`;
+    });
+  } catch (e) {
+    // Pas de vignette possible : chaque image basculera sur son bouton de secours via onerror.
+  }
+}
+
 function attachIds(v) {
   // Pièces jointes Grist via fetchTable : ['L', id1, id2, ...] ou null/[]
   if (!v) return [];
@@ -98,6 +118,14 @@ function attachIds(v) {
   }
   return [];
 }
+function handleImgError(imgEl, attId) {
+  const btn = document.createElement('button');
+  btn.className = 'autres-link';
+  btn.textContent = '🖼 Voir la pièce jointe';
+  btn.onclick = () => openAttachment(attId);
+  imgEl.replaceWith(btn);
+}
+
 async function openAttachment(attId) {
   try {
     const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
@@ -153,6 +181,7 @@ async function fetchAll() {
         date_bc: (da.Date_reception_BC || [])[i] || null,
         num_bc: (da.Num_BC || [])[i] || '',
         bc_ids: attachIds((da.BC || [])[i]),
+        autres_ids: attachIds((da.Autres || [])[i]),
         isEFS: String(fournisseur).trim().toLowerCase() === FOURNISSEUR_EFS,
       };
     });
@@ -208,7 +237,13 @@ function buildYearOptions() {
 }
 document.getElementById('year-filter').addEventListener('change', e => { selectedYear = Number(e.target.value); render(); });
 
-function dacardHtml(d) {
+function thumbsHtml(ids) {
+  return `<div class="autres-wrap">${ids.map(id =>
+    `<img class="autres-thumb" data-attach-id="${id}" onclick="openAttachment(${id})" onerror="handleImgError(this, ${id})" title="Voir la pièce jointe">`
+  ).join('')}</div>`;
+}
+
+function dacardHtml(d, showAutres = true) {
   let dateLine = '';
   if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') dateLine = 'Envoyée PGM le ' + fmtDate(d.date_pgm);
   if (d.statut === 'BC reçu') dateLine += (dateLine ? ' · ' : '') + 'BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
@@ -219,6 +254,14 @@ function dacardHtml(d) {
 
   const bcBtn = (d.bc_ids && d.bc_ids.length)
     ? d.bc_ids.map((id, i) => `<button class="btn-bc" onclick="openAttachment(${id})">📎 Voir le BC${d.bc_ids.length > 1 ? ' (' + (i + 1) + ')' : ''}</button>`).join(' ')
+    : '';
+
+  // Une pièce jointe « Autres » couvre en général tout le trimestre (le calendrier des
+  // sessions), pas une seule DA : dans une carte de mois, elle est déjà montrée une fois
+  // au niveau du trimestre (voir plus bas) — ici on ne la réaffiche que si showAutres=true
+  // (cas des DA « au mois indéterminé », qui n'apparaissent dans aucun trimestre).
+  const autresHtml = (showAutres && d.autres_ids && d.autres_ids.length)
+    ? thumbsHtml(d.autres_ids)
     : '';
 
   return `
@@ -233,6 +276,7 @@ function dacardHtml(d) {
       ${dateLine ? `<div class="da-sub">${dateLine}</div>` : ''}
       <div class="lignes">${lignesHtml}</div>
       ${bcBtn ? `<div style="margin-top:7px;">${bcBtn}</div>` : ''}
+      ${autresHtml}
     </div>`;
 }
 
@@ -277,15 +321,19 @@ function render() {
       let tag = '';
       if (!list.length) tag = estFutur ? '<span class="mtag futur">à venir</span>' : '<span class="mtag manque">⚠ Aucune DA</span>';
       rows += `<div class="mrow"><div class="mname">${MOIS[m - 1]}${tag}</div>${
-        list.length ? list.map(dacardHtml).join('') : ''
+        list.length ? list.map(d => dacardHtml(d, false)).join('') : ''
       }</div>`;
     });
+    // Pièces jointes « Autres » de toutes les DA du trimestre, regroupées et dédoublonnées
+    // (même image collée sur plusieurs DA => affichée une seule fois).
+    const autresQ = [...new Set(moisT.flatMap(m => (parMois[selectedYear + '-' + m] || []).flatMap(d => d.autres_ids || [])))];
     html += `
       <div class="qcard">
         <div class="qhead">
           <span class="qtitle">T${t} · ${MOIS[moisT[0] - 1]}–${MOIS[moisT[2] - 1]}</span>
           <span class="qstat">${fmt(subtotal)}</span>
         </div>
+        ${autresQ.length ? `<div class="qautres">${thumbsHtml(autresQ)}</div>` : ''}
         ${rows}
       </div>`;
   }
@@ -294,7 +342,7 @@ function render() {
   if (sansDate.length) {
     html += `<div class="section-title">DA EFS au mois indéterminé (${sansDate.length})</div>
       <div class="warn-box">Le mois n'a pas pu être lu sur la ligne « CONS2 » (absente, ou désignation sans mois + année reconnaissables — ex. attendu : « CERTIFICAT MENSUEL - Juillet 2026 »).</div>`;
-    html += sansDate.map(dacardHtml).join('');
+    html += sansDate.map(d => dacardHtml(d)).join('');
   }
 
   if (LIBRES.length) {
@@ -305,6 +353,7 @@ function render() {
   }
 
   container.innerHTML = html;
+  loadAutresThumbs();
 }
 
 const gs = document.createElement('script');
