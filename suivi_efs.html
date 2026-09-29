@@ -83,18 +83,40 @@ function refId(v) { if (v == null) return null; if (typeof v === 'number') retur
 function badgeClass(s) { return s === 'BC reçu' ? 'b-bc' : s === 'Envoyée PGM' ? 'b-pgm' : s === 'Annulée' ? 'b-ann' : 'b-cours'; }
 function trimestre(m1a12) { return Math.floor((m1a12 - 1) / 3) + 1; }
 
+// Le mois de suivi d'une DA EFS vient de la Designation de sa ligne CONS2
+// (ex. « CERTIFICAT MENSUEL - Juillet 2026 »), pas de sa Date_DA.
+const MOIS_KEYS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+function parseMoisDesignation(desig) {
+  if (!desig) return null;
+  const txt = String(desig).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let moisIdx = -1;
+  for (let i = 0; i < MOIS_KEYS.length; i++) { if (txt.includes(MOIS_KEYS[i])) { moisIdx = i; break; } }
+  if (moisIdx < 0) return null;
+  const yearMatch = txt.match(/(20\d{2})/);
+  if (!yearMatch) return null;
+  return { year: Number(yearMatch[1]), month: moisIdx + 1 };
+}
+
 let DAS = {}, LIBRES = [], selectedYear = null;
 const NOW = new Date();
 
+const FOURNISSEUR_EFS = 'efs';   // comparaison insensible à la casse/espaces
+
 async function fetchAll() {
   try {
-    const [da, cmd] = await Promise.all([
+    const [da, cmd, four] = await Promise.all([
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Fournisseurs'),
     ]);
+
+    const fourNoms = {};
+    (four.id || []).forEach((id, i) => { fourNoms[id] = (four.Nom || four.Label || four.Name || [])[i] || ''; });
 
     const daInfo = {};
     (da.id || []).forEach((id, i) => {
+      const fid = refId((da.Fournisseur || [])[i]);
+      const fournisseur = fid != null ? (fourNoms[fid] || '') : '';
       daInfo[id] = {
         id,
         num_da: (da.Num_DA || [])[i] || ('DA#' + id),
@@ -103,6 +125,7 @@ async function fetchAll() {
         date_pgm: (da.Date_OrderPGM || [])[i] || null,
         date_bc: (da.Date_reception_BC || [])[i] || null,
         num_bc: (da.Num_BC || [])[i] || '',
+        isEFS: String(fournisseur).trim().toLowerCase() === FOURNISSEUR_EFS,
       };
     });
 
@@ -112,13 +135,12 @@ async function fetchAll() {
       ref: (cmd.Reference_fournisseur || [])[i] || '',
       montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
       designation: (cmd.Designation2 || [])[i] || '',
-    })).filter(c => CODES_EFS.includes(c.ref));
+    }));
 
-    // Regrouper les commandes EFS par DA
+    // Regrouper TOUTES les commandes d'une DA « EFS » (identifiée par son Fournisseur)
     const parDA = {};
-    LIBRES = [];
     commandes.forEach(c => {
-      if (!c.da) { LIBRES.push(c); return; }
+      if (!c.da || !daInfo[c.da] || !daInfo[c.da].isEFS) return;
       if (!parDA[c.da]) parDA[c.da] = [];
       parDA[c.da].push(c);
     });
@@ -126,14 +148,20 @@ async function fetchAll() {
     DAS = {};
     Object.keys(parDA).forEach(daId => {
       const info = daInfo[daId];
-      if (!info) return;   // DA supprimée entre-temps
       const arts = parDA[daId];
+      const cons2 = arts.find(a => a.ref === 'CONS2');
       DAS[daId] = {
         ...info,
-        codes: [...new Set(arts.map(a => a.ref))],
+        codes: [...new Set(arts.map(a => a.ref).filter(r => CODES_EFS.includes(r)))],
+        autresLignes: arts.filter(a => !CODES_EFS.includes(a.ref)).length,
         montant: arts.reduce((s, a) => s + a.montant, 0),
+        moisCible: cons2 ? parseMoisDesignation(cons2.designation) : null,
       };
     });
+
+    // Articles pas encore attachés à une DA : pas de Fournisseur propre, donc repérage
+    // provisoire par code (jusqu'à leur assignation via « Gestion DAs »).
+    LIBRES = commandes.filter(c => !c.da && CODES_EFS.includes(c.ref));
 
     buildYearOptions();
     render();
@@ -144,7 +172,7 @@ async function fetchAll() {
 
 function buildYearOptions() {
   const years = new Set([NOW.getFullYear()]);
-  Object.values(DAS).forEach(d => { const ms = toMs(d.date_da); if (ms) years.add(new Date(ms).getFullYear()); });
+  Object.values(DAS).forEach(d => { if (d.moisCible) years.add(d.moisCible.year); });
   const list = [...years].sort((a, b) => b - a);
   if (selectedYear == null || !list.includes(selectedYear)) selectedYear = NOW.getFullYear();
   const sel = document.getElementById('year-filter');
@@ -165,7 +193,7 @@ function dacardHtml(d) {
         <span class="da-montant">${fmt(d.montant)}</span>
       </div>
       <div class="da-sub">${dateLine}</div>
-      <div class="chips">${chips}</div>
+      <div class="chips">${chips}${d.autresLignes ? `<span class="chip">+${d.autresLignes} autre${d.autresLignes > 1 ? 's' : ''}</span>` : ''}</div>
     </div>`;
 }
 
@@ -176,21 +204,20 @@ function render() {
     return;
   }
 
-  // DA regroupées par année/mois (via Date_DA) ; celles sans date à part
+  // DA regroupées par année/mois DE LA LIGNE CERTIFICAT (pas de la Date_DA) ; les DA EFS
+  // sans certificat, ou avec un certificat dont le mois n'a pas pu être lu, à part.
   const parMois = {};   // 'YYYY-MM' -> [DA...]
   const sansDate = [];
   Object.values(DAS).forEach(d => {
-    const ms = toMs(d.date_da);
-    if (!ms) { sansDate.push(d); return; }
-    const dt = new Date(ms);
-    const key = dt.getFullYear() + '-' + (dt.getMonth() + 1);
-    if (dt.getFullYear() !== selectedYear) return;
+    if (!d.moisCible) { sansDate.push(d); return; }
+    if (d.moisCible.year !== selectedYear) return;
+    const key = d.moisCible.year + '-' + d.moisCible.month;
     if (!parMois[key]) parMois[key] = [];
     parMois[key].push(d);
   });
 
   // Résumé de l'année
-  const dasAnnee = Object.values(DAS).filter(d => { const ms = toMs(d.date_da); return ms && new Date(ms).getFullYear() === selectedYear; });
+  const dasAnnee = Object.values(DAS).filter(d => d.moisCible && d.moisCible.year === selectedYear);
   const totalAnnee = dasAnnee.reduce((s, d) => s + d.montant, 0);
   const nbBC = dasAnnee.filter(d => d.statut === 'BC reçu').length;
   const dernierMoisEcoule = selectedYear === NOW.getFullYear() ? NOW.getMonth() + 1 : 12;
@@ -233,7 +260,8 @@ function render() {
   html += '</div>';
 
   if (sansDate.length) {
-    html += `<div class="section-title">DA EFS sans date (${sansDate.length})</div><div class="warn-box">Ces DA n'apparaissent dans aucun trimestre car leur Date_DA est vide.</div>`;
+    html += `<div class="section-title">DA EFS au mois indéterminé (${sansDate.length})</div>
+      <div class="warn-box">Le mois n'a pas pu être lu sur la ligne « CONS2 » (absente, ou désignation sans mois + année reconnaissables — ex. attendu : « CERTIFICAT MENSUEL - Juillet 2026 »).</div>`;
     html += sansDate.map(dacardHtml).join('');
   }
 
