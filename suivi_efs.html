@@ -192,6 +192,7 @@ async function fetchAll() {
       da: refId((cmd.Demande_achat || [])[i]),
       ref: (cmd.Reference_fournisseur || [])[i] || '',
       montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
+      qte: (cmd.Quantite || [])[i],
       designation: (cmd.Designation2 || [])[i] || '',
     }));
 
@@ -250,7 +251,7 @@ function dacardHtml(d, showAutres = true) {
   if (d.statut === 'BC reçu') dateLine += (dateLine ? ' · ' : '') + 'BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
 
   const lignesHtml = (d.lignes || [])
-    .map(a => `<div class="ligne-item"><span>${esc(CODE_LABELS[a.ref] || a.designation)}</span><span class="lm">${fmt(a.montant)}</span></div>`)
+    .map(a => `<div class="ligne-item"><span>${a.qte != null ? a.qte + '× ' : ''}${esc(a.designation || CODE_LABELS[a.ref] || a.ref)}</span><span class="lm">${fmt(a.montant)}</span></div>`)
     .join('');
 
   const bcBtn = (d.bc_ids && d.bc_ids.length)
