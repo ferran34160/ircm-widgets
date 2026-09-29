@@ -2,214 +2,746 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Suivi EFS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion des DA</title>
 <style>
-* { box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; color: #1a1a1a; background: #fff; font-size: 13px; }
-@media (prefers-color-scheme: dark) { body { color: #eee; background: #1c1c1e; } }
-.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
-.title { font-size: 17px; font-weight: 700; }
-select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; }
-@media (prefers-color-scheme: dark) { select { border-color: #444; } }
-.loading, .empty { padding: 30px; text-align: center; color: #888; font-size: 13px; }
-.summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 16px; font-size: 12.5px; color: #666; }
-@media (prefers-color-scheme: dark) { .summary { color: #aaa; } }
-.summary b { color: inherit; font-size: 14px; }
-/* Grille partagée : 4 colonnes (T1..T4) × 5 lignes (en-tête, image, mois 1, mois 2, mois 3).
-   Chaque « ligne logique » est émise pour les 4 trimestres d'affilée : le navigateur aligne
-   alors automatiquement la hauteur de chaque ligne sur la plus grande cellule de cette ligne,
-   trimestre avec ou sans image / avec plus ou moins d'articles. */
-.qgrid { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); column-gap: 14px; row-gap: 0; }
-@media (max-width: 900px) { .qgrid { grid-template-columns: repeat(2, minmax(230px, 1fr)); } }
-@media (max-width: 480px) { .qgrid { grid-template-columns: 1fr; } }
-.qcell { padding: 10px 13px; }
-.qhead-cell { display: flex; justify-content: space-between; align-items: baseline; border-radius: 12px 12px 0 0; }
-.qtitle { font-size: 13.5px; font-weight: 700; }
-.qstat { font-size: 18px; color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
-.qimg-cell { padding-top: 0; }
-.qimg-cell:empty { padding: 0; }
-.mrow { border-top: 1px solid rgba(0,0,0,.07); }
-@media (prefers-color-scheme: dark) { .mrow { border-top-color: rgba(255,255,255,.08); } }
-.qcell.qcell-bottom { border-radius: 0 0 12px 12px; padding-bottom: 13px; }
-/* Teinte douce par trimestre, cohérente avec la palette déjà utilisée ailleurs dans la suite */
-.qcolor-1 { background: #EAF3FB; }
-.qcolor-2 { background: #EAFBF3; }
-.qcolor-3 { background: #FBF0E8; }
-.qcolor-4 { background: #F0EAFB; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 14px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.tab { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; cursor: pointer; }
+.tab.active { background: #378ADD; color: #fff; border-color: #378ADD; }
+.bc-search { margin-left: 6px; }
+.bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 200px; }
+.bc-search input:focus { outline: none; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
+.libres-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #9C6ADE; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(156,106,222,0.25); width: 130px; }
+.libres-card:hover { background: #875BC8; }
+.libres-card.active { box-shadow: 0 0 0 3px rgba(156,106,222,0.4); }
+.libres-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+@media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
+.spacer { flex: 1; }
+.btn-new { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; border: none; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
+.btn-new:hover { background: #178A65; }
+.refresh { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .refresh { border-color: #444; } }
+.layout { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.cards-row { display: flex; gap: 12px; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.inner-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 720px) { .inner-layout { grid-template-columns: 1fr; } }
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 8px; }
+.filters-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.four-filter { flex: 1; min-width: 0; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .four-filter { border-color: #444; } }
+.da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+.new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
+.new-da-card:hover { background: #178A65; }
+.new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
+.new-da-title { font-size: 14px; font-weight: 600; }
+.new-da-sub { font-size: 11px; opacity: 0.85; }
+.da-item { border: 1px solid #e5e5e5; border-radius: 9px; padding: 9px 11px; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .da-item { border-color: #383838; } }
+.da-item.sel { border-color: #378ADD; border-width: 1.5px; background: #E6F1FB; }
+@media (prefers-color-scheme: dark) { .da-item.sel { background: #0C2D4D; } }
+.da-item.libres { border-style: dashed; border-color: #BA7517; }
+.da-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.da-item-num { font-size: 13px; font-weight: 600; }
+.badge { font-size: 10px; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
+.b-cours { background: #F1EFE8; color: #5F5E5A; }
+.b-pgm { background: #E6F1FB; color: #0C447C; }
+.b-bc { background: #E1F5EE; color: #085041; }
+.b-libres { background: #FAEEDA; color: #854F0B; }
 @media (prefers-color-scheme: dark) {
-  .qcolor-1 { background: #16314A; }
-  .qcolor-2 { background: #16402F; }
-  .qcolor-3 { background: #3D2A1A; }
-  .qcolor-4 { background: #2A1F3D; }
+  .b-cours { background: #444441; color: #D3D1C7; }
+  .b-pgm { background: #0C447C; color: #B5D4F4; }
+  .b-bc { background: #085041; color: #9FE1CB; }
+  .b-libres { background: #633806; color: #FAC775; }
 }
-.mname { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; }
-.mtag { font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 8px; }
-.mtag.futur { background: #eee; color: #999; }
-@media (prefers-color-scheme: dark) { .mtag.futur { background: #333; color: #888; } }
-.mtag.manque { background: #FBE6E6; color: #B3312C; }
-@media (prefers-color-scheme: dark) { .mtag.manque { background: #3a2222; color: #E8908C; } }
-.dacard { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
-.dacard:last-child { margin-bottom: 0; }
-@media (prefers-color-scheme: dark) { .dacard { background: #232323; border-color: #333; } }
-.da-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.da-left { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.da-num { font-weight: 600; font-size: 12.5px; }
-.da-montant { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12.5px; }
-.badge { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 9px; white-space: nowrap; }
-.b-cours { background: #FBF0E8; color: #8A4A18; }
-.b-pgm   { background: #EAF3FB; color: #0C447C; }
-.b-bc    { background: #EAFBF3; color: #0F6E56; }
-.b-ann   { background: #F0F0F0; color: #888; text-decoration: line-through; }
+.da-item-meta { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-item-foot { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; }
+.da-item-total { font-weight: 500; }
+.detail { border: 1px solid #e5e5e5; border-radius: 11px; overflow: hidden; max-width: 1100px; }
+@media (prefers-color-scheme: dark) { .detail { border-color: #383838; } }
+.detail-head { background: #eef2f6; padding: 11px 13px; }
+@media (prefers-color-scheme: dark) { .detail-head { background: #283038; } }
+.detail-head-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.detail-num { font-size: 15px; font-weight: 600; }
+.detail-route { font-size: 12px; color: #666; }
+@media (prefers-color-scheme: dark) { .detail-route { color: #aaa; } }
+.detail-arts { padding: 8px 13px; }
+.art { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+@media (prefers-color-scheme: dark) { .art { border-bottom-color: #2e2e2e; } }
+.art:last-child { border-bottom: none; }
+.art-name { word-break: break-word; }
+.art-main { display: flex; justify-content: space-between; gap: 10px; }
+.art-dem { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.dem-tag { font-size: 10px; padding: 1px 7px; border-radius: 5px; background: #EFEAF8; color: #5E3A9E; }
+@media (prefers-color-scheme: dark) { .dem-tag { background: #2E2440; color: #C4A8E8; } }
+.art-ref { color: #999; font-size: 11px; font-weight: 400; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
+.art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
+.art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.art-right { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.art-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
+.art-livr.recu { background: #E1F5EE; color: #1D9E75; }
+.art-livr.attente { background: rgba(0,0,0,0.06); color: #999; }
+@media (prefers-color-scheme: dark) { .art-livr.recu { background: #16291F; color: #5FCFA0; } .art-livr.attente { background: rgba(255,255,255,0.08); color: #888; } }
+.art-devise { font-size: 10px; color: #B8860B; font-style: italic; margin-top: 2px; }
+@media (prefers-color-scheme: dark) { .art-devise { color: #E0C060; } }
+.detail-action { padding: 13px; border-top: 1px solid #eee; }
+.detail-action-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
+.detail-action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.detail-action-row input { font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .detail-action-row input { border-color: #444; } .detail-action { border-top-color: #333; } }
+.btn-pgm { font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 7px; border: none; background: #378ADD; color: #fff; cursor: pointer; }
+.btn-pgm:hover { background: #2D72BD; }
+.detail-files { padding: 11px 13px; border-top: 1px solid #eee; }
+@media (prefers-color-scheme: dark) { .detail-files { border-top-color: #333; } }
+.detail-files-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #999; margin-bottom: 8px; }
+.detail-files-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.file-cat { display: flex; gap: 4px; align-items: center; }
+.file-add { width: 18px; height: 18px; line-height: 16px; text-align: center; padding: 0; border-radius: 50%; border: 1px solid #378ADD; color: #378ADD; background: none; cursor: pointer; font-size: 13px; flex: none; }
+.file-add:hover { background: #378ADD; color: #fff; }
+.file-add:disabled { opacity: .4; cursor: default; }
+@media (prefers-color-scheme: dark) { .file-add { border-color: #7ab3f0; color: #7ab3f0; } .file-add:hover { background: #378ADD; color: #16314A; } }
+.file-link { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #E6F1FB; color: #0C447C; text-decoration: none; border: 1px solid #C5DFF5; cursor: pointer; }
+.file-link:hover { background: #D5E8FA; }
+.file-empty { font-size: 12px; padding: 4px 11px; border-radius: 6px; background: #f2f2f0; color: #bbb; border: 1px dashed #ddd; }
 @media (prefers-color-scheme: dark) {
-  .b-cours { background: #3D2A1A; color: #E0A87C; }
-  .b-pgm   { background: #16314A; color: #9FC6EE; }
-  .b-bc    { background: #16402F; color: #9FE1CB; }
-  .b-ann   { background: #2a2a2a; color: #999; }
+  .file-link { background: #0C2D4D; color: #9FC6F0; border-color: #1A4570; }
+  .file-empty { background: #2a2a2a; color: #666; border-color: #444; }
 }
-.da-sub { font-size: 11px; color: #888; margin-top: 4px; }
-.chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
-.chip { font-size: 10px; padding: 2px 7px; border-radius: 7px; background: #E8EDF2; color: #5a6572; font-weight: 500; }
-@media (prefers-color-scheme: dark) { .chip { background: #2e333a; color: #9aa5b1; } }
-.chip.absent { opacity: .35; }
-.lignes { margin-top: 7px; }
-.ligne-item { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; padding: 3px 0; color: #555; }
-@media (prefers-color-scheme: dark) { .ligne-item { color: #bbb; } }
-.ligne-item .lm { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.btn-bc { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #1D9E75; color: #0F6E56; background: none; cursor: pointer; white-space: nowrap; }
-.btn-bc:hover { background: #1D9E75; color: #fff; }
-.btn-pj { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #378ADD; color: #0C447C; background: none; cursor: pointer; }
-.btn-pj:hover { background: #378ADD; color: #fff; }
-@media (prefers-color-scheme: dark) { .btn-pj { color: #9FC6EE; border-color: #378ADD; } .btn-pj:hover { background: #378ADD; color: #16314A; } }
-.pj-list { display: none; margin-top: 6px; padding-left: 2px; }
-.pj-list.open { display: block; }
-.pj-list button { display: block; font-size: 11.5px; padding: 3px 4px; background: none; border: none; color: #378ADD; cursor: pointer; text-align: left; }
-.pj-list button:hover { text-decoration: underline; }
-@media (prefers-color-scheme: dark) { .pj-list button { color: #9FC6EE; } }
-@media (prefers-color-scheme: dark) { .btn-bc { color: #9FE1CB; border-color: #1D9E75; } .btn-bc:hover { background: #1D9E75; color: #16402F; } }
-.autres-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-.qautres { padding: 10px 13px 0; }
-.qautres .autres-wrap { margin-top: 0; flex-direction: column; }
-.qautres .autres-thumb { width: 100%; height: auto; object-fit: contain; border-radius: 8px; cursor: zoom-in; }
-.autres-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 7px; border: 1px solid #ddd; cursor: pointer; background: #f2f2f2; }
-@media (prefers-color-scheme: dark) { .autres-thumb { border-color: #444; background: #2a2a2a; } }
-.autres-link { font-size: 11px; padding: 3px 10px; border-radius: 7px; border: 1px solid #999; background: none; cursor: pointer; color: inherit; }
-.autres-link:hover { background: rgba(128,128,128,.15); }
-.absent-line { font-size: 11.5px; color: #aaa; font-style: italic; }
-.section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #888; margin: 22px 0 10px; }
-.warn-box { border: 1px solid #F0D3AE; background: #FDF1E3; border-radius: 10px; padding: 10px 13px; font-size: 12.5px; margin-bottom: 8px; }
-@media (prefers-color-scheme: dark) { .warn-box { background: #3D2A1A; border-color: #5a3f24; color: #E0A87C; } }
-.libre-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid #eee; font-size: 12.5px; }
-@media (prefers-color-scheme: dark) { .libre-item { border-top-color: #333; } }
-.libre-item:first-child { border-top: none; }
+.detail-foot { display: flex; justify-content: space-between; padding: 10px 13px; border-top: 1px solid #eee; background: #fafafa; }
+.detail-dates { font-size: 11px; color: #999; margin-top: 3px; }
+.total-devise { font-size: 11px; color: #B8860B; font-style: italic; text-align: right; padding: 4px 13px 8px; background: #fafafa; }
+.da-item-livr { margin-top: 5px; }
+.da-livr { font-size: 10px; padding: 1px 7px; border-radius: 5px; }
+.da-livr.all { background: #E1F5EE; color: #1D9E75; }
+.da-livr.partial { background: #FBF3E0; color: #BA7517; }
+.da-livr.none { background: rgba(0,0,0,0.06); color: #999; }
+@media (prefers-color-scheme: dark) { .da-livr.all { background: #16291F; color: #5FCFA0; } .da-livr.partial { background: #332B16; color: #E0C060; } .da-livr.none { background: rgba(255,255,255,0.08); color: #888; } }
+@media (prefers-color-scheme: dark) { .total-devise { color: #E0C060; background: #242424; } }
+@media (prefers-color-scheme: dark) { .detail-foot { background: #242424; border-top-color: #333; } }
+.detail-total { font-weight: 600; font-size: 14px; }
+.empty { text-align: center; padding: 40px 20px; color: #aaa; font-size: 13px; }
+.loading { text-align: center; padding: 40px; color: #888; }
+/* Assignació */
+.assign-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.assign-toolbar { display: flex; gap: 6px; margin-bottom: 8px; }
+.assign-toolbar button { font-size: 11px; padding: 4px 9px; border: 1px solid #ccc; border-radius: 6px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .assign-toolbar button { border-color: #444; } }
+.assign-da-select { width: 100%; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; margin-bottom: 10px; }
+.assign-da-label { font-size: 12px; font-weight: 600; color: #666; margin: 14px 0 6px; }
+@media (prefers-color-scheme: dark) { .assign-da-label { color: #aaa; } }
+@media (prefers-color-scheme: dark) { .assign-da-select { border-color: #444; } }
+.assign-art { display: block; padding: 8px 11px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 5px; }
+@media (prefers-color-scheme: dark) { .assign-art { border-color: #383838; } }
+.assign-art.checked { background: #E6F1FB; border-color: #378ADD; }
+@media (prefers-color-scheme: dark) { .assign-art.checked { background: #0C2D4D; } }
+.assign-check { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #bbb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: transparent; cursor: pointer; }
+.assign-art.checked .assign-check { background: #378ADD; border-color: #378ADD; color: #fff; }
+.assign-art-info { flex: 1; min-width: 0; }
+.assign-art-name { font-size: 12px; font-weight: 500; }
+.assign-art-meta { font-size: 11px; color: #888; }
+.btn-split { flex-shrink: 0; font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; white-space: nowrap; }
+.btn-split:hover { background: #9C6ADE; color: #fff; }
+.split-panel { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd; }
+@media (prefers-color-scheme: dark) { .split-panel { border-top-color: #444; } }
+.split-row { display: flex; gap: 10px; }
+.split-field { flex: 1; margin-bottom: 8px; }
+.split-field label { font-size: 10.5px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 4px; }
+.split-field input { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; }
+@media (prefers-color-scheme: dark) { .split-field input { border-color: #444; } }
+.split-total { font-size: 13px; font-weight: 600; padding: 7px 0; }
+.btn-assign { width: 100%; margin-top: 10px; padding: 10px; background: #378ADD; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-assign:disabled { background: #ccc; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) { .btn-assign:disabled { background: #444; } }
+.msg { text-align: center; padding: 9px; border-radius: 8px; margin-top: 10px; font-size: 12px; display: none; }
+.msg.ok { background: #E1F5EE; color: #085041; display: block; }
+.msg.err { background: #FCEBEB; color: #A32D2D; display: block; }
+.btn-delete { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
+.btn-delete:hover { background: #E24B4A; color: #fff; }
+.btn-assign-link { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; }
+.btn-assign-link:hover { background: #9C6ADE; color: #fff; }
+.delete-confirm { padding: 11px 13px; border-top: 1px solid #eee; display: none; }
+.delete-confirm.open { display: block; }
+@media (prefers-color-scheme: dark) { .delete-confirm { border-top-color: #333; } }
+.delete-confirm-title { font-size: 11px; color: #E24B4A; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; }
+.delete-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.del-opt { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.del-opt > button { flex: none; min-width: 260px; text-align: left; }
+.del-opt-desc { font-size: 12px; color: #777; flex: 1 1 240px; }
+@media (prefers-color-scheme: dark) { .del-opt-desc { color: #aaa; } }
+.btn-del-only { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: none; background: #E24B4A; color: #fff; cursor: pointer; }
+.btn-del-only:hover { background: #c73e3d; }
+.btn-del-all { font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 7px; border: 1px solid #E24B4A; color: #E24B4A; background: none; cursor: pointer; }
+.btn-del-all:hover { background: #FCEBEB; }
+.btn-del-cancel { font-size: 12px; padding: 7px 14px; border-radius: 7px; border: 1px solid #ccc; color: inherit; background: none; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .btn-del-cancel { border-color: #444; } }
+
+/* ===== Édition / suppression : panneaux EN LIGNE ===== */
+.btn-edit { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #378ADD; color: #378ADD; background: none; cursor: pointer; }
+.btn-edit:hover { background: #378ADD; color: #fff; }
+.assign-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px; padding: 10px 13px; border-radius: 8px; background: rgba(0,0,0,.045); font-size: 13px; }
+@media (prefers-color-scheme: dark) { .assign-total { background: rgba(255,255,255,.07); } }
+.assign-total-lbl { color: #777; }
+@media (prefers-color-scheme: dark) { .assign-total-lbl { color: #aaa; } }
+.assign-total-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.assign-total.vide .assign-total-val { color: #aaa; font-weight: 500; }
+/* Fila d'article del detall de la DA : el nom pren tot l'ample que pot; el grup
+   (preu + botons + demandeur) va a la dreta, i baixa a una 2a línia si no hi cap. */
+.detail-arts .art { align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.detail-arts .art-namecol { flex: 1 1 560px; min-width: 0; }
+.detail-arts .art-side { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; white-space: nowrap; }
+.detail-arts .art-price { min-width: 84px; text-align: right; }
+.detail-arts .art-dem-col { min-width: 56px; display: flex; justify-content: flex-end; }
+.detail-arts .art-dem-col .art-dem { margin-top: 0; justify-content: flex-end; }
+.art-btns { display: inline-flex; gap: 6px; flex: none; align-items: center; white-space: nowrap; }
+.btn-art-edit, .btn-art-del { font-size: 11px; padding: 5px 10px; border-radius: 6px; background: none; cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1.3; }
+.btn-art-edit { border: 1px solid #378ADD; color: #378ADD; }
+.btn-art-edit:hover { background: #378ADD; color: #fff; }
+.btn-art-del { border: 1px solid #E24B4A; color: #E24B4A; }
+.btn-art-del:hover { background: #E24B4A; color: #fff; }
+.ed-inline { margin: 8px 0 12px; padding: 12px 14px; border: 1px solid #cfe0f3; background: #f5f9fe; border-radius: 9px; font-size: 13px; font-style: normal; opacity: 1; }
+@media (prefers-color-scheme: dark) { .ed-inline { background: #182430; border-color: #2b4258; } }
+.ed-inline.danger { border-color: #f0c4c3; background: #fdf3f3; }
+@media (prefers-color-scheme: dark) { .ed-inline.danger { background: #2e1a1a; border-color: #5a2f2f; } }
+.ed-inline-title { font-size: 11px; color: #2563a8; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 10px; font-weight: 600; }
+.ed-inline.danger .ed-inline-title { color: #E24B4A; }
+.ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 12px; }
+.ed-field.full { grid-column: 1 / -1; }
+.ed-field label { font-size: 10.5px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 4px; }
+.ed-field input, .ed-field select { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; font-family: inherit; }
+@media (prefers-color-scheme: dark) { .ed-field input, .ed-field select { border-color: #444; } }
+.ed-hint { font-size: 11px; color: #999; margin-top: 3px; }
+.ed-inline-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.ed-save { background: #2563a8; color: #fff; border: none; border-radius: 7px; padding: 7px 16px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.ed-save:hover { background: #1d4e85; }
+.ed-save:disabled, .btn-del-only:disabled { opacity: .5; cursor: default; }
+.ed-warn { font-size: 12px; padding: 8px 10px; border-radius: 6px; background: #FDF1E3; color: #8A4A18; border: 1px solid #F0D3AE; margin: 8px 0; }
+@media (prefers-color-scheme: dark) { .ed-warn { background: #3D2A1A; color: #E0A87C; border-color: #5a3f24; } }
+.ed-msg { font-size: 12px; min-height: 16px; }
+.ed-msg.err { color: #A32D2D; }
+.ed-msg.ok { color: #0F6E56; }
+
+/* ===== Améliorations : disponible, nouvelle DA depuis la sélection, répartitions ===== */
+.btn-assign-alt { width: 100%; margin-top: 8px; padding: 9px; background: none; color: #1D9E75; border: 1.5px solid #1D9E75; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-assign-alt:hover:not(:disabled) { background: #1D9E75; color: #fff; }
+.btn-assign-alt:disabled { opacity: .4; cursor: default; }
+.dispo-info { margin: 8px 0 4px; padding: 10px 13px; border-radius: 8px; background: #EAF3FB; border: 1px solid #cfe0f3; font-size: 12.5px; }
+@media (prefers-color-scheme: dark) { .dispo-info { background: #182430; border-color: #2b4258; } }
+.dispo-info.neg { background: #FDF3F3; border-color: #f0c4c3; }
+@media (prefers-color-scheme: dark) { .dispo-info.neg { background: #2e1a1a; border-color: #5a2f2f; } }
+.dispo-title { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+.dispo-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+.dispo-row.dispo-res { border-top: 1px solid rgba(128,128,128,.35); margin-top: 4px; padding-top: 6px; font-weight: 700; font-size: 13.5px; }
+.dispo-info.neg .dispo-res { color: #C0392B; }
+.dispo-hint { font-size: 11px; color: #999; margin-top: 6px; }
+.dispo-alert { font-size: 12px; color: #C0392B; margin-top: 6px; }
+.art-rep { font-size: 11px; color: #9C6ADE; margin-top: 3px; line-height: 1.6; }
+.btn-rep-merge { font-size: 10.5px; padding: 1px 8px; margin-left: 6px; border-radius: 10px; border: 1px solid #9C6ADE; color: #9C6ADE; background: none; cursor: pointer; }
+.btn-rep-merge:hover { background: #9C6ADE; color: #fff; }
+.ed-parts { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.ed-parts td { padding: 4px 6px; border-bottom: 1px solid rgba(128,128,128,.25); }
+.ed-parts td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="title">Suivi EFS</div>
-  <select id="year-filter"></select>
-</div>
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-// Codes des lignes EFS générées par generer_excels.py (Reference_fournisseur exacte du CSV importé)
-const CODE_LABELS = { 'T3001': 'T3001', 'QE009': 'Colis. QE009', 'B3111': 'B3111', 'QE010': 'Colis. QE010', 'CONS2': 'Certificat' };
-const CODES_EFS = Object.keys(CODE_LABELS);
-const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
+let contratsList = [], fournisseursList = [], lignesList = [];
+let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
+let splitArticleId = null;  // id de l'article libre en cours de répartition partielle
+let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
+let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
+let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = pas encore choisie : on reprend assignDAValue)
 
-function toMs(g) { if (!g) return 0; if (g > 1e15) return g / 1000; if (g > 1e11) return g; return g * 1000; }
-function fmtDate(g) { const ms = toMs(g); if (!ms) return ''; const d = new Date(ms); if (isNaN(d) || d.getFullYear() > 3000) return ''; return d.toLocaleDateString('fr-FR'); }
-function fmt(v) { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0); }
-function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-function refId(v) { if (v == null) return null; if (typeof v === 'number') return v; if (Array.isArray(v)) return v[1] || null; return null; }
-function badgeClass(s) { return s === 'BC reçu' ? 'b-bc' : s === 'Envoyée PGM' ? 'b-pgm' : s === 'Annulée' ? 'b-ann' : 'b-cours'; }
-async function loadAutresThumbs() {
-  const imgs = [...document.querySelectorAll('img.autres-thumb[data-attach-id]')];
-  if (!imgs.length) return;
-  try {
-    const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
-    imgs.forEach(img => {
-      img.src = `${tokenInfo.baseUrl}/attachments/${img.dataset.attachId}/download?auth=${tokenInfo.token}&inline=true`;
-    });
-  } catch (e) {
-    // Pas de vignette possible : chaque image basculera sur son bouton de secours via onerror.
-  }
-}
+function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 
-function attachIds(v) {
-  // Pièces jointes Grist via fetchTable : ['L', id1, id2, ...] ou null/[]
+function attachIds(v){
+  // Grist attachments via fetchTable: ['L', id1, id2, ...] o null/[]
   if (!v) return [];
   if (Array.isArray(v)) {
     if (v[0] === 'L') return v.slice(1).filter(x => typeof x === 'number');
     return v.filter(x => typeof x === 'number');
   }
+  if (typeof v === 'number') return [v];
   return [];
 }
-// Transforme un nom de fichier généré par generer_excels.py en libellé lisible.
-// Formats connus :
-//   AAMMJJ_734CT_734ECA_<CODE>_Tx_MM_seq.xlsx      -> bordereau (ex. "T3001 – 06/10/2026")
-//   AAMM_734CT_734ECA AAAA_mois_CONS2.xlsx          -> certificat (ex. "Certificat – Octobre 2026")
-// Si le nom ne correspond à aucun des deux, on l'affiche tel quel (sans l'extension).
-const CODE_RE = /(T3001|B3111|QE009|QE010|CONS2)/i;
 
-function friendlyPjName(raw) {
-  if (!raw) return null;
-  const nom = String(raw).trim().replace(/\.xlsx?$/i, '');
+function resolveContrat(v){ if(v==null)return''; if(typeof v==='number')return contratNoms[v]||''; if(Array.isArray(v))return contratNoms[v[1]]||''; return String(v); }
+function resolveFour(v){ if(v==null)return''; if(typeof v==='number')return fourNoms[v]||''; if(Array.isArray(v))return fourNoms[v[1]]||''; return String(v); }
 
-  // 1) Format exact du script (rapide) : AAMMJJ_734CT_734ECA_CODE_Tx_MM_seq
-  let m = nom.match(/(\d{2})(\d{2})(\d{2})_734CT_734ECA_([A-Z0-9]+)_T\d_\d{2}_\d+/);
-  if (m) {
-    const [, aa, mm, jj, code] = m;
-    return `${code} – ${jj}/${mm}/20${aa}`;
+async function fetchAll() {
+  try {
+    const [d, c, ct, fo, lb] = await Promise.all([
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Fournisseurs'),
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+    ]);
+
+    contratNoms = {};
+    contratsList = [];
+    contratsMasques = new Set();
+    (ct.id||[]).forEach((id,i)=>{
+      contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
+      contratsList.push({id, nom:contratNoms[id]});
+      if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
+    });
+    fourNoms = {};
+    fournisseursList = [];
+    (fo.id||[]).forEach((id,i)=>{ fourNoms[id]=(fo.Label||[])[i]||(fo.Fournisseur||[])[i]||(fo.Nom||[])[i]||('#'+id); fournisseursList.push({id, nom:fourNoms[id]}); });
+    lignesList = (lb.id||[]).map((id,i)=>({
+      id,
+      label:(lb.Label||[])[i]||'',
+      contrat:(lb.Contrat||[])[i],
+      dispo:(typeof (lb.Disponible||[])[i] === 'number') ? (lb.Disponible||[])[i] : null,
+      date_dernier_releve:(lb.Date_dernier_releve||[])[i] || null,
+    }));
+
+    das = (d.id||[]).map((id,i)=>({
+      id,
+      num_da:(d.Num_DA||[])[i]||('DA#'+id),
+      contrat:resolveContrat((d.Contrat||[])[i]), masque:contratsMasques.has(String(resolveContrat((d.Contrat||[])[i])).trim()),
+      ligne:edRid((d.Ligne_budgetaire||[])[i]),
+      fournisseur:resolveFour((d.Fournisseur||[])[i]),
+      date_da:(d.Date_DA||[])[i],
+      date_pgm:(d.Date_OrderPGM||[])[i],
+      date_bc:(d.Date_reception_BC||[])[i],
+      statut:(d.Statut||[])[i]||'',
+      num_bc:(d.Num_BC||[])[i]||'',
+      pj:(d.PJ||[])[i]||null,
+      bc:(d.BC||[])[i]||null,
+      da:(d.DA||[])[i]||null,
+      autres:(d.Autres||[])[i]||null,
+    }));
+
+    commandes = (c.id||[]).map((id,i)=>({
+      id,
+      demande_achat:(c.Demande_achat||[])[i]||null,
+      designation:(c.Designation2||[])[i]||'',
+      ref:(c.Reference_fournisseur||[])[i]||'',
+      qte:(c.Quantite||[])[i]||1,
+      montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
+      type_article:(c.Type_article||[])[i]||'Produit',
+      demandeur:(c.Demandeur||[])[i]||null,
+      devise:(c.Devise||[])[i]||'EUR',
+      prix:(c.Prix_unitaire_HT||[])[i]||0,
+      taux:(c.Taux_change||[])[i]||1,
+      code_ghp:(c.Code_GHP||[])[i]||'',
+      rep:(c.Repartition||[])[i]||'',
+      tva:((c.Taux_TVA||[])[i] !== undefined && (c.Taux_TVA||[])[i] !== null) ? (c.Taux_TVA||[])[i] : 0.2,
+      statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
+    }));
+
+    render();
+  } catch(e) {
+    document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
   }
-  // 1bis) Format exact du certificat : AAMM_734CT_734ECA AAAA_mois_CONS2
-  m = nom.match(/(\d{2})(\d{2})_734CT_734ECA \d{4}_([a-zàâäéèêëîïôöùûüç]+)_CONS2/i);
-  if (m) {
-    const mois = m[3];
-    return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1).toLowerCase();
-  }
+}
 
-  // 2) Repli générique : le nom a pu être modifié à la main (n° de BC inséré, tiret bas
-  // remplacé par un espace, etc.) — on cherche juste le code et une date où qu'ils soient,
-  // sans exiger un squelette exact.
-  const codeM = nom.match(CODE_RE);
-  if (codeM) {
-    const code = codeM[1].toUpperCase();
-    if (code === 'CONS2') {
-      const moisM = nom.match(new RegExp('(' + MOIS_KEYS.join('|') + ')', 'i'));
-      if (moisM) {
-        const mois = moisM[1].toLowerCase();
-        return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1);
-      }
-      return 'Certificat';
+function setTab(t) {
+  tab = t;
+  selectedDA = null;
+  selectedArts.clear();
+  assignDAValue = '';
+  render();
+}
+
+function goAssignerArticles(daId) {
+  preselectDA = daId;
+  tab = 'libres';
+  selectedDA = null;
+  selectedArts.clear();
+  render();
+}
+
+function choixList(v) {
+  // Choix multiple via fetchTable: ['L', 'a', 'b'] o array simple
+  if (!v) return [];
+  if (Array.isArray(v)) {
+    if (v[0] === 'L') return v.slice(1);
+    return v;
+  }
+  return [String(v)];
+}
+
+function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
+function totalOf(daId) { return artsOf(daId).reduce((s,a)=>s+a.montant,0); }
+function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length; }
+
+function badgeClass(statut) {
+  if (statut === 'En cours') return 'b-cours';
+  if (statut === 'Envoyée PGM') return 'b-pgm';
+  if (statut === 'BC reçu') return 'b-bc';
+  return 'b-cours';
+}
+
+function render() {
+  if (tab === 'nouvelle') { renderFrame(renderNewDAContent()); return; }
+  if (tab === 'libres') { renderFrame(renderLibresContent()); return; }
+  renderFrame(renderListContent());
+}
+
+// Marc comú: botó Nouvelle DA (esquerra) + filtres (a sobre de la columna central)
+function renderFrame(centerAndRight) {
+  const container = document.getElementById('container');
+  container.innerHTML = `
+    <div class="layout">
+      <div class="panel">
+        <div class="cards-row">
+          <div class="new-da-card" onclick="openNewDA()">
+            <div class="new-da-icon">+</div>
+            <div>
+              <div class="new-da-title">Nouvelle DA</div>
+              <div class="new-da-sub">Créer une demande d'achat</div>
+            </div>
+          </div>
+          <div class="libres-card ${tab==='libres'?'active':''}" onclick="setTab('libres')">
+            <div class="libres-icon">📋</div>
+            <div>
+              <div class="new-da-title">Articles libres</div>
+              <div class="new-da-sub">Assigner des articles à une DA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="grid-column: span 2;">
+        <div class="toolbar">
+          <button class="tab ${tab==='toutes'?'active':''}" onclick="setTab('toutes')">Toutes</button>
+          <button class="tab ${tab==='En cours'?'active':''}" onclick="setTab('En cours')">En cours</button>
+          <button class="tab ${tab==='Envoyée PGM'?'active':''}" onclick="setTab('Envoyée PGM')">Envoyée PGM</button>
+          <button class="tab ${tab==='BC reçu'?'active':''}" onclick="setTab('BC reçu')">BC reçu</button>
+          <div class="bc-search">
+            <input type="text" id="bc-search-input" placeholder="🔍 BC, article, réf…" value="${searchBC.replace(/"/g,'&quot;')}" oninput="onSearchBC(this.value)">
+          </div>
+        </div>
+        <div class="frame-content">${centerAndRight}</div>
+      </div>
+    </div>`;
+}
+
+// Contingut de la vista llista (columna llista + detall)
+function renderListContent() {
+  let list = das.slice().filter(d => d.statut !== 'Annulée' && !d.masque);
+  if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
+  if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
+  if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
+  if (searchBC.trim()) list = list.filter(d => daMatchesQuery(d, searchBC));
+  const dateRef = (d) => {
+    // A "Toutes": toujours par Date_DA (chronologie de création)
+    if (tab === 'toutes') return toMs(d.date_da);
+    // Sinon: date pertinente selon le statut
+    if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') return toMs(d.date_bc) || toMs(d.date_pgm) || toMs(d.date_da);
+    return toMs(d.date_da);
+  };
+  list.sort((a,b) => dateRef(b) - dateRef(a));
+
+  const nbLibres = commandes.filter(c => !c.demande_achat).length;
+
+  // Desplegable de proveïdors (només els que apareixen en alguna DA)
+  const foursPresents = [...new Set(das.map(d => d.fournisseur).filter(Boolean))]
+    .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+  const fourOptions = '<option value="">Tous les fournisseurs</option>' +
+    foursPresents.map(f => `<option value="${f.replace(/"/g,'&quot;')}" ${filterFour===f?'selected':''}>${f}</option>`).join('');
+
+  // Demandeurs presents en algun article
+  const demsPresents = [...new Set(commandes.flatMap(c => choixList(c.demandeur)))]
+    .filter(Boolean).sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+  const demOptions = '<option value="">Tous les demandeurs</option>' +
+    demsPresents.map(x => `<option value="${x.replace(/"/g,'&quot;')}" ${filterDem===x?'selected':''}>${x}</option>`).join('');
+
+  let listHtml = '';
+  list.forEach(d => {
+    const sel = selectedDA === d.id ? 'sel' : '';
+    const nb = nbProduits(d.id);
+    const dProds = artsOf(d.id).filter(a => a.statut_livr === 'Reçu' || a.statut_livr === 'En attente');
+    const nbRecus = dProds.filter(a => a.statut_livr === 'Reçu').length;
+    let livrBadge = '';
+    if (dProds.length && (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu')) {
+      const tous = nbRecus === dProds.length;
+      const cls = tous ? 'all' : (nbRecus > 0 ? 'partial' : 'none');
+      livrBadge = `<span class="da-livr ${cls}">${nbRecus}/${dProds.length} livrés</span>`;
     }
-    // Date complète JJMMAAAA isolée (ni précédée ni suivie d'un autre chiffre, pour ne
-    // pas mordre sur un long numéro de BC accolé, ex. « ..._4525154838_13012026_B3111 »).
-    let d = nom.match(/(?<!\d)(\d{2})(\d{2})(\d{4})(?!\d)/);
-    if (d) return `${code} – ${d[1]}/${d[2]}/${d[3]}`;
-    // Sinon, date courte AAMMJJ tout au début du nom (format d'origine du script)
-    d = nom.match(/^(\d{2})(\d{2})(\d{2})(?!\d)/);
-    if (d) return `${code} – ${d[3]}/${d[2]}/20${d[1]}`;
-    return code;
+    listHtml += `
+      <div class="da-item ${sel}" data-da="${d.id}" onclick="selectDA(${d.id})">
+        <div class="da-item-top"><span class="da-item-num">${d.num_da}</span><span class="badge ${badgeClass(d.statut)}">${d.statut}</span></div>
+        <div class="da-item-meta">${d.contrat || '—'} → ${d.fournisseur || '—'}</div>
+        <div class="da-item-foot"><span style="color:#999">${listCountLabel(d.id)} · ${(d.statut==='Envoyée PGM'||d.statut==='BC reçu') ? 'PGM '+fmtDate(d.date_pgm) : fmtDate(d.date_da)}</span><span class="da-item-total">${fmt(totalOf(d.id))}</span></div>
+        ${livrBadge ? `<div class="da-item-livr">${livrBadge}</div>` : ''}
+      </div>`;
+  });
+  if (!listHtml) listHtml = '<div class="empty">Aucune DA.</div>';
+
+  let detailHtml;
+  if (selectedDA) {
+    const d = das.find(x => x.id === selectedDA);
+    detailHtml = renderDetail(d);
+  } else {
+    detailHtml = '<div class="empty">Sélectionnez une DA pour voir le détail.</div>';
   }
 
-  // 3) Rien de reconnaissable : nom du fichier tel quel
-  return nom;
+  return `
+    <div class="inner-layout">
+      <div>
+        <div class="panel-title">Demandes d'achat (${list.length})${nbLibres ? ' · ' + nbLibres + ' art. libres' : ''}</div>
+        <div class="filters-row">
+          <select class="four-filter" onchange="setFilterFour(this.value)">${fourOptions}</select>
+          <select class="four-filter" onchange="setFilterDem(this.value)">${demOptions}</select>
+        </div>
+        <div class="da-list">${listHtml}</div>
+      </div>
+      <div>
+        <div class="panel-title">Détail</div>
+        ${detailHtml}
+      </div>
+    </div>`;
 }
 
-function togglePjList(daId) {
-  const list = document.getElementById('pj-list-' + daId);
-  const btn = document.getElementById('pj-btn-' + daId);
-  if (!list || !btn) return;
-  list.classList.toggle('open');
-  btn.textContent = btn.textContent.replace(list.classList.contains('open') ? '📄' : '📂', list.classList.contains('open') ? '📂' : '📄');
+function renderDetail(d) {
+  if (!d) return '<div class="empty">DA introuvable.</div>';
+  const arts = artsOf(d.id);
+  const total = totalOf(d.id);
+  const nbProd = arts.filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length;
+  const nbServ = arts.filter(a=>a.type_article==='Service').length;
+  const nbFrais = arts.filter(a=>a.type_article==='Frais').length;
+
+  let artsHtml = arts.length ? arts.map(a => {
+    const dems = choixList(a.demandeur);
+    const demHtml = dems.length ? `<div class="art-dem">${dems.map(x=>`<span class="dem-tag">${x}</span>`).join('')}</div>` : '';
+    let deviseHtml = '';
+    if (a.devise && a.devise !== 'EUR') {
+      const origTotal = (a.prix || 0) * (a.qte || 1);
+      const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
+      const sym = symbols[a.devise] || (a.devise + ' ');
+      const origStr = a.devise === 'USD' || a.devise === 'GBP'
+        ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
+        : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + a.devise;
+      deviseHtml = `<div class="art-devise">${origStr} → ${fmt(a.montant)} (taux ${a.taux}). Valeur estimée en EUR.</div>`;
+    }
+    const livr = a.statut_livr === 'Reçu';
+    const hasLivr = a.statut_livr === 'Reçu' || a.statut_livr === 'En attente';
+    const livrDate = livr && a.date_livr ? ' ' + fmtDate(a.date_livr) : '';
+    const livrHtml = !hasLivr
+      ? ''
+      : `<span class="art-livr ${livr?'recu':'attente'}">${livr?'✓ Livré'+livrDate:'⏳ En attente'}</span>`;
+    return `
+    <div class="art ${a.type_article==='Frais'?'svc':''}">
+      <div class="art-namecol">
+        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+        ${deviseHtml}
+        ${repHtml(a)}
+      </div>
+      <div class="art-side">
+        ${livrHtml}<span class="art-price">${fmt(a.montant)}</span>
+        <span class="art-btns">
+          <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
+          <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
+        </span>
+        <div class="art-dem-col">${demHtml}</div>
+      </div>
+    </div>${edInline('com', a.id)}${edInline('del', a.id)}${edInline('merge', a.id)}`;
+  }).join('') : '<div class="empty">Aucun article.</div>';
+
+  const parts = [];
+  if (nbProd) parts.push(`${nbProd} article(s)`);
+  if (nbServ) parts.push(`${nbServ} service(s)`);
+  if (nbFrais) parts.push(`${nbFrais} frais`);
+  const footLabel = parts.join(' + ') || '0 article(s)';
+
+  // Divisa de la DA (si tots els articles són en la mateixa devise non-EUR)
+  const devises = [...new Set(arts.map(a => a.devise || 'EUR'))];
+  const daDevise = devises.length === 1 ? devises[0] : 'EUR';
+  let totalDeviseHtml = '';
+  if (daDevise !== 'EUR' && arts.length) {
+    const origTotal = arts.reduce((s,a) => s + (a.prix||0)*(a.qte||1), 0);
+    const symbols = { USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
+    const sym = symbols[daDevise] || (daDevise + ' ');
+    const origStr = (daDevise === 'USD' || daDevise === 'GBP')
+      ? sym + origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2})
+      : origTotal.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + daDevise;
+    totalDeviseHtml = `<div class="total-devise">${origStr} → ${fmt(total)}. Valeur estimée en EUR.</div>`;
+  }
+
+  // Acció: passar a Envoyée PGM (només si està En cours i té articles)
+  const today = new Date().toISOString().slice(0,10);
+  let actionHtml = '';
+  if (d.statut === 'En cours' && arts.length > 0) {
+    actionHtml = `
+      <div class="detail-action">
+        <div class="detail-action-title">Envoyer à PGM</div>
+        <div class="detail-action-row">
+          <input type="date" id="pgm-date" value="${today}">
+          <button class="btn-pgm" onclick="envoyerPGM(${d.id})">Passer à « Envoyée PGM »</button>
+        </div>
+        <div class="msg" id="pgm-msg"></div>
+      </div>`;
+  }
+
+  // Secció de fitxers adjunts
+  const fichiers = [
+    { label: 'BC', field: 'BC', ids: attachIds(d.bc) },
+    { label: 'DA', field: 'DA', ids: attachIds(d.da) },
+    { label: 'PJ', field: 'PJ', ids: attachIds(d.pj) },
+    { label: 'Autres', field: 'Autres', ids: attachIds(d.autres) },
+  ];
+  const filesHtml = fichiers.map(f => {
+    const has = f.ids.length > 0;
+    const links = has
+      ? f.ids.map((aid,idx) => `<a class="file-link" href="#" onclick="openAttachment(${aid}); return false;">${f.label}${f.ids.length>1?' '+(idx+1):''}</a>`).join('')
+      : `<span class="file-empty">${f.label}</span>`;
+    const addBtn = d.statut === 'BC reçu'
+      ? `<button class="file-add" id="add-${f.field}" title="Ajouter un fichier à ${f.label}" onclick="document.getElementById('upload-${f.field}').click()">＋</button>
+         <input type="file" id="upload-${f.field}" style="display:none" onchange="handleFileUpload(this, ${d.id}, '${f.field}')">`
+      : '';
+    return `<div class="file-cat ${has?'has':''}">${links}${addBtn}</div>`;
+  }).join('');
+
+  return `
+    <div class="detail">
+      <div class="detail-head">
+        <div class="detail-head-top" style="align-items:flex-start; gap:12px;">
+          <div style="min-width:0;">
+            <span class="detail-num" style="display:block; font-size:12.5px; margin-bottom:2px;">${d.num_da}</span>
+            <div class="detail-route" style="font-size:16px; font-weight:600; color:inherit; line-height:1.3;">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+            ${daCategorieHtml(d)}
+            <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge ${badgeClass(d.statut)}">${d.statut}</span>
+              ${d.statut === 'En cours' ? `<button class="btn-assign-link" onclick="goAssignerArticles(${d.id})">📋 Assigner des articles</button>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn-edit" onclick="openEdit('da',${d.id})">✎ Modifier</button>
+              <button class="btn-delete" onclick="toggleDelete(${d.id})">🗑 Supprimer DA</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      ${edInline('da', d.id)}
+      <div class="detail-arts">${artsHtml}</div>
+      <div class="detail-foot">
+        <span style="color:#888">${footLabel}</span>
+        <span class="detail-total">${fmt(total)}</span>
+      </div>
+      ${totalDeviseHtml}
+      <div class="detail-files">
+        <div class="detail-files-title">Documents</div>
+        <div class="detail-files-row">${filesHtml}</div>
+      </div>
+      ${actionHtml}
+      <div class="delete-confirm" id="del-confirm-${d.id}">
+        <div class="delete-confirm-title">⚠ Que faire de cette DA ? (le numéro ${d.num_da} sera libéré dans tous les cas)</div>
+        ${(d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') ? `<div class="ed-warn">⚠ Cette DA est « ${d.statut} » : la supprimer ou l'annuler modifiera le disponible calculé du contrat.</div>` : ''}
+        <div class="del-opt">
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, 'libres')">Supprimer DA (articles → libres)</button>
+          <span class="del-opt-desc">La DA est supprimée ; ses ${artsOf(d.id).length} article(s) redeviennent libres.</span>
+        </div>
+        <div class="del-opt">
+          <button class="btn-del-only" onclick="deleteDA(${d.id}, 'tout')">Supprimer DA + articles</button>
+          <span class="del-opt-desc">Supprime définitivement la DA et ses ${artsOf(d.id).length} article(s) (${fmt(totalOf(d.id))}).</span>
+        </div>
+        <div class="del-opt">
+          <button class="btn-del-all" onclick="deleteDA(${d.id}, 'annuler')">Annuler DA</button>
+          <span class="del-opt-desc">Ne supprime rien : la DA est marquée « Annulée » et ses articles restent rattachés, pour garder une trace.</span>
+        </div>
+        <div class="delete-confirm-row">
+          <button class="btn-del-cancel" onclick="toggleDelete(${d.id})">Retour</button>
+          <span class="msg" id="del-msg-${d.id}"></span>
+        </div>
+      </div>
+    </div>`;
 }
 
-function handleImgError(imgEl, attId) {
-  const btn = document.createElement('button');
-  btn.className = 'autres-link';
-  btn.textContent = '🖼 Voir la pièce jointe';
-  btn.onclick = () => openAttachment(attId);
-  imgEl.replaceWith(btn);
+function toggleDelete(id) {
+  const panel = document.getElementById('del-confirm-' + id);
+  if (panel) panel.classList.toggle('open');
+}
+
+async function deleteDA(id, mode) {
+  // mode : 'libres' = supprimer la DA, ses articles redeviennent libres
+  //        'tout'   = supprimer la DA et ses articles
+  //        'annuler'= ne rien supprimer : la DA passe à « Annulée » (n° libéré), articles rattachés (trace)
+  try {
+    const da = das.find(x => x.id === id);
+    const arts = commandes.filter(c => c.demande_achat === id);
+    const actions = [];
+
+    if (mode === 'libres') {
+      if (arts.length) {
+        actions.push(['BulkUpdateRecord', 'Commandes', arts.map(a => a.id), { Demande_achat: arts.map(() => null) }]);
+      }
+      actions.push(['RemoveRecord', 'Demandes_achat', id]);
+    } else if (mode === 'tout') {
+      arts.forEach(a => actions.push(['RemoveRecord', 'Commandes', a.id]));
+      actions.push(['RemoveRecord', 'Demandes_achat', id]);
+    } else if (mode === 'annuler') {
+      // Marquer la DA comme annulée + libérer le numéro (suffixe -ANN)
+      const numOrig = da ? String(da.num_da) : '';
+      const numAnn = numOrig.endsWith('-ANN') ? numOrig : numOrig + '-ANN';
+      actions.push(['UpdateRecord', 'Demandes_achat', id, { Statut: 'Annulée', Num_DA: numAnn }]);
+    } else {
+      throw new Error('Action inconnue.');
+    }
+
+    const msg = document.getElementById('del-msg-' + id);
+    if (msg) { msg.className = 'msg'; msg.textContent = 'En cours…'; }
+    await grist.docApi.applyUserActions(actions);
+    if (mode !== 'annuler') {
+      arts.forEach(a => { selectedArts.delete(a.id); if (splitArticleId === a.id) splitArticleId = null; });
+    }
+    selectedDA = null;
+    await fetchAll();
+  } catch(e) {
+    const msg = document.getElementById('del-msg-' + id);
+    if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
+    else alert('Erreur : ' + e.message);
+  }
+}
+
+// Champ Grist (ex. "PJ") -> clé locale correspondante dans das[] (ex. "pj")
+const CHAMP_VERS_CLE = { PJ: 'pj', BC: 'bc', DA: 'da', Autres: 'autres' };
+
+async function handleFileUpload(inputEl, daId, champ) {
+  const file = inputEl.files[0];
+  inputEl.value = '';   // permet de re-choisir le même fichier une prochaine fois
+  if (!file) return;
+  const btn = document.getElementById('add-' + champ);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    // 1. Jeton avec droits d'écriture
+    const tokenInfo = await grist.docApi.getAccessToken({ readOnly: false });
+    // 2. Envoi du fichier (stocké, pas encore lié à une ligne)
+    const formData = new FormData();
+    formData.append('upload', file, file.name);
+    const response = await fetch(`${tokenInfo.baseUrl}/attachments?auth=${tokenInfo.token}`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) throw new Error('Échec de l\'envoi (' + response.status + ')');
+    const result = await response.json();
+    const newId = result[0];
+    // 3. Lier le nouveau fichier à la DA, en gardant ceux déjà présents
+    const da = das.find(x => x.id === daId);
+    const existants = da ? attachIds(da[CHAMP_VERS_CLE[champ]]) : [];
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', daId, { [champ]: ['L', ...existants, newId] }]
+    ]);
+    await fetchAll();
+  } catch (e) {
+    alert("Impossible d'ajouter le fichier : " + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '＋'; }
+  }
 }
 
 async function openAttachment(attId) {
@@ -217,256 +749,1055 @@ async function openAttachment(attId) {
     const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
     const url = `${tokenInfo.baseUrl}/attachments/${attId}/download?auth=${tokenInfo.token}&inline=true`;
     window.open(url, '_blank');
-  } catch (e) {
-    alert("Impossible d'ouvrir le fichier : " + e.message);
+  } catch(e) {
+    alert('Impossible d\'ouvrir le fichier : ' + e.message);
   }
 }
 
-function trimestre(m1a12) { return Math.floor((m1a12 - 1) / 3) + 1; }
 
-// Le mois de suivi d'une DA EFS vient de la Designation de sa ligne CONS2
-// (ex. « CERTIFICAT MENSUEL - Juillet 2026 »), pas de sa Date_DA.
-const MOIS_KEYS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
-function parseMoisDesignation(desig) {
-  if (!desig) return null;
-  const txt = String(desig).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  let moisIdx = -1;
-  for (let i = 0; i < MOIS_KEYS.length; i++) { if (txt.includes(MOIS_KEYS[i])) { moisIdx = i; break; } }
-  if (moisIdx < 0) return null;
-  const yearMatch = txt.match(/(20\d{2})/);
-  if (!yearMatch) return null;
-  return { year: Number(yearMatch[1]), month: moisIdx + 1 };
-}
 
-let DAS = {}, LIBRES = [], selectedYear = null;
-const NOW = new Date();
+async function envoyerPGM(id) {
+  const dateVal = document.getElementById('pgm-date').value;
+  const msg = document.getElementById('pgm-msg');
+  let datePgm = null;
+  if (dateVal) datePgm = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
 
-const FOURNISSEUR_EFS = 'efs';   // comparaison insensible à la casse/espaces
-
-async function fetchAll() {
   try {
-    const [da, cmd, four] = await Promise.all([
-      grist.docApi.fetchTable('Demandes_achat'),
-      grist.docApi.fetchTable('Commandes'),
-      grist.docApi.fetchTable('Fournisseurs'),
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', id, {
+        Statut: 'Envoyée PGM',
+        Date_OrderPGM: datePgm,
+      }]
     ]);
-
-    const fourNoms = {};
-    (four.id || []).forEach((id, i) => { fourNoms[id] = (four.Nom || four.Label || four.Name || [])[i] || ''; });
-
-    const daInfo = {};
-    (da.id || []).forEach((id, i) => {
-      const fid = refId((da.Fournisseur || [])[i]);
-      const fournisseur = fid != null ? (fourNoms[fid] || '') : '';
-      daInfo[id] = {
-        id,
-        num_da: (da.Num_DA || [])[i] || ('DA#' + id),
-        statut: (da.Statut || [])[i] || '',
-        date_da: (da.Date_DA || [])[i] || null,
-        date_pgm: (da.Date_OrderPGM || [])[i] || null,
-        date_bc: (da.Date_reception_BC || [])[i] || null,
-        num_bc: (da.Num_BC || [])[i] || '',
-        bc_ids: attachIds((da.BC || [])[i]),
-        pj_ids: attachIds((da.PJ || [])[i]),
-        pj_noms: (da.PJ_Noms || [])[i] ? String((da.PJ_Noms || [])[i]).split(' || ') : [],
-        autres_ids: attachIds((da.Autres || [])[i]),
-        isEFS: String(fournisseur).trim().toLowerCase() === FOURNISSEUR_EFS,
-      };
-    });
-
-    const commandes = (cmd.id || []).map((id, i) => ({
-      id,
-      da: refId((cmd.Demande_achat || [])[i]),
-      ref: (cmd.Reference_fournisseur || [])[i] || '',
-      montant: (cmd.Montant2 || [])[i] || ((cmd.Prix_unitaire_HT || [])[i] || 0) * ((cmd.Quantite || [])[i] || 1),
-      qte: (cmd.Quantite || [])[i],
-      designation: (cmd.Designation2 || [])[i] || '',
-    }));
-
-    // Regrouper TOUTES les commandes d'une DA « EFS » (identifiée par son Fournisseur)
-    const parDA = {};
-    commandes.forEach(c => {
-      if (!c.da || !daInfo[c.da] || !daInfo[c.da].isEFS) return;
-      if (!parDA[c.da]) parDA[c.da] = [];
-      parDA[c.da].push(c);
-    });
-
-    DAS = {};
-    Object.keys(parDA).forEach(daId => {
-      const info = daInfo[daId];
-      const arts = parDA[daId];
-      const cons2 = arts.find(a => a.ref === 'CONS2');
-      DAS[daId] = {
-        ...info,
-        lignes: arts,
-        autresLignes: arts.filter(a => !CODES_EFS.includes(a.ref)).length,
-        montant: arts.reduce((s, a) => s + a.montant, 0),
-        moisCible: cons2 ? parseMoisDesignation(cons2.designation) : null,
-      };
-    });
-
-    // Articles pas encore attachés à une DA : pas de Fournisseur propre, donc repérage
-    // provisoire par code (jusqu'à leur assignation via « Gestion DAs »).
-    LIBRES = commandes.filter(c => !c.da && CODES_EFS.includes(c.ref));
-
-    buildYearOptions();
-    render();
-  } catch (e) {
-    document.getElementById('container').innerHTML = '<div class="empty">Erreur : ' + esc(e.message) + '</div>';
+    await fetchAll();
+    // Re-render del detall amb el nou estat
+    selectDA(id);
+  } catch(e) {
+    if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
   }
 }
 
-function buildYearOptions() {
-  const years = new Set([NOW.getFullYear()]);
-  Object.values(DAS).forEach(d => { if (d.moisCible) years.add(d.moisCible.year); });
-  const list = [...years].sort((a, b) => b - a);
-  if (selectedYear == null || !list.includes(selectedYear)) selectedYear = NOW.getFullYear();
-  const sel = document.getElementById('year-filter');
-  sel.innerHTML = list.map(y => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('');
-}
-document.getElementById('year-filter').addEventListener('change', e => { selectedYear = Number(e.target.value); render(); });
-
-function thumbsHtml(ids) {
-  return `<div class="autres-wrap">${ids.map(id =>
-    `<img class="autres-thumb" data-attach-id="${id}" onclick="openAttachment(${id})" onerror="handleImgError(this, ${id})" title="Voir la pièce jointe">`
-  ).join('')}</div>`;
+function demandeursOfDA(daId) {
+  const set = new Set();
+  artsOf(daId).forEach(a => choixList(a.demandeur).forEach(x => set.add(x)));
+  return set;
 }
 
-function dacardHtml(d, showAutres = true) {
-  let dateLine = '';
-  if (d.statut === 'Envoyée PGM' || d.statut === 'BC reçu') dateLine = 'Envoyée PGM le ' + fmtDate(d.date_pgm);
-  if (d.statut === 'BC reçu') dateLine += (dateLine ? ' · ' : '') + 'BC ' + esc(d.num_bc) + ' reçu le ' + fmtDate(d.date_bc);
+function setFilterFour(v) {
+  filterFour = v;
+  selectedDA = null;
+  render();
+}
+function onSearchBC(v) {
+  searchBC = v;
+  // Sur « Articles libres », la recherche filtre les articles libres ; ailleurs, elle filtre les DA.
+  if (tab !== 'libres') {
+    // Si la recherche ne laisse qu'une seule DA, la sélectionner automatiquement
+    if (v.trim()) {
+      const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && daMatchesQuery(d, v));
+      selectedDA = matches.length === 1 ? matches[0].id : null;
+    } else {
+      selectedDA = null;
+    }
+  }
+  render();
+  // Garder le focus dans le champ de recherche (render() reconstruit le DOM)
+  const inp = document.getElementById('bc-search-input');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
 
-  const lignesHtml = (d.lignes || [])
-    .map(a => `<div class="ligne-item"><span>${a.qte != null ? a.qte + '× ' : ''}${esc(a.designation || CODE_LABELS[a.ref] || a.ref)}</span><span class="lm">${fmt(a.montant)}</span></div>`)
-    .join('');
+function setFilterDem(v) {
+  filterDem = v;
+  selectedDA = null;
+  render();
+}
 
-  const bcBtn = (d.bc_ids && d.bc_ids.length)
-    ? d.bc_ids.map((id, i) => `<button class="btn-bc" onclick="openAttachment(${id})">📎 Voir le BC${d.bc_ids.length > 1 ? ' (' + (i + 1) + ')' : ''}</button>`).join(' ')
-    : '';
+function selectDA(id) {
+  selectedDA = id;
+  // Actualitzar selecció visual de la llista
+  document.querySelectorAll('.da-item').forEach(el => el.classList.remove('sel'));
+  const item = document.querySelector('.da-item[data-da="' + id + '"]');
+  if (item) item.classList.add('sel');
+  // Actualitzar el panell de detall directament (segona columna de inner-layout)
+  const d = das.find(x => x.id === id);
+  const inner = document.querySelector('.inner-layout');
+  if (inner && inner.children[1]) {
+    inner.children[1].innerHTML = '<div class="panel-title">Détail</div>' + renderDetail(d);
+  }
+}
 
-  // Bordereaux (PJ) : un seul bouton dépliable, plutôt qu'un bouton par fichier (il peut y en avoir 5-6 par DA).
-  // Bouton et liste séparés : le bouton reste à côté de « Voir le BC », la liste s'ouvre en dessous des deux.
-  const pjBtn = (d.pj_ids && d.pj_ids.length)
-    ? `<button class="btn-pj" id="pj-btn-${d.id}" onclick="togglePjList(${d.id})">📄 Bordereaux (${d.pj_ids.length})</button>`
-    : '';
-  const pjListHtml = (d.pj_ids && d.pj_ids.length)
-    ? `<div class="pj-list" id="pj-list-${d.id}">${d.pj_ids.map((id, i) => {
-         const label = esc(friendlyPjName(d.pj_noms[i]) || ('Bordereau ' + (i + 1)));
-         return `<button onclick="openAttachment(${id})">${label}</button>`;
-       }).join('')}</div>`
-    : '';
+function renderLibresContent() {
+  // Préserver la sélection courante du select avant de reconstruire le HTML
+  const selEl = document.getElementById('assign-da');
+  if (selEl) assignDAValue = selEl.value;
+  else if (preselectDA) assignDAValue = String(preselectDA);
+  preselectDA = null;  // ne s'applique qu'à la première apparition
 
-  // Une pièce jointe « Autres » couvre en général tout le trimestre (le calendrier des
-  // sessions), pas une seule DA : dans une carte de mois, elle est déjà montrée une fois
-  // au niveau du trimestre (voir plus bas) — ici on ne la réaffiche que si showAutres=true
-  // (cas des DA « au mois indéterminé », qui n'apparaissent dans aucun trimestre).
-  const autresHtml = (showAutres && d.autres_ids && d.autres_ids.length)
-    ? thumbsHtml(d.autres_ids)
-    : '';
+  const libresTous = commandes.filter(c => !c.demande_achat);
+  const libres = libresVisibles();
+  // DA en cours per assignar
+  const dasEnCours = das.filter(d => d.statut === 'En cours')
+    .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+
+  // Somme des articles sélectionnés (avant d'assigner, pour avoir une idée du total)
+  const libresSel = libresTous.filter(a => selectedArts.has(a.id));
+  const sommeSel = libresSel.reduce((t, a) => t + (a.montant || 0), 0);
+  const sommeSelHtml = libresTous.length ? `
+      <div class="assign-total ${libresSel.length ? '' : 'vide'}">
+        <span class="assign-total-lbl">${libresSel.length ? 'Total des ' + libresSel.length + ' article' + (libresSel.length > 1 ? 's' : '') + ' sélectionné' + (libresSel.length > 1 ? 's' : '') : 'Aucun article sélectionné'}</span>
+        <span class="assign-total-val">${fmt(sommeSel)}</span>
+      </div>` : '';
+
+  let artsHtml = libres.length ? libres.map(a => {
+    const checked = selectedArts.has(a.id);
+    const splitOpen = splitArticleId === a.id;
+    return `
+      <div class="assign-art ${checked?'checked':''}">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="assign-check" onclick="toggleArt(${a.id})">✓</div>
+          <div class="assign-art-info" onclick="toggleArt(${a.id})" style="flex:1; cursor:pointer;">
+            <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
+            <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
+            ${repHtml(a)}
+          </div>
+          <div class="art-btns">
+            <button class="btn-art-edit" onclick="openEdit('com',${a.id})">✎ Modifier</button>
+            <button class="btn-art-del" onclick="openEdit('del',${a.id})">🗑 Supprimer</button>
+            <button class="btn-split" onclick="toggleSplit(${a.id})">${splitOpen?'✕':'⚟ Répartir'}</button>
+          </div>
+        </div>
+        ${edInline('com', a.id)}${edInline('del', a.id)}${edInline('merge', a.id)}
+        ${splitOpen ? renderSplitPanel(a) : ''}
+      </div>`;
+  }).join('') : (libresTous.length ? '<div class="empty">Aucun article libre ne correspond à la recherche.</div>' : '<div class="empty">Aucun article libre.</div>');
+
+  let options = '<option value="">— Choisir une DA —</option>';
+  dasEnCours.forEach(d => {
+    const sel = (assignDAValue && String(d.id) === String(assignDAValue)) ? 'selected' : '';
+    options += `<option value="${d.id}" ${sel}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+  });
+
+  const newDAOuvert = !!(edCtx && edCtx.kind === 'newda');
+  const destUiHtml = newDAOuvert ? '' : `
+      <div class="assign-da-label">Choisir la DA de destination :</div>
+      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
+      <div id="assign-dispo">${dispoInfoHtml(assignDAValue, sommeSel, 'À ajouter (sélection)')}</div>
+      <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
+      <button class="btn-assign-alt" id="btn-newda" ${selectedArts.size===0 ? 'disabled' : ''} onclick="openEdit('newda',0)">＋ Créer une DA avec la sélection</button>
+      <div class="msg" id="msg"></div>`;
+  const bulkHtml = splitArticleId !== null ? '' : `
+      ${sommeSelHtml}
+      ${destUiHtml}
+      ${edInline('newda', 0)}`;
 
   return `
-    <div class="dacard">
-      <div class="da-top">
-        <div class="da-left">
-          <span class="da-num">${esc(d.num_da)}</span>
-          <span class="badge ${badgeClass(d.statut)}">${esc(d.statut)}</span>
-        </div>
-        <span class="da-montant">${fmt(d.montant)}</span>
+    <div style="max-width:880px;">
+      <div class="panel-title">Assigner les articles libres à une DA en cours</div>
+      <div class="assign-toolbar">
+        <button onclick="selectAllLibres()">Tout sélectionner</button>
+        <button onclick="deselectAllLibres()">Tout désélectionner</button>
+        <span style="flex:1"></span>
+        <span style="font-size:11px; color:#888; align-self:center;">${selectedArts.size} sélectionné(s)</span>
       </div>
-      ${dateLine ? `<div class="da-sub">${dateLine}</div>` : ''}
-      <div class="lignes">${lignesHtml}</div>
-      ${(bcBtn || pjBtn) ? `<div style="margin-top:7px; display:flex; gap:6px; flex-wrap:wrap;">${bcBtn}${pjBtn}</div>` : ''}
-      ${pjListHtml}
-      ${autresHtml}
+      ${artsHtml}
+      ${bulkHtml}
     </div>`;
 }
 
-function render() {
-  const container = document.getElementById('container');
-  if (!Object.keys(DAS).length && !LIBRES.length) {
-    container.innerHTML = '<div class="empty">Aucune donnée EFS trouvée (codes T3001, QE009, B3111, QE010, CONS2 introuvables dans les commandes).</div>';
+function toggleArt(id) {
+  if (selectedArts.has(id)) selectedArts.delete(id);
+  else selectedArts.add(id);
+  render();
+}
+function toggleSplit(id) {
+  splitArticleId = (splitArticleId === id) ? null : id;
+  splitDAValue = null;   // à l'ouverture, on repart de la DA choisie dans le sélecteur principal
+  render();
+}
+
+function renderSplitPanel(a) {
+  const dasEnCours = das.filter(d => d.statut === 'En cours')
+    .sort((a,b) => String(b.num_da).localeCompare(String(a.num_da), undefined, {numeric:true}));
+  // DA présélectionnée : celle du panneau (si déjà choisie), sinon celle du sélecteur principal
+  const idsDA = new Set(dasEnCours.map(d => String(d.id)));
+  const pre = splitDAValue !== null
+    ? (idsDA.has(String(splitDAValue)) ? String(splitDAValue) : '')
+    : (idsDA.has(String(assignDAValue)) ? String(assignDAValue) : '');
+  let options = '<option value="">— Choisir une DA —</option>';
+  dasEnCours.forEach(d => {
+    options += `<option value="${d.id}" ${String(d.id) === pre ? 'selected' : ''}>${d.num_da} — ${d.contrat || ''} → ${d.fournisseur || ''}</option>`;
+  });
+  return `
+    <div class="split-panel" onclick="event.stopPropagation()">
+      <div class="split-row">
+        <div class="split-field">
+          <label>Montant à assigner à cette DA</label>
+          <input type="number" step="0.01" min="0.01" max="${a.montant.toFixed(2)}" id="split-montant-${a.id}" value="${a.montant.toFixed(2)}" oninput="updateSplitReste(${a.id}, ${a.montant})">
+        </div>
+        <div class="split-field">
+          <label>Sur un total de</label>
+          <div class="split-total">${fmt(a.montant)}</div>
+        </div>
+      </div>
+      <div class="split-field">
+        <label>DA de destination</label>
+        <select class="assign-da-select" id="split-da-${a.id}" style="margin-bottom:0;" onchange="updateSplitDispo(${a.id})">${options}</select>
+      </div>
+      <div id="split-dispo-${a.id}">${pre ? dispoInfoHtml(pre, a.montant, 'À assigner') : ''}</div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn-assign" style="margin-top:0;" onclick="confirmSplitAssign(${a.id})">Assigner ce montant</button>
+      </div>
+      <div class="msg" id="split-msg-${a.id}"></div>
+      <div style="font-size:11px; color:#888; margin-top:6px;">
+        Reste libre après cette assignation : <b id="split-reste-${a.id}">0,00 €</b>
+      </div>
+    </div>`;
+}
+
+function updateSplitReste(articleId, total) {
+  const input = document.getElementById('split-montant-' + articleId);
+  const out = document.getElementById('split-reste-' + articleId);
+  if (!input || !out) return;
+  const v = parseFloat(input.value) || 0;
+  const reste = Math.max(0, total - v);
+  out.textContent = fmt(reste);
+  updateSplitDispo(articleId);
+}
+
+async function confirmSplitAssign(articleId) {
+  const article = commandes.find(c => c.id === articleId);
+  const montantInput = document.getElementById('split-montant-' + articleId);
+  const daSel = document.getElementById('split-da-' + articleId);
+  const msg = document.getElementById('split-msg-' + articleId);
+  if (!article || !montantInput || !daSel) return;
+
+  const daId = daSel.value;
+  const montantSaisi = parseFloat(montantInput.value);
+
+  if (!daId) {
+    msg.className = 'msg err'; msg.textContent = 'Choisissez une DA de destination.'; return;
+  }
+  if (!(montantSaisi > 0)) {
+    msg.className = 'msg err'; msg.textContent = 'Montant invalide.'; return;
+  }
+  if (montantSaisi > article.montant + 0.005) {
+    msg.className = 'msg err'; msg.textContent = 'Le montant dépasse le total de l\'article.'; return;
+  }
+
+  msg.className = 'msg'; msg.textContent = 'Enregistrement…';
+
+  try {
+    const estQuasiTotal = Math.abs(montantSaisi - article.montant) < 0.01;
+
+    if (estQuasiTotal) {
+      // Montant ≈ total : simple assignation complète, sans division
+      await grist.docApi.applyUserActions([
+        ['UpdateRecord', 'Commandes', articleId, { Demande_achat: Number(daId) }]
+      ]);
+      splitArticleId = null;
+      selectedArts.delete(articleId);
+      tab = 'En cours';
+      selectedDA = Number(daId);
+      await fetchAll();
+      return;
+    }
+
+    // Répartition partielle : créer une copie pour la part assignée,
+    // et réduire l'article d'origine du montant restant (il reste libre).
+    // Calcul par proportion sur le prix unitaire d'origine : valable quelle que
+    // soit la devise (le montant affiché est en €, le prix unitaire dans la devise).
+    const qte = article.qte || 1;
+    const ratio = montantSaisi / article.montant;
+    const prixBase = article.prix > 0 ? article.prix : (article.montant / qte / (article.taux || 1));
+    const arrondi = v => qte === 1 ? Math.round(v * 100) / 100 : Math.round(v * 1e6) / 1e6;
+    const prixCopie = arrondi(prixBase * ratio);
+    const prixRestant = arrondi(prixBase - prixCopie);
+
+    // Traçabilité : les deux parts partagent une clé de répartition (colonne « Repartition »)
+    const repKey = article.rep || ('REP-' + articleId);
+    const tagged = await edEnsureRepartition();
+
+    await grist.docApi.applyUserActions([
+      ['AddRecord', 'Commandes', null, {
+        Designation2: article.designation,
+        Reference_fournisseur: article.ref,
+        Code_GHP: article.code_ghp,
+        Devise: article.devise,
+        Taux_change: article.taux,
+        Quantite: qte,
+        Prix_unitaire_HT: prixCopie,
+        Taux_TVA: article.tva,
+        Type_article: article.type_article,
+        Demandeur: article.demandeur,
+        Demande_achat: Number(daId),
+        ...(tagged ? { Repartition: repKey } : {}),
+      }],
+      ['UpdateRecord', 'Commandes', articleId, { Prix_unitaire_HT: prixRestant, ...(tagged ? { Repartition: repKey } : {}) }],
+    ]);
+
+    splitArticleId = null;
+    // Comme pour une assignation normale : on va sur la DA (« En cours ») où
+    // se trouve le bouton « Passer à Envoyée PGM ». Le reste de l'article
+    // demeure libre : on le retrouve dans « Articles libres » (ou via le bouton
+    // « Assigner des articles » de la DA suivante).
+    tab = 'En cours';
+    selectedDA = Number(daId);
+    await fetchAll();
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
+  }
+}
+
+function selectAllLibres() {
+  libresVisibles().forEach(c => selectedArts.add(c.id));
+  render();
+}
+function deselectAllLibres() {
+  selectedArts.clear();
+  render();
+}
+function onAssignDAChange() {
+  const sel = document.getElementById('assign-da');
+  assignDAValue = sel ? sel.value : '';
+  const btn = document.getElementById('btn-assign');
+  if (btn) btn.disabled = selectedArts.size === 0 || !assignDAValue || splitArticleId !== null;
+  const info = document.getElementById('assign-dispo');
+  if (info) info.innerHTML = dispoInfoHtml(assignDAValue, selSum(), 'À ajouter (sélection)');
+}
+
+async function assignArticles() {
+  const daId = document.getElementById('assign-da').value;
+  if (!daId || selectedArts.size === 0) return;
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('btn-assign');
+  btn.disabled = true;
+
+  try {
+    const ids = [...selectedArts];
+    await grist.docApi.applyUserActions([
+      ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(()=>Number(daId)) }]
+    ]);
+    selectedArts.clear();
+    assignDAValue = '';
+    // Passar a la vista "En cours" i seleccionar la DA on s'han assignat
+    tab = 'En cours';
+    selectedDA = Number(daId);
+    await fetchAll();
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+
+function openNewDA() {
+  tab = 'nouvelle';
+  selectedDA = null;
+  render();
+}
+
+function nextNumDA() {
+  // Buscar el número més alt existent i sumar 1 (ignorant les DA annulées)
+  let maxN = 0;
+  das.forEach(d => {
+    if (d.statut === 'Annulée' || String(d.num_da).endsWith('-ANN')) return;
+    const m = String(d.num_da).match(/(\d+)/);
+    if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
+  });
+  const next = maxN + 1;
+  return 'DA-' + String(next).padStart(3, '0');
+}
+
+function renderNewDAContent() {
+  const contratsOpts = '<option value="">— Choisir —</option>' +
+    contratsList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
+      .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+  const fourOpts = '<option value="">— Choisir —</option>' +
+    fournisseursList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
+      .map(f => `<option value="${f.id}">${f.nom}</option>`).join('');
+  const today = new Date().toISOString().slice(0,10);
+
+  return `
+    <div style="max-width:380px;">
+      <div class="panel-title">Nouvelle demande d'achat</div>
+      <div style="border:1px solid #e5e5e5; border-radius:11px; padding:16px;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">N° DA</label>
+          <input type="text" class="assign-da-select" id="new-num" style="margin-bottom:0;" value="${nextNumDA()}">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Contrat</label>
+          <select class="assign-da-select" id="new-contrat" style="margin-bottom:0;" onchange="onNewContratChange()">${contratsOpts}</select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Ligne budgétaire</label>
+          <select class="assign-da-select" id="new-ligne" style="margin-bottom:0;" disabled><option value="">— Choisir d'abord un contrat —</option></select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Fournisseur</label>
+          <select class="assign-da-select" id="new-four" style="margin-bottom:0;">${fourOpts}</select>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Date DA</label>
+          <input type="date" class="assign-da-select" id="new-date" style="margin-bottom:0;" value="${today}">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-assign" style="margin-top:0;" onclick="createDA()">Créer la DA</button>
+          <button class="tab" onclick="setTab('toutes')">Annuler</button>
+        </div>
+        <div class="msg" id="new-msg"></div>
+      </div>
+    </div>`;
+}
+
+function onNewContratChange() {
+  const contratId = document.getElementById('new-contrat').value;
+  const sel = document.getElementById('new-ligne');
+  if (!contratId) {
+    sel.innerHTML = '<option value="">— Choisir d\'abord un contrat —</option>';
+    sel.disabled = true;
+    return;
+  }
+  // Filtrar línies del contracte seleccionat
+  const lignesContrat = lignesList.filter(l => {
+    const c = l.contrat;
+    const cid = typeof c === 'number' ? c : (Array.isArray(c) ? c[1] : null);
+    return cid == contratId;
+  }).sort((a, b) => {
+    const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+    const ord = lbl => {
+      const s = String(lbl); let cat = CAT.findIndex(c => s.includes(c)); if (cat < 0) cat = 99;
+      const low = s.toLowerCase(); const rang = low.includes('indirect') ? 1 : (low.includes('direct') ? 0 : 2);
+      return [cat, rang, low];
+    };
+    const oa = ord(a.label), ob = ord(b.label);
+    if (oa[0] !== ob[0]) return oa[0] - ob[0];
+    if (oa[1] !== ob[1]) return oa[1] - ob[1];
+    return oa[2].localeCompare(ob[2], 'fr');
+  });
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">— Choisir —</option>' +
+    lignesContrat.map(l => {
+      const parts = l.label.split('|');
+      const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+      return `<option value="${l.id}">${sub}</option>`;
+    }).join('');
+}
+
+async function createDA() {
+  const numDA = document.getElementById('new-num').value.trim();
+  const contratId = document.getElementById('new-contrat').value;
+  const ligneId = document.getElementById('new-ligne').value;
+  const fourId = document.getElementById('new-four').value;
+  const dateVal = document.getElementById('new-date').value;
+  const msg = document.getElementById('new-msg');
+
+  if (!numDA || !contratId || !ligneId || !fourId) {
+    msg.className = 'msg err';
+    msg.textContent = 'N° DA, contrat, ligne et fournisseur sont obligatoires.';
     return;
   }
 
-  // DA regroupées par année/mois DE LA LIGNE CERTIFICAT (pas de la Date_DA) ; les DA EFS
-  // sans certificat, ou avec un certificat dont le mois n'a pas pu être lu, à part.
-  const parMois = {};   // 'YYYY-MM' -> [DA...]
-  const sansDate = [];
-  Object.values(DAS).forEach(d => {
-    if (!d.moisCible) { sansDate.push(d); return; }
-    if (d.moisCible.year !== selectedYear) return;
-    const key = d.moisCible.year + '-' + d.moisCible.month;
-    if (!parMois[key]) parMois[key] = [];
-    parMois[key].push(d);
-  });
+  let dateDA = null;
+  if (dateVal) dateDA = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
 
-  // Résumé de l'année
-  const dasAnnee = Object.values(DAS).filter(d => d.moisCible && d.moisCible.year === selectedYear);
-  const totalAnnee = dasAnnee.reduce((s, d) => s + d.montant, 0);
-  const dernierMoisEcoule = selectedYear === NOW.getFullYear() ? NOW.getMonth() + 1 : 12;
-
-  let html = `<div class="summary">
-    <span><b>${fmt(totalAnnee)}</b> engagés en ${selectedYear}</span>
-  </div>`;
-
-  // Précalcul des 4 trimestres, en gardant en-tête / image / chaque mois séparés :
-  // on les recompose ensuite ligne par ligne pour que la grille aligne les hauteurs.
-  const quartersData = [];
-  for (let t = 1; t <= 4; t++) {
-    const moisT = [1, 2, 3].map(k => (t - 1) * 3 + k);
-    let subtotal = 0;
-    const moisCells = [];
-    moisT.forEach((m, mi) => {
-      const key = selectedYear + '-' + m;
-      const list = (parMois[key] || []).sort((a, b) => (a.montant < b.montant ? 1 : -1));
-      const estFutur = selectedYear > NOW.getFullYear() || (selectedYear === NOW.getFullYear() && m > NOW.getMonth() + 1);
-      list.forEach(d => subtotal += d.montant);
-      let tag = '';
-      if (!list.length) tag = estFutur ? '<span class="mtag futur">à venir</span>' : '<span class="mtag manque">⚠ Aucune DA</span>';
-      const dernier = mi === 2 ? ' qcell-bottom' : '';
-      moisCells.push(`<div class="qcell mrow qcolor-${t}${dernier}"><div class="mname">${MOIS[m - 1]}${tag}</div>${
-        list.length ? list.map(d => dacardHtml(d, false)).join('') : ''
-      }</div>`);
-    });
-    // Pièces jointes « Autres » de toutes les DA du trimestre, regroupées et dédoublonnées
-    // (même image collée sur plusieurs DA => affichée une seule fois).
-    const autresQ = [...new Set(moisT.flatMap(m => (parMois[selectedYear + '-' + m] || []).flatMap(d => d.autres_ids || [])))];
-    quartersData.push({
-      headerCell: `<div class="qcell qhead-cell qcolor-${t}"><span class="qtitle">T${t} · ${MOIS[moisT[0] - 1]}–${MOIS[moisT[2] - 1]}</span><span class="qstat">${fmt(subtotal)}</span></div>`,
-      imageCell: `<div class="qcell qimg-cell qcolor-${t}">${autresQ.length ? thumbsHtml(autresQ) : ''}</div>`,
-      moisCells,
-    });
+  try {
+    await grist.docApi.applyUserActions([
+      ['AddRecord', 'Demandes_achat', null, {
+        Num_DA: numDA,
+        Contrat: Number(contratId),
+        Ligne_budgetaire: Number(ligneId),
+        Fournisseur: Number(fourId),
+        Date_DA: dateDA,
+        Statut: 'En cours',
+      }]
+    ]);
+    msg.className = 'msg ok';
+    msg.textContent = 'DA créée avec succès !';
+    await fetchAll();
+    setTimeout(() => setTab('En cours'), 800);
+  } catch(e) {
+    msg.className = 'msg err';
+    msg.textContent = 'Erreur : ' + e.message;
   }
-
-  html += '<div class="qgrid">';
-  quartersData.forEach(q => html += q.headerCell);
-  quartersData.forEach(q => html += q.imageCell);
-  for (let mi = 0; mi < 3; mi++) quartersData.forEach(q => html += q.moisCells[mi]);
-  html += '</div>';
-
-  if (sansDate.length) {
-    html += `<div class="section-title">DA EFS au mois indéterminé (${sansDate.length})</div>
-      <div class="warn-box">Le mois n'a pas pu être lu sur la ligne « CONS2 » (absente, ou désignation sans mois + année reconnaissables — ex. attendu : « CERTIFICAT MENSUEL - Juillet 2026 »).</div>`;
-    html += sansDate.map(d => dacardHtml(d)).join('');
-  }
-
-  if (LIBRES.length) {
-    const totalLibres = LIBRES.reduce((s, a) => s + a.montant, 0);
-    html += `<div class="section-title">Articles EFS non assignés à une DA (${LIBRES.length} · ${fmt(totalLibres)})</div>
-      <div class="warn-box">Importés depuis un CSV mais pas encore rattachés à une DA — à assigner via « Gestion DAs ».</div>`;
-    html += LIBRES.map(a => `<div class="libre-item"><span>${esc(a.designation)} <span class="chip">${CODE_LABELS[a.ref] || esc(a.ref)}</span></span><span>${fmt(a.montant)}</span></div>`).join('');
-  }
-
-  container.innerHTML = html;
-  loadAutresThumbs();
 }
 
-const gs = document.createElement('script');
-gs.src = 'https://docs.getgrist.com/grist-plugin-api.js';
-gs.onload = () => { grist.ready({ requiredAccess: 'full' }); fetchAll(); grist.onRecords(fetchAll); };
-gs.onerror = () => { document.getElementById('container').innerHTML = '<div class="empty">Grist non disponible.</div>'; };
-document.head.appendChild(gs);
+// =====================================================================
+// ÉDITION / SUPPRESSION D'UNE DA OU D'UN ARTICLE — panneaux EN LIGNE.
+// L'état vit dans edCtx : les panneaux sont réinsérés par les fonctions de
+// rendu via edInline(), donc ils survivent à un rafraîchissement, et ce que
+// l'on a saisi (brouillon) est conservé. Seuls les champs modifiés sont écrits.
+// =====================================================================
+const ED_STATUTS = ['En cours', 'Envoyée PGM', 'BC reçu'];
+const ED_TYPES = ['Produit', 'Service', 'Frais'];
+let edCtx = null;   // { kind: 'da' | 'com' | 'del', id, orig, draft: {} }
+
+function edEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function edRid(v) { if (v == null) return null; if (typeof v === 'number') return v; if (Array.isArray(v)) return v[1] || null; return null; }
+function edIso(v) { const ms = toMs(v); if (!ms) return ''; const d = new Date(ms); if (isNaN(d) || d.getFullYear() > 3000) return ''; return d.toISOString().slice(0, 10); }
+function edEpoch(s) { return s ? Math.floor(new Date(s + 'T00:00:00Z').getTime() / 1000) : null; }
+function edVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function edMsg(txt, cls) { const m = document.getElementById('ed-msg'); if (m) { m.className = 'ed-msg ' + (cls || ''); m.textContent = txt || ''; } }
+function edDv(id, def) { return (edCtx && edCtx.draft && Object.prototype.hasOwnProperty.call(edCtx.draft, id)) ? edCtx.draft[id] : def; }
+
+// Brouillon : on mémorise ce qui est saisi, pour ne rien perdre si la vue est redessinée
+function edCapture(e) {
+  const t = e.target;
+  if (edCtx && edCtx.draft && t && t.id && /^(ed|ec)-/.test(t.id) && t.id !== 'ed-msg') edCtx.draft[t.id] = t.value;
+}
+document.addEventListener('input', edCapture, true);
+document.addEventListener('change', edCapture, true);
+
+function edRefresh() {
+  render();
+  setTimeout(() => { const p = document.getElementById('ed-panel'); if (p && p.scrollIntoView) p.scrollIntoView({ block: 'nearest' }); }, 0);
+}
+function edClose() { edCtx = null; render(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('ed-panel')) edClose(); });
+
+async function openEdit(kind, id) {
+  try {
+    if (kind === 'da') await edOpenDA(id);
+    else if (kind === 'del') edOpenDelete(id);
+    else if (kind === 'newda') edOpenNewDA();
+    else if (kind === 'merge') edOpenMerge(id);
+    else await edOpenCom(id);
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+
+// Appelée par les fonctions de rendu : renvoie le panneau s'il concerne cet élément
+function edInline(kind, id) {
+  try {
+    if (!edCtx || edCtx.kind !== kind || edCtx.id !== id) return '';
+    return edPanelHtml();
+  } catch (e) { return ''; }
+}
+
+// ---------- DA ----------
+function edLigneOptions(contratId, selectedId) {
+  const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+  const rang = l => { const i = CAT.findIndex(c => String(l.label).includes(c)); return i < 0 ? 99 : i; };
+  const lignes = lignesList.filter(l => contratId != null && edRid(l.contrat) === contratId)
+    .sort((a, b) => rang(a) - rang(b) || String(a.label).localeCompare(String(b.label), 'fr'));
+  let html = '<option value="">— Choisir —</option>';
+  lignes.forEach(l => {
+    const parts = String(l.label).split('|');
+    const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+    html += `<option value="${l.id}" ${l.id === selectedId ? 'selected' : ''}>${edEsc(sub)}</option>`;
+  });
+  return html;
+}
+
+function edOnContrat() {
+  if (!edCtx) return;
+  const cid = edVal('ed-contrat') ? Number(edVal('ed-contrat')) : null;
+  const keep = (cid === edCtx.orig.contrat) ? edCtx.orig.ligne : null;   // retour au contrat d'origine : on rend sa ligne
+  const sel = document.getElementById('ed-ligne');
+  if (sel) sel.innerHTML = edLigneOptions(cid, keep);
+  edCtx.draft['ed-ligne'] = keep == null ? '' : String(keep);
+}
+
+async function edOpenDA(id) {
+  const t = await grist.docApi.fetchTable('Demandes_achat');
+  const i = (t.id || []).indexOf(id);
+  if (i < 0) throw new Error('DA introuvable.');
+  const g = k => (t[k] || [])[i];
+  const orig = {
+    contrat: edRid(g('Contrat')), ligne: edRid(g('Ligne_budgetaire')), four: edRid(g('Fournisseur')),
+    statut: g('Statut') || '', num_bc: g('Num_BC') || '',
+    date_da: edIso(g('Date_DA')), date_pgm: edIso(g('Date_OrderPGM')), date_bc: edIso(g('Date_reception_BC')),
+  };
+  edCtx = { kind: 'da', id, orig, draft: {} };
+  edRefresh();
+}
+
+// ---------- Article (commande) ----------
+async function edOpenCom(id) {
+  const t = await grist.docApi.fetchTable('Commandes');
+  const i = (t.id || []).indexOf(id);
+  if (i < 0) throw new Error('Article introuvable.');
+  const g = k => (t[k] || [])[i];
+  // Demandeur : liste de choix ou texte simple, selon le format réellement utilisé dans la colonne
+  const demIsList = (t.Demandeur || []).some(v => Array.isArray(v));
+  const orig = {
+    designation: g('Designation2') || '', ref: g('Reference_fournisseur') || '', ghp: g('Code_GHP') || '',
+    qte: g('Quantite'), prix: g('Prix_unitaire_HT'), type: g('Type_article') || '',
+    dem: choixList(g('Demandeur')).join(', '), demIsList,
+  };
+  edCtx = { kind: 'com', id, orig, draft: {} };
+  edRefresh();
+}
+
+function edOpenDelete(id) {
+  if (!commandes.find(x => x.id === id)) throw new Error('Article introuvable.');
+  edCtx = { kind: 'del', id, orig: null, draft: {} };
+  edRefresh();
+}
+
+// ---------- Génération des panneaux ----------
+function edPanelHtml() {
+  const c = edCtx, o = c.orig;
+  if (c.kind === 'newda') return edNewDAHtml();
+  if (c.kind === 'merge') return edMergeHtml();
+
+  if (c.kind === 'del') {
+    const a = commandes.find(x => x.id === c.id);
+    if (!a) return '';
+    const da = a.demande_achat ? das.find(x => x.id === a.demande_achat) : null;
+    const ou = da ? `dans la DA <b>${edEsc(da.num_da)}</b> (${edEsc(da.statut)})` : 'article libre (sans DA)';
+    const avert = da && da.statut !== 'En cours'
+      ? `<div class="ed-warn">⚠ Cette DA est « ${edEsc(da.statut)} » : supprimer cet article modifiera le disponible calculé du contrat.</div>` : '';
+    return `
+      <div class="ed-inline danger" id="ed-panel">
+        <div class="ed-inline-title">⚠ Supprimer cet article ? (action irréversible)</div>
+        <div><b>${a.qte > 1 ? a.qte + '× ' : ''}${edEsc(a.designation || '(sans nom)')}</b> · ${fmt(a.montant)} · ${ou}</div>
+        ${avert}
+        <div class="ed-inline-row">
+          <button class="btn-del-only" id="ed-save" onclick="edDelete()">Supprimer</button>
+          <button class="btn-del-cancel" onclick="edClose()">Retour</button>
+          <span class="ed-msg" id="ed-msg"></span>
+        </div>
+      </div>`;
+  }
+
+  if (c.kind === 'da') {
+    const cVal = String(edDv('ed-contrat', o.contrat == null ? '' : o.contrat));
+    const lVal = String(edDv('ed-ligne', o.ligne == null ? '' : o.ligne));
+    const fVal = String(edDv('ed-four', o.four == null ? '' : o.four));
+    const sVal = edDv('ed-statut', o.statut);
+    const contratOpts = '<option value="">— Choisir —</option>' + contratsList.slice()
+      .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+      .map(x => `<option value="${x.id}" ${String(x.id) === cVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+    const fourOpts = '<option value="">— Choisir —</option>' + fournisseursList.slice()
+      .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+      .map(x => `<option value="${x.id}" ${String(x.id) === fVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+    const statutList = ED_STATUTS.includes(o.statut) ? ED_STATUTS : ED_STATUTS.concat(o.statut ? [o.statut] : []);
+    const statutOpts = statutList.map(x => `<option value="${edEsc(x)}" ${x === sVal ? 'selected' : ''}>${edEsc(x)}</option>`).join('');
+    const da = das.find(x => x.id === c.id);
+    return `
+      <div class="ed-inline" id="ed-panel">
+        <div class="ed-inline-title">✎ Modifier ${edEsc(da ? da.num_da : 'la DA')}</div>
+        <div class="ed-grid">
+          <div class="ed-field"><label>Contrat</label><select id="ed-contrat" onchange="edOnContrat()">${contratOpts}</select></div>
+          <div class="ed-field"><label>Ligne budgétaire</label><select id="ed-ligne">${edLigneOptions(cVal ? Number(cVal) : null, lVal ? Number(lVal) : null)}</select></div>
+          <div class="ed-field"><label>Fournisseur</label><select id="ed-four">${fourOpts}</select></div>
+          <div class="ed-field"><label>Statut</label><select id="ed-statut">${statutOpts}</select></div>
+          <div class="ed-field"><label>Date DA</label><input type="date" id="ed-date-da" value="${edDv('ed-date-da', o.date_da)}"></div>
+          <div class="ed-field"><label>Date envoi PGM</label><input type="date" id="ed-date-pgm" value="${edDv('ed-date-pgm', o.date_pgm)}"></div>
+          <div class="ed-field"><label>Date réception BC</label><input type="date" id="ed-date-bc" value="${edDv('ed-date-bc', o.date_bc)}"></div>
+          <div class="ed-field"><label>N° BC</label><input type="text" id="ed-num-bc" value="${edEsc(edDv('ed-num-bc', o.num_bc))}"></div>
+        </div>
+        <div class="ed-hint">Si vous changez de contrat, choisissez la ligne budgétaire correspondante.</div>
+        <div class="ed-inline-row">
+          <button class="ed-save" id="ed-save" onclick="edSave()">Enregistrer</button>
+          <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
+          <span class="ed-msg" id="ed-msg"></span>
+        </div>
+      </div>`;
+  }
+
+  // kind === 'com'
+  const tVal = edDv('ec-type', o.type);
+  const typeList = ED_TYPES.includes(o.type) ? ED_TYPES : ED_TYPES.concat(o.type ? [o.type] : []);
+  const typeOpts = typeList.map(x => `<option value="${edEsc(x)}" ${x === tVal ? 'selected' : ''}>${edEsc(x)}</option>`).join('');
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">✎ Modifier l'article</div>
+      <div class="ed-grid">
+        <div class="ed-field full"><label>Désignation</label><input type="text" id="ec-desig" value="${edEsc(edDv('ec-desig', o.designation))}"></div>
+        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="ec-ref" value="${edEsc(edDv('ec-ref', o.ref))}"></div>
+        <div class="ed-field"><label>Code GHP</label><input type="text" id="ec-ghp" value="${edEsc(edDv('ec-ghp', o.ghp))}"></div>
+        <div class="ed-field"><label>Quantité</label><input type="number" step="any" min="0" id="ec-qte" value="${edEsc(edDv('ec-qte', o.qte == null ? '' : o.qte))}"></div>
+        <div class="ed-field"><label>Prix unitaire HT</label><input type="number" step="any" min="0" id="ec-prix" value="${edEsc(edDv('ec-prix', o.prix == null ? '' : o.prix))}"></div>
+        <div class="ed-field"><label>Type d'article</label><select id="ec-type">${typeOpts}</select></div>
+        <div class="ed-field"><label>Demandeur</label><input type="text" id="ec-dem" value="${edEsc(edDv('ec-dem', o.dem))}">
+          <div class="ed-hint">Plusieurs : séparés par des virgules.</div></div>
+      </div>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="ed-save" onclick="edSave()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+
+// ---------- Enregistrement ----------
+async function edSaveDA() {
+  const o = edCtx.orig, f = {};
+  const contrat = edVal('ed-contrat') ? Number(edVal('ed-contrat')) : null;
+  const ligne = edVal('ed-ligne') ? Number(edVal('ed-ligne')) : null;
+  const four = edVal('ed-four') ? Number(edVal('ed-four')) : null;
+  if (!contrat || !ligne || !four) { edMsg('Contrat, ligne et fournisseur sont obligatoires.', 'err'); return null; }
+  if (contrat !== o.contrat) f.Contrat = contrat;
+  if (ligne !== o.ligne) f.Ligne_budgetaire = ligne;
+  if (four !== o.four) f.Fournisseur = four;
+  if (edVal('ed-statut') !== o.statut) f.Statut = edVal('ed-statut');
+  if (edVal('ed-date-da') !== o.date_da) f.Date_DA = edEpoch(edVal('ed-date-da'));
+  if (edVal('ed-date-pgm') !== o.date_pgm) f.Date_OrderPGM = edEpoch(edVal('ed-date-pgm'));
+  if (edVal('ed-date-bc') !== o.date_bc) f.Date_reception_BC = edEpoch(edVal('ed-date-bc'));
+  if (edVal('ed-num-bc').trim() !== String(o.num_bc).trim()) f.Num_BC = edVal('ed-num-bc').trim();
+  return { table: 'Demandes_achat', fields: f };
+}
+
+async function edSaveCom() {
+  const o = edCtx.orig, f = {};
+  const qte = parseFloat(edVal('ec-qte')), prix = parseFloat(edVal('ec-prix'));
+  if (!isFinite(qte) || qte <= 0) { edMsg('Quantité invalide.', 'err'); return null; }
+  if (!isFinite(prix) || prix < 0) { edMsg('Prix invalide.', 'err'); return null; }
+  if (edVal('ec-desig') !== o.designation) f.Designation2 = edVal('ec-desig');
+  if (edVal('ec-ref') !== o.ref) f.Reference_fournisseur = edVal('ec-ref');
+  if (edVal('ec-ghp') !== o.ghp) f.Code_GHP = edVal('ec-ghp');
+  if (qte !== o.qte) f.Quantite = qte;
+  if (prix !== o.prix) f.Prix_unitaire_HT = prix;
+  if (edVal('ec-type') !== o.type) f.Type_article = edVal('ec-type');
+  const demTxt = edVal('ec-dem').split(',').map(s => s.trim()).filter(Boolean);
+  if (demTxt.join(', ') !== o.dem) {
+    f.Demandeur = demTxt.length ? (o.demIsList ? ['L', ...demTxt] : demTxt.join(', ')) : null;
+  }
+  return { table: 'Commandes', fields: f };
+}
+
+async function edSave() {
+  if (!edCtx || edCtx.kind === 'del') return;
+  const btn = document.getElementById('ed-save');
+  try {
+    const res = edCtx.kind === 'da' ? await edSaveDA() : await edSaveCom();
+    if (!res) return;  // validation refusée (message déjà affiché)
+    if (!Object.keys(res.fields).length) { edMsg('Aucune modification.', ''); return; }
+    if (btn) btn.disabled = true;
+    edMsg('Enregistrement…', '');
+    await grist.docApi.applyUserActions([['UpdateRecord', res.table, edCtx.id, res.fields]]);
+    edCtx = null;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
+  }
+}
+
+async function edDelete() {
+  if (!edCtx || edCtx.kind !== 'del') return;
+  const btn = document.getElementById('ed-save');
+  const id = edCtx.id;
+  try {
+    if (btn) btn.disabled = true;
+    edMsg('Suppression…', '');
+    await grist.docApi.applyUserActions([['RemoveRecord', 'Commandes', id]]);
+    selectedArts.delete(id);
+    if (splitArticleId === id) splitArticleId = null;
+    edCtx = null;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
+  }
+}
+
+// =====================================================================
+// AMÉLIORATIONS : recherche, disponible de la ligne, DA depuis la sélection,
+// traçabilité des répartitions. Bloc indépendant, appelé par les fonctions de rendu.
+// =====================================================================
+
+// ---------- Recherche (BC, N° DA, désignation, référence ; insensible aux accents) ----------
+function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function artMatchesQuery(a, q) { return normTxt(a.designation).includes(q) || normTxt(a.ref).includes(q); }
+function daMatchesQuery(d, raw) {
+  const q = normTxt(String(raw || '').trim());
+  if (!q) return true;
+  if (normTxt(d.num_bc).includes(q) || normTxt(d.num_da).includes(q)) return true;
+  return artsOf(d.id).some(a => artMatchesQuery(a, q));
+}
+function libresVisibles() {
+  const tous = commandes.filter(c => !c.demande_achat);
+  const q = normTxt(String(searchBC || '').trim());
+  return q ? tous.filter(a => artMatchesQuery(a, q)) : tous;
+}
+function selSum() { return commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).reduce((t, a) => t + (a.montant || 0), 0); }
+
+// ---------- Recompte dans la liste des DA (articles + services + frais) ----------
+function listCountLabel(daId) {
+  const arts = artsOf(daId);
+  const nbServ = arts.filter(a => a.type_article === 'Service').length;
+  const nbFrais = arts.filter(a => a.type_article === 'Frais').length;
+  const nbProd = arts.length - nbServ - nbFrais;
+  const p = [];
+  if (nbProd) p.push(nbProd + ' art.');
+  if (nbServ) p.push(nbServ + ' serv.');
+  if (nbFrais) p.push(nbFrais + ' frais');
+  return p.join(' + ') || '0 art.';
+}
+
+// ---------- Disponible de la ligne budgétaire (avant d'assigner) ----------
+function autresEnCoursLigne(ligneId, exceptDaId) {
+  return das.filter(d => d.ligne === ligneId && d.statut === 'En cours' && d.id !== exceptDaId).reduce((t, d) => t + totalOf(d.id), 0);
+}
+function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours, compte = true) {
+  const lg = lignesList.find(l => l.id === ligneId);
+  if (!lg || typeof lg.dispo !== 'number') return '';
+  // Si la commande ne sera pas comptée (date antérieure ou égale au dernier relevé PGM connu),
+  // le disponible après envoi reste identique au disponible actuel.
+  const apres = lg.dispo - dejaDA - (compte ? ajout : 0);
+  const neg = apres < -0.005;
+  const parts = String(lg.label).split('|');
+  const nom = parts.length > 1 ? parts.slice(1).join('|').trim() : lg.label;
+  const contrat = parts.length > 1 ? parts[0].trim() : '';
+  return `
+    <div class="dispo-info ${neg ? 'neg' : ''}">
+      <div class="dispo-title">Ligne : ${edEsc(nom)}${contrat ? ' · ' + edEsc(contrat) : ''}</div>
+      <div class="dispo-row"><span>Disponible actuel</span><span>${fmt(lg.dispo)}</span></div>
+      ${dejaDA > 0.005 ? `<div class="dispo-row"><span>− Déjà dans cette DA</span><span>${fmt(dejaDA)}</span></div>` : ''}
+      ${compte ? `<div class="dispo-row"><span>− ${edEsc(labelAjout || 'À ajouter')}</span><span>${fmt(ajout)}</span></div>` : ''}
+      <div class="dispo-row dispo-res"><span>= Disponible après envoi de la DA</span><span>${fmt(neg ? apres : Math.max(apres, 0))}</span></div>
+      ${neg ? '<div class="dispo-alert">⚠ Dépassement : le montant dépasse le disponible de la ligne.</div>' : ''}
+      ${autresEnCours > 0.005 ? `<div class="dispo-hint">Non déduits : ${fmt(autresEnCours)} dans d'autres DA « En cours » de cette même ligne.</div>` : ''}
+    </div>`;
+}
+function dispoInfoHtml(daId, ajout, labelAjout) {
+  try {
+    const da = daId ? das.find(x => x.id === Number(daId)) : null;
+    if (!da || !da.ligne) return '';
+    const deja = da.statut === 'En cours' ? totalOf(da.id) : 0;   // pas encore compté dans le « Disponible »
+    return dispoInfoCore(da.ligne, deja, ajout, labelAjout, autresEnCoursLigne(da.ligne, da.id));
+  } catch (e) { return ''; }
+}
+function updateSplitDispo(articleId) {
+  const box = document.getElementById('split-dispo-' + articleId);
+  if (!box) return;
+  const daId = edVal('split-da-' + articleId);
+  splitDAValue = daId;   // on mémorise le choix pour qu'il survive à un rafraîchissement
+  const v = parseFloat(edVal('split-montant-' + articleId)) || 0;
+  box.innerHTML = daId ? dispoInfoHtml(daId, v, 'À assigner') : '';
+}
+
+// ---------- Traçabilité des répartitions ----------
+// La colonne « Repartition » (Text) de Commandes reçoit une clé commune aux parts d'un même article.
+async function edEnsureRepartition() {
+  try {
+    const t = await grist.docApi.fetchTable('Commandes');
+    if (Object.prototype.hasOwnProperty.call(t, 'Repartition')) return true;
+    await grist.docApi.applyUserActions([['AddColumn', 'Commandes', 'Repartition', { type: 'Text', label: 'Répartition' }]]);
+    return true;
+  } catch (e) { return false; }   // sans traçabilité, la répartition fonctionne quand même
+}
+function repSiblings(a) { return a.rep ? commandes.filter(x => x.rep === a.rep && x.id !== a.id) : []; }
+function repHtml(a) {
+  try {
+    const sib = repSiblings(a);
+    if (!sib.length) return '';
+    const ou = x => { const d = x.demande_achat ? das.find(y => y.id === x.demande_achat) : null; return (d ? edEsc(d.num_da) : 'libre') + ' (' + fmt(x.montant) + ')'; };
+    return `<div class="art-rep">⚟ Répartie · autres parts : ${sib.map(ou).join(' · ')}
+      <button class="btn-rep-merge" onclick="openEdit('merge',${a.id})">⟲ Regrouper</button></div>`;
+  } catch (e) { return ''; }
+}
+
+function edOpenMerge(id) {
+  const a = commandes.find(x => x.id === id);
+  if (!a || !a.rep) throw new Error('Répartition introuvable.');
+  edCtx = { kind: 'merge', id, orig: null, draft: {} };
+  edRefresh();
+}
+function edMergeHtml() {
+  const a = commandes.find(x => x.id === edCtx.id);
+  if (!a || !a.rep) return '';
+  const parts = commandes.filter(x => x.rep === a.rep).sort((p, q) => p.id - q.id);
+  if (parts.length < 2) return '';
+  const daDe = p => p.demande_achat ? das.find(y => y.id === p.demande_achat) : null;
+  const verrou = parts.map(daDe).find(d => d && d.statut !== 'En cours');
+  const hetero = parts.some(p => (p.qte || 1) !== (parts[0].qte || 1) || p.devise !== parts[0].devise || (p.taux || 1) !== (parts[0].taux || 1));
+  const total = parts.reduce((t, p) => t + (p.montant || 0), 0);
+  const memeDA = parts.every(p => p.demande_achat === parts[0].demande_achat);
+  const dest = memeDA ? (daDe(parts[0]) ? 'dans la DA <b>' + edEsc(daDe(parts[0]).num_da) + '</b>' : 'article libre') : 'article libre (à réassigner ensuite à une DA)';
+  const rows = parts.map(p => { const d = daDe(p); return `<tr><td>${d ? edEsc(d.num_da) + ' (' + edEsc(d.statut) + ')' : 'libre'}</td><td>${fmt(p.montant)}</td></tr>`; }).join('');
+  const bloque = verrou ? `Impossible : une part est dans la DA « ${edEsc(verrou.num_da)} » déjà ${edEsc(verrou.statut)}.`
+    : (hetero ? 'Impossible : les parts ont des quantités ou devises différentes.' : '');
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">⟲ Regrouper les parts de « ${edEsc(a.designation || '(sans nom)')} » ?</div>
+      <table class="ed-parts">${rows}<tr><td><b>Total</b></td><td><b>${fmt(total)}</b></td></tr></table>
+      ${bloque ? `<div class="ed-warn">${bloque}</div>`
+               : `<div>Les parts seront fusionnées en <b>un seul article de ${fmt(total)}</b>, ${dest}.</div>`}
+      <div class="ed-inline-row">
+        ${bloque ? '' : '<button class="ed-save" id="ed-save" onclick="edMerge()">Regrouper</button>'}
+        <button class="btn-del-cancel" onclick="edClose()">${bloque ? 'Retour' : 'Annuler'}</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+async function edMerge() {
+  if (!edCtx || edCtx.kind !== 'merge') return;
+  const btn = document.getElementById('ed-save');
+  try {
+    const a0 = commandes.find(x => x.id === edCtx.id);
+    if (!a0 || !a0.rep) throw new Error('Répartition introuvable.');
+    const parts = commandes.filter(x => x.rep === a0.rep).sort((p, q) => p.id - q.id);
+    if (parts.length < 2) throw new Error("Il n'y a qu'une seule part.");
+    const bloque = parts.some(p => { const d = p.demande_achat ? das.find(y => y.id === p.demande_achat) : null; return d && d.statut !== 'En cours'; });
+    if (bloque) throw new Error('Une part est dans une DA déjà envoyée.');
+    const q0 = parts[0].qte || 1;
+    if (parts.some(p => (p.qte || 1) !== q0 || p.devise !== parts[0].devise || (p.taux || 1) !== (parts[0].taux || 1))) throw new Error('Les parts ont des quantités ou devises différentes.');
+    if (btn) btn.disabled = true;
+    edMsg('Regroupement…', '');
+    const keep = parts[0];
+    const somme = parts.reduce((t, p) => t + (p.prix || 0), 0);
+    const prixTotal = q0 === 1 ? Math.round(somme * 100) / 100 : Math.round(somme * 1e6) / 1e6;
+    const memeDA = parts.every(p => p.demande_achat === keep.demande_achat);
+    const actions = [['UpdateRecord', 'Commandes', keep.id, { Prix_unitaire_HT: prixTotal, Repartition: '', Demande_achat: memeDA ? (keep.demande_achat || null) : null }]];
+    parts.slice(1).forEach(p => actions.push(['RemoveRecord', 'Commandes', p.id]));
+    await grist.docApi.applyUserActions(actions);
+    parts.slice(1).forEach(p => { selectedArts.delete(p.id); if (splitArticleId === p.id) splitArticleId = null; });
+    edCtx = null;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
+  }
+}
+
+// ---------- Nouvelle DA à partir des articles sélectionnés ----------
+function edOpenNewDA() {
+  const n = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).length;
+  if (!n) throw new Error("Sélectionnez d'abord au moins un article libre.");
+  edCtx = { kind: 'newda', id: 0, orig: { num: nextNumDA(), date: new Date().toISOString().slice(0, 10) }, draft: {} };
+  edRefresh();
+}
+function edNewDAHtml() {
+  const o = edCtx.orig;
+  const cVal = String(edDv('ed-nd-contrat', ''));
+  const lVal = String(edDv('ed-nd-ligne', ''));
+  const fVal = String(edDv('ed-nd-four', ''));
+  const contratOpts = '<option value="">— Choisir —</option>' + contratsList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(x => `<option value="${x.id}" ${String(x.id) === cVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+  const fourOpts = '<option value="">— Choisir —</option>' + fournisseursList.slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+    .map(x => `<option value="${x.id}" ${String(x.id) === fVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+  const arts = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id));
+  const total = arts.reduce((t, a) => t + (a.montant || 0), 0);
+  const lId = lVal ? Number(lVal) : null;
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">＋ Nouvelle DA avec ${arts.length} article${arts.length > 1 ? 's' : ''} (${fmt(total)})</div>
+      <div class="ed-grid">
+        <div class="ed-field"><label>N° DA</label><input type="text" id="ed-nd-num" value="${edEsc(edDv('ed-nd-num', o.num))}"></div>
+        <div class="ed-field"><label>Contrat</label><select id="ed-nd-contrat" onchange="edNdOnContrat()">${contratOpts}</select></div>
+        <div class="ed-field"><label>Ligne budgétaire</label><select id="ed-nd-ligne" onchange="edNdUpdateDispo()">${edLigneOptions(cVal ? Number(cVal) : null, lId)}</select></div>
+        <div class="ed-field"><label>Fournisseur</label><select id="ed-nd-four">${fourOpts}</select></div>
+        <div class="ed-field"><label>Date DA</label><input type="date" id="ed-nd-date" value="${edEsc(edDv('ed-nd-date', o.date))}" onchange="edNdUpdateDispo()"></div>
+      </div>
+      <div id="ed-nd-dispo">${lId ? dispoInfoCore(lId, 0, total, 'À ajouter (sélection)', autresEnCoursLigne(lId, null), !estAvantRelevePgm(lId, edDv('ed-nd-date', o.date))) : ''}${dateAvantReleveHtml(lId, edDv('ed-nd-date', o.date))}</div>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="ed-save" onclick="edCreateDA()">Créer la DA et assigner</button>
+        <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+function edNdOnContrat() {
+  if (!edCtx) return;
+  const cid = edVal('ed-nd-contrat') ? Number(edVal('ed-nd-contrat')) : null;
+  const sel = document.getElementById('ed-nd-ligne');
+  if (sel) sel.innerHTML = edLigneOptions(cid, null);
+  edCtx.draft['ed-nd-ligne'] = '';
+  edNdUpdateDispo();
+}
+// Avertit que le disponible affiché ne bougera pas si la date choisie pour la DA
+// est antérieure (ou égale) au dernier relevé PGM connu de la ligne.
+function estAvantRelevePgm(ligneId, dateStr) {
+  const lg = ligneId ? lignesList.find(l => l.id === ligneId) : null;
+  if (!lg || !lg.date_dernier_releve || !dateStr) return false;
+  const dateChoisie = edEpoch(dateStr);
+  if (dateChoisie == null) return false;
+  return dateChoisie <= toMs(lg.date_dernier_releve) / 1000;
+}
+function dateAvantReleveHtml(ligneId, dateStr) {
+  if (!estAvantRelevePgm(ligneId, dateStr)) return '';
+  const lg = lignesList.find(l => l.id === ligneId);
+  const dateChoisie = edEpoch(dateStr);
+  return `<div class="ed-warn">⚠ Cette date (${fmtDate(dateChoisie)}) est antérieure ou égale au dernier relevé PGM de cette ligne (${fmtDate(lg.date_dernier_releve)}) : le disponible affiché ne changera pas.</div>`;
+}
+
+function edNdUpdateDispo() {
+  const box = document.getElementById('ed-nd-dispo');
+  if (!box) return;
+  const lId = edVal('ed-nd-ligne') ? Number(edVal('ed-nd-ligne')) : null;
+  const dateVal = edVal('ed-nd-date');
+  box.innerHTML = (lId ? dispoInfoCore(lId, 0, selSum(), 'À ajouter (sélection)', autresEnCoursLigne(lId, null), !estAvantRelevePgm(lId, dateVal)) : '')
+    + dateAvantReleveHtml(lId, dateVal);
+}
+async function edCreateDA() {
+  if (!edCtx || edCtx.kind !== 'newda') return;
+  const btn = document.getElementById('ed-save');
+  const num = edVal('ed-nd-num').trim();
+  const contrat = edVal('ed-nd-contrat') ? Number(edVal('ed-nd-contrat')) : null;
+  const ligne = edVal('ed-nd-ligne') ? Number(edVal('ed-nd-ligne')) : null;
+  const four = edVal('ed-nd-four') ? Number(edVal('ed-nd-four')) : null;
+  const dateVal = edVal('ed-nd-date');
+  const ids = commandes.filter(c => !c.demande_achat && selectedArts.has(c.id)).map(c => c.id);
+  if (!num || !contrat || !ligne || !four) { edMsg('N° DA, contrat, ligne et fournisseur sont obligatoires.', 'err'); return; }
+  if (!ids.length) { edMsg('Aucun article libre sélectionné.', 'err'); return; }
+  if (das.some(d => d.statut !== 'Annulée' && String(d.num_da).trim() === num)) { edMsg('Ce N° DA existe déjà.', 'err'); return; }
+  let newId = null;
+  try {
+    if (btn) btn.disabled = true;
+    edMsg('Création de la DA…', '');
+    const res = await grist.docApi.applyUserActions([
+      ['AddRecord', 'Demandes_achat', null, { Num_DA: num, Contrat: contrat, Ligne_budgetaire: ligne, Fournisseur: four, Date_DA: edEpoch(dateVal), Statut: 'En cours' }]
+    ]);
+    newId = res && res.retValues && typeof res.retValues[0] === 'number' ? res.retValues[0] : null;
+    if (!newId) {   // repli : retrouver la DA créée par son numéro
+      const t = await grist.docApi.fetchTable('Demandes_achat');
+      for (let i = (t.id || []).length - 1; i >= 0; i--) { if (String((t.Num_DA || [])[i]).trim() === num) { newId = t.id[i]; break; } }
+    }
+    if (!newId) throw new Error("DA créée, mais introuvable pour l'assignation : assignez les articles manuellement.");
+    edMsg('Assignation des articles…', '');
+    await grist.docApi.applyUserActions([
+      ['BulkUpdateRecord', 'Commandes', ids, { Demande_achat: ids.map(() => newId) }]
+    ]);
+    selectedArts.clear();
+    assignDAValue = '';
+    edCtx = null;
+    tab = 'En cours';
+    selectedDA = newId;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message + (newId ? ' (la DA ' + num + ' a été créée)' : ''), 'err');
+  }
+}
+
+// ---------- Catégorie (ligne budgétaire) d'une DA, pour l'en-tête du détail ----------
+function daCategorieHtml(d) {
+  try {
+    const lg = d.ligne ? lignesList.find(l => l.id === d.ligne) : null;
+    if (!lg) return '';
+    const parts = String(lg.label).split('|');
+    const sub = (parts.length > 1 ? parts.slice(1).join('|') : lg.label).trim();
+    if (!sub) return '';
+    const COUL = { 'Fonctionnement': '#378ADD', 'Équipement': '#D97B3F', 'Personnel': '#9C6ADE', 'Prestation': '#1D9E75', 'Mission': '#BA9517' };
+    const cat = Object.keys(COUL).find(k => sub.includes(k));
+    const pastille = cat ? `<span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:${COUL[cat]}; margin-right:6px;"></span>` : '';
+    return `<div class="detail-cat" style="font-size:12.5px; margin-top:3px;">${pastille}${edEsc(sub)}</div>`;
+  } catch (e) { return ''; }
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => { if (tab !== 'nouvelle' && !document.getElementById('ed-panel')) fetchAll(); });
+    window.addEventListener('focus', () => { if (tab !== 'nouvelle' && !document.getElementById('ed-panel')) fetchAll(); });
+  } else {
+    document.getElementById('container').innerHTML = '<div class="empty">Connectez à Grist.</div>';
+  }
+}
+const s = document.createElement('script');
+s.src='https://docs.getgrist.com/grist-plugin-api.js';
+s.onload=loadData; s.onerror=loadData;
+document.head.appendChild(s);
 </script>
 </body>
 </html>
