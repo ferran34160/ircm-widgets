@@ -587,9 +587,9 @@ function renderDetail(d) {
 
   // Secció de fitxers adjunts
   const fichiers = [
-    { label: 'PJ', field: 'PJ', ids: attachIds(d.pj) },
     { label: 'BC', field: 'BC', ids: attachIds(d.bc) },
     { label: 'DA', field: 'DA', ids: attachIds(d.da) },
+    { label: 'PJ', field: 'PJ', ids: attachIds(d.pj) },
     { label: 'Autres', field: 'Autres', ids: attachIds(d.autres) },
   ];
   const filesHtml = fichiers.map(f => {
@@ -597,10 +597,11 @@ function renderDetail(d) {
     const links = has
       ? f.ids.map((aid,idx) => `<a class="file-link" href="#" onclick="openAttachment(${aid}); return false;">${f.label}${f.ids.length>1?' '+(idx+1):''}</a>`).join('')
       : `<span class="file-empty">${f.label}</span>`;
-    return `<div class="file-cat ${has?'has':''}">${links}
-      <button class="file-add" id="add-${f.field}" title="Ajouter un fichier à ${f.label}" onclick="document.getElementById('upload-${f.field}').click()">＋</button>
-      <input type="file" id="upload-${f.field}" style="display:none" onchange="handleFileUpload(this, ${d.id}, '${f.field}')">
-    </div>`;
+    const addBtn = d.statut === 'BC reçu'
+      ? `<button class="file-add" id="add-${f.field}" title="Ajouter un fichier à ${f.label}" onclick="document.getElementById('upload-${f.field}').click()">＋</button>
+         <input type="file" id="upload-${f.field}" style="display:none" onchange="handleFileUpload(this, ${d.id}, '${f.field}')">`
+      : '';
+    return `<div class="file-cat ${has?'has':''}">${links}${addBtn}</div>`;
   }).join('');
 
   return `
