@@ -127,6 +127,27 @@ function attachIds(v) {
   }
   return [];
 }
+// Transforme un nom de fichier généré par generer_excels.py en libellé lisible.
+// Formats connus :
+//   AAMMJJ_734CT_734ECA_<CODE>_Tx_MM_seq.xlsx      -> bordereau (ex. "T3001 – 06/10/2026")
+//   AAMM_734CT_734ECA AAAA_mois_CONS2.xlsx          -> certificat (ex. "Certificat – Octobre 2026")
+// Si le nom ne correspond à aucun des deux, on l'affiche tel quel (sans l'extension).
+function friendlyPjName(raw) {
+  if (!raw) return null;
+  const nom = String(raw).trim();
+  let m = nom.match(/^(\d{2})(\d{2})(\d{2})_734CT_734ECA_([A-Z0-9]+)_T\d_\d{2}_\d+/);
+  if (m) {
+    const [, aa, mm, jj, code] = m;
+    return `${code} – ${jj}/${mm}/20${aa}`;
+  }
+  m = nom.match(/^\d{2}\d{2}_734CT_734ECA \d{4}_([a-zàâäéèêëîïôöùûüç]+)_CONS2/i);
+  if (m) {
+    const mois = m[1];
+    return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1);
+  }
+  return nom.replace(/\.xlsx?$/i, '');
+}
+
 function togglePjList(btn) {
   const list = btn.nextElementSibling;
   list.classList.toggle('open');
@@ -197,6 +218,7 @@ async function fetchAll() {
         num_bc: (da.Num_BC || [])[i] || '',
         bc_ids: attachIds((da.BC || [])[i]),
         pj_ids: attachIds((da.PJ || [])[i]),
+        pj_noms: (da.PJ_Noms || [])[i] ? String((da.PJ_Noms || [])[i]).split(' || ') : [],
         autres_ids: attachIds((da.Autres || [])[i]),
         isEFS: String(fournisseur).trim().toLowerCase() === FOURNISSEUR_EFS,
       };
@@ -276,7 +298,10 @@ function dacardHtml(d, showAutres = true) {
   // Bordereaux (PJ) : un seul bouton dépliable, plutôt qu'un bouton par fichier (il peut y en avoir 5-6 par DA)
   const pjHtml = (d.pj_ids && d.pj_ids.length)
     ? `<button class="btn-pj" onclick="togglePjList(this)">📄 Bordereaux (${d.pj_ids.length})</button>
-       <div class="pj-list">${d.pj_ids.map((id, i) => `<button onclick="openAttachment(${id})">Bordereau ${i + 1}</button>`).join('')}</div>`
+       <div class="pj-list">${d.pj_ids.map((id, i) => {
+         const label = esc(friendlyPjName(d.pj_noms[i]) || ('Bordereau ' + (i + 1)));
+         return `<button onclick="openAttachment(${id})">${label}</button>`;
+       }).join('')}</div>`
     : '';
 
   // Une pièce jointe « Autres » couvre en général tout le trimestre (le calendrier des
