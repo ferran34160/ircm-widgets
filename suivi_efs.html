@@ -132,22 +132,51 @@ function attachIds(v) {
 //   AAMMJJ_734CT_734ECA_<CODE>_Tx_MM_seq.xlsx      -> bordereau (ex. "T3001 – 06/10/2026")
 //   AAMM_734CT_734ECA AAAA_mois_CONS2.xlsx          -> certificat (ex. "Certificat – Octobre 2026")
 // Si le nom ne correspond à aucun des deux, on l'affiche tel quel (sans l'extension).
+const CODE_RE = /(T3001|B3111|QE009|QE010|CONS2)/i;
+
 function friendlyPjName(raw) {
   if (!raw) return null;
-  const nom = String(raw).trim();
-  // Pas d'ancrage ^ : le nom peut porter un préfixe (ex. le n° de BC ajouté après coup,
-  // « 4526013834_260408_734CT_... »). On cherche juste le repère « 734CT_734ECA » où qu'il soit.
+  const nom = String(raw).trim().replace(/\.xlsx?$/i, '');
+
+  // 1) Format exact du script (rapide) : AAMMJJ_734CT_734ECA_CODE_Tx_MM_seq
   let m = nom.match(/(\d{2})(\d{2})(\d{2})_734CT_734ECA_([A-Z0-9]+)_T\d_\d{2}_\d+/);
   if (m) {
     const [, aa, mm, jj, code] = m;
     return `${code} – ${jj}/${mm}/20${aa}`;
   }
+  // 1bis) Format exact du certificat : AAMM_734CT_734ECA AAAA_mois_CONS2
   m = nom.match(/(\d{2})(\d{2})_734CT_734ECA \d{4}_([a-zàâäéèêëîïôöùûüç]+)_CONS2/i);
   if (m) {
     const mois = m[3];
-    return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1);
+    return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1).toLowerCase();
   }
-  return nom.replace(/\.xlsx?$/i, '');
+
+  // 2) Repli générique : le nom a pu être modifié à la main (n° de BC inséré, tiret bas
+  // remplacé par un espace, etc.) — on cherche juste le code et une date où qu'ils soient,
+  // sans exiger un squelette exact.
+  const codeM = nom.match(CODE_RE);
+  if (codeM) {
+    const code = codeM[1].toUpperCase();
+    if (code === 'CONS2') {
+      const moisM = nom.match(new RegExp('(' + MOIS_KEYS.join('|') + ')', 'i'));
+      if (moisM) {
+        const mois = moisM[1].toLowerCase();
+        return 'Certificat – ' + mois.charAt(0).toUpperCase() + mois.slice(1);
+      }
+      return 'Certificat';
+    }
+    // Date complète JJMMAAAA isolée (ni précédée ni suivie d'un autre chiffre, pour ne
+    // pas mordre sur un long numéro de BC accolé, ex. « ..._4525154838_13012026_B3111 »).
+    let d = nom.match(/(?<!\d)(\d{2})(\d{2})(\d{4})(?!\d)/);
+    if (d) return `${code} – ${d[1]}/${d[2]}/${d[3]}`;
+    // Sinon, date courte AAMMJJ tout au début du nom (format d'origine du script)
+    d = nom.match(/^(\d{2})(\d{2})(\d{2})(?!\d)/);
+    if (d) return `${code} – ${d[3]}/${d[2]}/20${d[1]}`;
+    return code;
+  }
+
+  // 3) Rien de reconnaissable : nom du fichier tel quel
+  return nom;
 }
 
 function togglePjList(btn) {
