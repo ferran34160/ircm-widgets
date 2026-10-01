@@ -428,7 +428,7 @@ function render() {
           <span class="da-num">${numDA}${dateBC ? ` <span class="da-num-date">/ BC reçu le ${dateBC}</span>` : ''}</span>
           <span style="display:flex; align-items:center;">${daysBadge}<span class="da-progress ${complete ? 'complete' : ''}">${totaux.recus}/${totaux.total} reçus</span></span>
         </div>
-        <div class="da-route">${contrat} <span class="da-arrow">→</span> ${fournisseur}${numBC ? ` <span class="da-bc">/ BC ${numBC}</span>` : ''}</div>
+        <div class="da-route">${contrat} <span class="da-arrow">→</span> ${fournisseur}${numBC ? ` <span class="da-bc">/ BC ${highlightMatch(numBC, searchBC)}</span>` : ''}</div>
         ${(hideRecus && totaux.recus > 0) ? `<button class="da-toggle-recus" onclick="toggleRecusDA('${key}')">${montrerRecusDA.has(key) ? '▲ Masquer les ' + totaux.recus + ' reçu' + (totaux.recus>1?'s':'') : '▼ Voir les ' + totaux.recus + ' reçu' + (totaux.recus>1?'s':'')}</button>` : ''}
       </div>
       <div class="da-body">`;
