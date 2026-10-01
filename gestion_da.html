@@ -112,6 +112,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .dem-tag { font-size: 10px; padding: 1px 7px; border-radius: 5px; background: #EFEAF8; color: #5E3A9E; }
 @media (prefers-color-scheme: dark) { .dem-tag { background: #2E2440; color: #C4A8E8; } }
 .art-ref { color: #999; font-size: 11px; font-weight: 400; white-space: nowrap; }
+.search-hl { background: #FFE066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+@media (prefers-color-scheme: dark) { .search-hl { background: #B8960C; color: #fff; } }
 @media (prefers-color-scheme: dark) { .art-ref { color: #888; } }
 .art.svc { font-style: italic; opacity: 0.6; font-size: 11px; }
 .art-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1965,7 +1967,7 @@ function highlightMatch(text, query) {
   const q = String(query || '').trim();
   if (!q) return escaped;
   const reQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  try { return escaped.replace(new RegExp('(' + reQ + ')', 'gi'), '<u>$1</u>'); }
+  try { return escaped.replace(new RegExp('(' + reQ + ')', 'gi'), '<mark class="search-hl">$1</mark>'); }
   catch (e) { return escaped; }
 }
 function daMatchesQuery(d, raw) {
