@@ -591,7 +591,7 @@ function renderDetail(d) {
     return `
     <div class="art ${a.type_article==='Frais'?'svc':''}">
       <div class="art-namecol">
-        <span class="art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${a.ref})</span>`:''}</span>
+        <span class="art-name">${a.qte>1?a.qte+'× ':''}${highlightMatch(a.designation||'(sans nom)', searchBC)}${a.ref && a.type_article!=='Service' && a.type_article!=='Frais'?` <span class="art-ref">(Réf. ${highlightMatch(a.ref, searchBC)})</span>`:''}</span>
         ${deviseHtml}
         ${repHtml(a)}
       </div>
@@ -946,7 +946,7 @@ function renderLibresContent() {
         <div style="display:flex; align-items:center; gap:8px;">
           <div class="assign-check" onclick="toggleArt(${a.id})">✓</div>
           <div class="assign-art-info" onclick="toggleArt(${a.id})" style="flex:1; cursor:pointer;">
-            <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${a.designation||'(sans nom)'}</div>
+            <div class="assign-art-name">${a.qte>1?a.qte+'× ':''}${highlightMatch(a.designation||'(sans nom)', searchBC)}</div>
             <div class="assign-art-meta">${a.ref?'Réf: '+a.ref+' · ':''}${fmt(a.montant)}</div>
             ${repHtml(a)}
           </div>
@@ -1957,6 +1957,17 @@ async function edDelete() {
 // ---------- Recherche (BC, N° DA, désignation, référence ; insensible aux accents) ----------
 function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function artMatchesQuery(a, q) { return normTxt(a.designation).includes(q) || normTxt(a.ref).includes(q); }
+
+// Souligne dans `text` la portion qui correspond à la recherche en cours (searchBC),
+// pour repérer d'un coup d'œil l'article qui a fait remonter la DA dans les résultats.
+function highlightMatch(text, query) {
+  const escaped = edEsc(text || '');
+  const q = String(query || '').trim();
+  if (!q) return escaped;
+  const reQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try { return escaped.replace(new RegExp('(' + reQ + ')', 'gi'), '<u>$1</u>'); }
+  catch (e) { return escaped; }
+}
 function daMatchesQuery(d, raw) {
   const q = normTxt(String(raw || '').trim());
   if (!q) return true;
