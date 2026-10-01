@@ -437,6 +437,13 @@ function renderFrame(centerAndRight) {
     <div class="layout">
       <div class="panel">
         <div class="cards-row">
+          <div class="nouvel-card ${tab==='nouvel'?'active':''}" onclick="setTab('nouvel')">
+            <div class="nouvel-icon">＋</div>
+            <div>
+              <div class="new-da-title">Nouvel élément</div>
+              <div class="new-da-sub">Produit, service ou mouvement</div>
+            </div>
+          </div>
           <div class="new-da-card ${tab==='nouvelle'?'active':''}" onclick="openNewDA()">
             <div class="new-da-icon">+</div>
             <div>
@@ -449,13 +456,6 @@ function renderFrame(centerAndRight) {
             <div>
               <div class="new-da-title">Articles libres</div>
               <div class="new-da-sub">Assigner des articles à une DA</div>
-            </div>
-          </div>
-          <div class="nouvel-card ${tab==='nouvel'?'active':''}" onclick="setTab('nouvel')">
-            <div class="nouvel-icon">＋</div>
-            <div>
-              <div class="new-da-title">Nouvel élément</div>
-              <div class="new-da-sub">Produit, service ou mouvement</div>
             </div>
           </div>
         </div>
