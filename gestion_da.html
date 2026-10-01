@@ -15,10 +15,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 200px; }
 .bc-search input:focus { outline: none; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
-.libres-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #9C6ADE; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(156,106,222,0.25); width: 130px; }
-.libres-card:hover { background: #875BC8; }
-.libres-card.active { box-shadow: 0 0 0 3px rgba(156,106,222,0.4); }
-.libres-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.libres-card { --accent: #9C6ADE; }
+.libres-icon { font-size: 24px; }
 @media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
 .spacer { flex: 1; }
 .btn-new { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; border: none; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
@@ -35,13 +33,25 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .four-filter { flex: 1; min-width: 0; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; }
 @media (prefers-color-scheme: dark) { .four-filter { border-color: #444; } }
 .da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
-.new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
-.new-da-card:hover { background: #178A65; }
-.new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
-.nouvel-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #D97B3F; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(217,123,63,0.25); width: 130px; }
-.nouvel-card:hover { background: #C06A32; }
-.nouvel-card.active { box-shadow: 0 0 0 3px rgba(217,123,63,0.4); }
-.nouvel-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.new-da-card { --accent: #1D9E75; }
+.new-da-icon { font-size: 28px; font-weight: 300; }
+.nouvel-card { --accent: #D97B3F; }
+.nouvel-icon { font-size: 22px; }
+
+/* Les 3 cartes partagent le même style : fond blanc, icône et titre dans la couleur
+   d'accent de chacune (définie via --accent ci-dessus), pour rester cohérent avec
+   la nouvelle esthétique (fond neutre + couleur en accent, pas en aplat). */
+.new-da-card, .libres-card, .nouvel-card {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  padding: 18px 16px; border-radius: 12px; width: 130px; cursor: pointer;
+  background: #fff; border: 1px solid #e5e5e5; border-top: 3px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); color: inherit;
+}
+@media (prefers-color-scheme: dark) { .new-da-card, .libres-card, .nouvel-card { background: #202020; border-color: #353535; border-top-color: var(--accent); } }
+.new-da-card:hover, .libres-card:hover, .nouvel-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.libres-card.active, .nouvel-card.active { box-shadow: 0 0 0 2px var(--accent); }
+.new-da-icon, .libres-icon, .nouvel-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; }
+.new-da-title { color: var(--accent); font-weight: 700; }
 .nv-type-row { display: flex; gap: 8px; margin: 2px 0 16px; }
 .nv-type-btn { font-size: 13px; padding: 9px 16px; border-radius: 8px; border: 1px solid #ccc; background: none; color: inherit; cursor: pointer; font-weight: 500; }
 .nv-type-btn:hover { background: rgba(128,128,128,.12); }
@@ -59,6 +69,17 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .seg-mvt button { font-size: 13px; padding: 8px 14px; border: none; background: none; color: inherit; cursor: pointer; font-weight: 500; }
 .seg-mvt button.sel-sortie { background: #E24B4A; color: #fff; }
 .seg-mvt button.sel-entree { background: #1D9E75; color: #fff; }
+.nv-dem-box { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; min-height: 38px; align-content: flex-start; }
+@media (prefers-color-scheme: dark) { .nv-dem-box { border-color: #444; } }
+.nv-dem-chip { font-size: 12px; padding: 4px 10px; border-radius: 13px; background: #EAF3FB; color: #0C447C; cursor: pointer; user-select: none; }
+.nv-dem-chip:hover { filter: brightness(0.96); }
+.nv-dem-chip.sel { background: #378ADD; color: #fff; }
+@media (prefers-color-scheme: dark) { .nv-dem-chip { background: #223a52; color: #9FC6EE; } }
+.nv-recap { margin-top: 10px; font-size: 12px; padding: 10px 13px; border-radius: 9px; background: #E1F5EE; border: 1px solid #B9E4D3; color: #085041; display: none; }
+.nv-recap.show { display: block; }
+.nv-recap-check { font-weight: 600; margin-right: 4px; }
+.nv-recap-detail { color: #0F6E56; margin-top: 3px; font-size: 11px; }
+@media (prefers-color-scheme: dark) { .nv-recap { background: #123528; border-color: #1D5F49; color: #7FD9B8; } .nv-recap-detail { color: #6FC9A8; } }
 .new-da-title { font-size: 14px; font-weight: 600; }
 .new-da-sub { font-size: 11px; opacity: 0.85; }
 .da-item { border: 1px solid #e5e5e5; border-radius: 9px; padding: 9px 11px; cursor: pointer; }
@@ -281,6 +302,7 @@ let nouvelType = null;   // 'Produit' | 'Service' | 'Mouvement' | null (aucun ch
 let nvDraft = {};        // brouillon des champs "nv-*", survit aux rafraîchissements
 let nvFraisRows = { p: [], s: [] };   // lignes de frais dynamiques (Produit / Service)
 let nvFraisSeq = 0;
+let nvDemSel = { p: new Set(), s: new Set() };   // demandeurs sélectionnés (étiquettes)
 let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
 let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = pas encore choisie : on reprend assignDAValue)
 
@@ -1380,6 +1402,88 @@ function nvFraisCollect(which) {
   })).filter(f => f.type && isFinite(f.montant));
 }
 
+// ---------- Remplissage automatique depuis une référence déjà connue ----------
+function nvRefsMap() {
+  const map = {};
+  commandes.forEach(c => {
+    if (!c.ref || c.type_article === 'Frais') return;
+    const key = String(c.ref).trim().toLowerCase();
+    if (!map[key] || c.id > map[key].id) {
+      map[key] = { id: c.id, ref: String(c.ref).trim(), desig: c.designation || '', ghp: c.code_ghp || '', prix: c.prix, devise: c.devise || 'EUR', taux: c.taux || 1 };
+    }
+  });
+  return map;
+}
+function nvRefSuggestionsHtml() {
+  return Object.values(nvRefsMap())
+    .sort((a, b) => a.ref.localeCompare(b.ref, 'fr'))
+    .map(r => `<option value="${edEsc(r.ref)}">${edEsc((r.desig || '').slice(0, 60))}</option>`)
+    .join('');
+}
+function nvOnRefChange(which) {
+  const input = document.getElementById('nv-' + which + '-ref');
+  const key = input.value.trim().toLowerCase();
+  if (!key) return;
+  const m = nvRefsMap()[key];
+  if (!m) return;   // référence inconnue : on ne touche à rien
+  const remplis = [];
+  const setIfEmpty = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && !el.value.trim() && val !== '' && val != null) { el.value = val; nvDraft[id] = el.value; return true; }
+    return false;
+  };
+  if (setIfEmpty('nv-' + which + '-desig', m.desig)) remplis.push('désignation');
+  if (setIfEmpty('nv-' + which + '-ghp', m.ghp)) remplis.push('code GHP');
+  if (setIfEmpty('nv-' + which + '-prix', m.prix)) remplis.push('prix');
+  if (which === 'p') {
+    const devEl = document.getElementById('nv-p-devise'), tauxEl = document.getElementById('nv-p-taux');
+    if (devEl && devEl.value === 'EUR' && m.devise && m.devise !== 'EUR') {
+      devEl.value = m.devise; nvDraft['nv-p-devise'] = m.devise;
+      if (tauxEl && (tauxEl.value === '1' || !tauxEl.value.trim())) { tauxEl.value = m.taux; nvDraft['nv-p-taux'] = String(m.taux); }
+      remplis.push('devise');
+    }
+  }
+  if (remplis.length) nvMsg(which, 'Rempli depuis une commande précédente (' + remplis.join(', ') + ').', 'ok');
+}
+
+// ---------- Demandeurs sous forme d'étiquettes cliquables ----------
+function nvDemandeursDispo() {
+  const set = new Set();
+  commandes.forEach(c => choixList(c.demandeur).forEach(d => { if (d) set.add(d); }));
+  return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+function nvDemBoxHtml(which) {
+  const dispo = nvDemandeursDispo();
+  if (!dispo.length) return '<span class="ed-hint">Aucun demandeur enregistré</span>';
+  const sel = nvDemSel[which];
+  return dispo.map((d, i) => `<span class="nv-dem-chip ${sel.has(d) ? 'sel' : ''}" onclick="nvToggleDem('${which}', ${i})">${edEsc(d)}</span>`).join('');
+}
+function nvToggleDem(which, idx) {
+  const d = nvDemandeursDispo()[idx];
+  if (!d) return;
+  const sel = nvDemSel[which];
+  if (sel.has(d)) sel.delete(d); else sel.add(d);
+  render();
+}
+
+// ---------- Résumé après enregistrement (comme dans le formulaire d'origine) ----------
+function nvShowRecap(which, title, detail) {
+  const el = document.getElementById('nv-recap-' + which);
+  if (!el) return;
+  el.innerHTML = `<span class="nv-recap-check">✓</span>${edEsc(title)}` + (detail ? `<div class="nv-recap-detail">${edEsc(detail)}</div>` : '');
+  el.classList.add('show');
+}
+
+// ---------- Effacer : vide le formulaire courant sans fermer le panneau ----------
+function nvEffacer(which) {
+  Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-' + which + '-')) delete nvDraft[k]; });
+  if (nvFraisRows[which]) nvFraisRows[which] = [];
+  if (nvDemSel[which]) nvDemSel[which] = new Set();
+  const recap = document.getElementById('nv-recap-' + which);
+  if (recap) { recap.classList.remove('show'); recap.innerHTML = ''; }
+  render();
+}
+
 // ---------- Rendu du panneau « Nouvel élément » ----------
 function renderNouvelContent() {
   const typeBtn = (t, label) => `<button class="nv-type-btn ${nouvelType === t ? 'sel' : ''}" onclick="setNouvelType('${t}')">${label}</button>`;
@@ -1394,6 +1498,7 @@ function renderNouvelContent() {
       ${nouvelType === 'Produit' ? nvFormProduit() : ''}
       ${nouvelType === 'Service' ? nvFormService() : ''}
       ${nouvelType === 'Mouvement' ? nvFormMouvement() : ''}
+      <datalist id="nv-ref-suggestions">${nvRefSuggestionsHtml()}</datalist>
     </div>`;
 }
 
@@ -1402,7 +1507,7 @@ function nvFormProduit() {
     <div class="ed-inline" id="nv-panel-p">
       <div class="ed-inline-title">📦 Nouveau produit (article libre, à assigner ensuite à une DA)</div>
       <div class="ed-grid">
-        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-p-ref" value="${edEsc(nvVal('nv-p-ref'))}"></div>
+        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-p-ref" list="nv-ref-suggestions" onchange="nvOnRefChange('p')" value="${edEsc(nvVal('nv-p-ref'))}" placeholder="Réf. connue → remplit le reste"></div>
         <div class="ed-field"><label>Code GHP</label><input type="text" id="nv-p-ghp" value="${edEsc(nvVal('nv-p-ghp'))}"></div>
         <div class="ed-field full"><label>Désignation</label><input type="text" id="nv-p-desig" value="${edEsc(nvVal('nv-p-desig'))}"></div>
         <div class="ed-field"><label>Prix unitaire HT</label><input type="number" step="any" min="0" id="nv-p-prix" value="${edEsc(nvVal('nv-p-prix'))}"></div>
@@ -1412,18 +1517,19 @@ function nvFormProduit() {
           <option value="USD" ${nvVal('nv-p-devise', 'EUR') === 'USD' ? 'selected' : ''}>USD</option>
         </select></div>
         <div class="ed-field"><label>Taux (→ EUR)</label><input type="number" step="any" min="0" id="nv-p-taux" value="${edEsc(nvVal('nv-p-taux', '1'))}"></div>
-        <div class="ed-field full"><label>Demandeur(s)</label><input type="text" id="nv-p-dem" value="${edEsc(nvVal('nv-p-dem'))}">
-          <div class="ed-hint">Plusieurs : séparés par des virgules.</div></div>
       </div>
+      <div class="ed-field"><label>Demandeur(s)</label><div class="nv-dem-box">${nvDemBoxHtml('p')}</div></div>
       <div class="nv-frais-title">Frais associés (optionnel)</div>
       <div id="nv-frais-list-p">${nvFraisRowsHtml('p')}</div>
       <button type="button" class="btn-add-frais" onclick="nvAddFrais('p')">+ Ajouter des frais</button>
       <div class="ed-inline-row">
         <button class="ed-save" id="nv-save-p" onclick="nvSubmitProduit()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="nvEffacer('p')">Effacer</button>
         <button class="btn-del-cancel" onclick="nvCancel()">Annuler</button>
         <span class="ed-msg" id="nv-msg-p"></span>
       </div>
-    </div>`;
+    </div>
+    <div class="nv-recap" id="nv-recap-p"></div>`;
 }
 
 function nvFormService() {
@@ -1431,22 +1537,23 @@ function nvFormService() {
     <div class="ed-inline" id="nv-panel-s">
       <div class="ed-inline-title">🧾 Nouveau service (article libre, à assigner ensuite à une DA)</div>
       <div class="ed-grid">
-        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-s-ref" value="${edEsc(nvVal('nv-s-ref'))}"></div>
+        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-s-ref" list="nv-ref-suggestions" onchange="nvOnRefChange('s')" value="${edEsc(nvVal('nv-s-ref'))}" placeholder="Réf. connue → remplit le reste"></div>
         <div class="ed-field"><label>Code GHP</label><input type="text" id="nv-s-ghp" value="${edEsc(nvVal('nv-s-ghp'))}"></div>
         <div class="ed-field full"><label>Désignation</label><input type="text" id="nv-s-desig" value="${edEsc(nvVal('nv-s-desig'))}" placeholder="Ex : Repas 6 personnes"></div>
         <div class="ed-field"><label>Prix HT (EUR)</label><input type="number" step="any" min="0" id="nv-s-prix" value="${edEsc(nvVal('nv-s-prix'))}"></div>
-        <div class="ed-field full"><label>Demandeur(s)</label><input type="text" id="nv-s-dem" value="${edEsc(nvVal('nv-s-dem'))}">
-          <div class="ed-hint">Plusieurs : séparés par des virgules.</div></div>
       </div>
+      <div class="ed-field"><label>Demandeur(s)</label><div class="nv-dem-box">${nvDemBoxHtml('s')}</div></div>
       <div class="nv-frais-title">Frais associés (optionnel)</div>
       <div id="nv-frais-list-s">${nvFraisRowsHtml('s')}</div>
       <button type="button" class="btn-add-frais" onclick="nvAddFrais('s')">+ Ajouter des frais</button>
       <div class="ed-inline-row">
         <button class="ed-save" id="nv-save-s" onclick="nvSubmitService()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="nvEffacer('s')">Effacer</button>
         <button class="btn-del-cancel" onclick="nvCancel()">Annuler</button>
         <span class="ed-msg" id="nv-msg-s"></span>
       </div>
-    </div>`;
+    </div>
+    <div class="nv-recap" id="nv-recap-s"></div>`;
 }
 
 function nvFormMouvement() {
@@ -1490,8 +1597,8 @@ async function nvSubmitProduit() {
   if (!desig) { nvMsg('p', 'La désignation est obligatoire.', 'err'); return; }
   if (!isFinite(prix) || prix < 0) { nvMsg('p', 'Le prix unitaire est obligatoire.', 'err'); return; }
 
-  const demTxt = nvVal('nv-p-dem').split(',').map(s => s.trim()).filter(Boolean);
-  const demValue = demTxt.length ? ['L', ...demTxt] : null;
+  const demList = [...nvDemSel.p];
+  const demValue = demList.length ? ['L', ...demList] : null;
   const frais = nvFraisCollect('p');
 
   const actions = [['AddRecord', 'Commandes', null, {
@@ -1510,9 +1617,15 @@ async function nvSubmitProduit() {
     if (btn) btn.disabled = true;
     nvMsg('p', 'Enregistrement…', '');
     await grist.docApi.applyUserActions(actions);
+    const symP = devise === 'USD' ? '$' : '€';
+    const prixTxt = devise === 'USD' ? prix.toFixed(2) + ' $' : fmt(prix);
+    let detailP = qte + ' × ' + prixTxt;
+    if (demList.length) detailP += ' · ' + demList.join(', ');
+    if (frais.length) detailP += ' · ' + frais.length + ' frais (' + frais.map(f => f.type).join(', ') + ')';
     Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-p-')) delete nvDraft[k]; });
-    nvFraisRows.p = [];
+    nvFraisRows.p = []; nvDemSel.p = new Set();
     await fetchAll();
+    nvShowRecap('p', desig, detailP);
     nvMsg('p', (1 + frais.length) + ' ligne(s) enregistrée(s).', 'ok');
   } catch (e) {
     if (btn) btn.disabled = false;
@@ -1528,8 +1641,8 @@ async function nvSubmitService() {
   if (!desig) { nvMsg('s', 'La désignation est obligatoire.', 'err'); return; }
   if (!isFinite(prix) || prix < 0) { nvMsg('s', 'Le prix est obligatoire.', 'err'); return; }
 
-  const demTxt = nvVal('nv-s-dem').split(',').map(s => s.trim()).filter(Boolean);
-  const demValue = demTxt.length ? ['L', ...demTxt] : null;
+  const demList = [...nvDemSel.s];
+  const demValue = demList.length ? ['L', ...demList] : null;
   const frais = nvFraisCollect('s');
 
   const actions = [['AddRecord', 'Commandes', null, {
@@ -1548,10 +1661,14 @@ async function nvSubmitService() {
     if (btn) btn.disabled = true;
     nvMsg('s', 'Enregistrement…', '');
     await grist.docApi.applyUserActions(actions);
+    let detailS = fmt(prix);
+    if (frais.length) detailS += ' + ' + frais.length + ' frais';
+    if (demList.length) detailS += ' · ' + demList.join(', ');
     Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-s-')) delete nvDraft[k]; });
-    nvFraisRows.s = [];
+    nvFraisRows.s = []; nvDemSel.s = new Set();
     await fetchAll();
-    nvMsg('s', (1 + frais.length) + ' ligne(s) enregistrée(s).', 'ok');
+    nvShowRecap('s', desig, detailS);
+    nvMsg('s', 'Service enregistré.', 'ok');
   } catch (e) {
     if (btn) btn.disabled = false;
     nvMsg('s', 'Erreur : ' + e.message, 'err');
@@ -1561,7 +1678,9 @@ async function nvSubmitService() {
 async function nvSubmitMouvement() {
   const ligneId = nvVal('nv-m-ligne');
   const montant = parseFloat(nvVal('nv-m-montant'));
-  const dateVal = nvVal('nv-m-date');
+  // Le champ affiche la date du jour par défaut sans que l'utilisateur la touche :
+  // si le champ n'a jamais déclenché d'input/change, il faut reprendre ce même défaut ici.
+  const dateVal = nvVal('nv-m-date', new Date().toISOString().slice(0, 10));
   const motif = nvVal('nv-m-motif').trim();
   const fournisseur = nvVal('nv-m-fournisseur').trim();
   const type = nvVal('nv-m-type', 'Sortie') || 'Sortie';
