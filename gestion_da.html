@@ -399,9 +399,9 @@ async function fetchAll() {
 
 function setTab(t) {
   tab = t;
-  selectedDA = null;
   selectedArts.clear();
   assignDAValue = '';
+  autoSelectIfUnique();
   render();
 }
 
@@ -875,23 +875,25 @@ function demandeursOfDA(daId) {
   return set;
 }
 
+function autoSelectIfUnique() {
+  if (tab === 'libres' || tab === 'nouvel' || tab === 'nouvelle') { selectedDA = null; return; }
+  let list = das.filter(d => d.statut !== 'Annulée' && !d.masque);
+  if (tab !== 'toutes') list = list.filter(d => d.statut === tab);
+  if (filterFour) list = list.filter(d => d.fournisseur === filterFour);
+  if (filterDem) list = list.filter(d => demandeursOfDA(d.id).has(filterDem));
+  if (searchBC.trim()) list = list.filter(d => daMatchesQuery(d, searchBC));
+  selectedDA = list.length === 1 ? list[0].id : null;
+}
+
 function setFilterFour(v) {
   filterFour = v;
-  selectedDA = null;
+  autoSelectIfUnique();
   render();
 }
 function onSearchBC(v) {
   searchBC = v;
   // Sur « Articles libres », la recherche filtre les articles libres ; ailleurs, elle filtre les DA.
-  if (tab !== 'libres') {
-    // Si la recherche ne laisse qu'une seule DA, la sélectionner automatiquement
-    if (v.trim()) {
-      const matches = das.filter(d => d.statut !== 'Annulée' && !d.masque && daMatchesQuery(d, v));
-      selectedDA = matches.length === 1 ? matches[0].id : null;
-    } else {
-      selectedDA = null;
-    }
-  }
+  if (tab !== 'libres') autoSelectIfUnique();
   render();
   // Garder le focus dans le champ de recherche (render() reconstruit le DOM)
   const inp = document.getElementById('bc-search-input');
@@ -900,7 +902,7 @@ function onSearchBC(v) {
 
 function setFilterDem(v) {
   filterDem = v;
-  selectedDA = null;
+  autoSelectIfUnique();
   render();
 }
 
