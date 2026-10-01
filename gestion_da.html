@@ -38,6 +38,27 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
 .new-da-card:hover { background: #178A65; }
 .new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
+.nouvel-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #D97B3F; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(217,123,63,0.25); width: 130px; }
+.nouvel-card:hover { background: #C06A32; }
+.nouvel-card.active { box-shadow: 0 0 0 3px rgba(217,123,63,0.4); }
+.nouvel-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.nv-type-row { display: flex; gap: 8px; margin: 2px 0 16px; }
+.nv-type-btn { font-size: 13px; padding: 9px 16px; border-radius: 8px; border: 1px solid #ccc; background: none; color: inherit; cursor: pointer; font-weight: 500; }
+.nv-type-btn:hover { background: rgba(128,128,128,.12); }
+.nv-type-btn.sel { background: #D97B3F; border-color: #D97B3F; color: #fff; }
+@media (prefers-color-scheme: dark) { .nv-type-btn { border-color: #444; } }
+.nv-frais-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #888; margin: 14px 0 8px; }
+.nv-frais-row { display: grid; grid-template-columns: 1fr 130px 30px; gap: 8px; margin-bottom: 8px; align-items: center; }
+.nv-frais-row input { font-size: 13px; padding: 7px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; width: 100%; box-sizing: border-box; }
+@media (prefers-color-scheme: dark) { .nv-frais-row input { border-color: #444; } }
+.nv-frais-del { background: none; border: none; color: #E24B4A; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }
+.btn-add-frais { background: none; border: 1px dashed #378ADD; color: #378ADD; padding: 7px 13px; font-size: 12px; border-radius: 7px; cursor: pointer; margin-top: 2px; }
+.btn-add-frais:hover { background: rgba(55,138,221,0.08); }
+.seg-mvt { display: flex; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; width: fit-content; }
+@media (prefers-color-scheme: dark) { .seg-mvt { border-color: #444; } }
+.seg-mvt button { font-size: 13px; padding: 8px 14px; border: none; background: none; color: inherit; cursor: pointer; font-weight: 500; }
+.seg-mvt button.sel-sortie { background: #E24B4A; color: #fff; }
+.seg-mvt button.sel-entree { background: #1D9E75; color: #fff; }
 .new-da-title { font-size: 14px; font-weight: 600; }
 .new-da-sub { font-size: 11px; opacity: 0.85; }
 .da-item { border: 1px solid #e5e5e5; border-radius: 9px; padding: 9px 11px; cursor: pointer; }
@@ -256,6 +277,10 @@ let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
 let splitArticleId = null;  // id de l'article libre en cours de répartition partielle
 let preselectDA = null;  // id de DA à présélectionner en arrivant sur Articles libres
+let nouvelType = null;   // 'Produit' | 'Service' | 'Mouvement' | null (aucun choisi)
+let nvDraft = {};        // brouillon des champs "nv-*", survit aux rafraîchissements
+let nvFraisRows = { p: [], s: [] };   // lignes de frais dynamiques (Produit / Service)
+let nvFraisSeq = 0;
 let assignDAValue = '';  // valeur courante du select (persiste entre les re-renders)
 let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = pas encore choisie : on reprend assignDAValue)
 
@@ -387,6 +412,7 @@ function badgeClass(statut) {
 function render() {
   if (tab === 'nouvelle') { renderFrame(renderNewDAContent()); return; }
   if (tab === 'libres') { renderFrame(renderLibresContent()); return; }
+  if (tab === 'nouvel') { renderFrame(renderNouvelContent()); return; }
   renderFrame(renderListContent());
 }
 
@@ -409,6 +435,13 @@ function renderFrame(centerAndRight) {
             <div>
               <div class="new-da-title">Articles libres</div>
               <div class="new-da-sub">Assigner des articles à une DA</div>
+            </div>
+          </div>
+          <div class="nouvel-card ${tab==='nouvel'?'active':''}" onclick="setTab('nouvel')">
+            <div class="nouvel-icon">＋</div>
+            <div>
+              <div class="new-da-title">Nouvel élément</div>
+              <div class="new-da-sub">Produit, service ou mouvement</div>
             </div>
           </div>
         </div>
@@ -1278,6 +1311,282 @@ function edInline(kind, id) {
 }
 
 // ---------- DA ----------
+// =====================================================================
+// NOUVEL ÉLÉMENT : Produit / Service (article libre, comme « Articles libres »)
+// ou Mouvement (écrit dans Mouvements, hors circuit DA). Panneau indépendant
+// de edCtx, avec son propre brouillon (nvDraft) qui survit aux rafraîchissements.
+// =====================================================================
+function nvCapture(e) {
+  const t = e.target;
+  if (t && t.id && /^nv-/.test(t.id)) nvDraft[t.id] = t.value;
+}
+document.addEventListener('input', nvCapture, true);
+document.addEventListener('change', nvCapture, true);
+function nvVal(id, def) {
+  return Object.prototype.hasOwnProperty.call(nvDraft, id) ? nvDraft[id] : (def == null ? '' : def);
+}
+function nvMsg(which, text, cls) {
+  const m = document.getElementById('nv-msg-' + which);
+  if (m) { m.className = 'ed-msg ' + (cls || ''); m.textContent = text || ''; }
+}
+
+function setNouvelType(t) { nouvelType = t; render(); }
+function nvSetMvtType(t) { nvDraft['nv-m-type'] = t; render(); }
+function nvCancel() { nouvelType = null; render(); }
+
+// Ligne budgétaire groupée par contrat (optgroups), tous contrats confondus —
+// utilisée par le formulaire Mouvement, qui n'est rattaché à aucun contrat précis.
+function edLigneOptionsGrouped(selectedId) {
+  const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+  const rang = l => { const i = CAT.findIndex(c => String(l.label).includes(c)); return i < 0 ? 99 : i; };
+  const groups = {};
+  lignesList.forEach(l => {
+    const contrat = (String(l.label).split('|')[0] || '').trim();
+    if (contratsMasques.has(contrat)) return;
+    (groups[contrat] = groups[contrat] || []).push(l);
+  });
+  let html = '<option value="">— Choisir —</option>';
+  Object.keys(groups).sort((a, b) => a.localeCompare(b, 'fr')).forEach(c => {
+    html += `<optgroup label="${edEsc(c)}">`;
+    groups[c].slice().sort((a, b) => rang(a) - rang(b) || String(a.label).localeCompare(String(b.label), 'fr')).forEach(l => {
+      const sub = String(l.label).includes('|') ? String(l.label).split('|').slice(1).join('|').trim() : l.label;
+      html += `<option value="${l.id}" ${l.id === selectedId ? 'selected' : ''}>${edEsc(sub)}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  return html;
+}
+
+// ---------- Lignes de frais dynamiques (Produit / Service) ----------
+function nvAddFrais(which) { nvFraisRows[which].push(++nvFraisSeq); render(); }
+function nvDelFrais(which, rowId) {
+  nvFraisRows[which] = nvFraisRows[which].filter(id => id !== rowId);
+  delete nvDraft['nv-' + which + '-frais-type-' + rowId];
+  delete nvDraft['nv-' + which + '-frais-mont-' + rowId];
+  render();
+}
+function nvFraisRowsHtml(which) {
+  return nvFraisRows[which].map(rowId => `
+    <div class="nv-frais-row">
+      <input type="text" id="nv-${which}-frais-type-${rowId}" placeholder="Type de frais" value="${edEsc(nvVal('nv-' + which + '-frais-type-' + rowId))}">
+      <input type="number" step="any" min="0" id="nv-${which}-frais-mont-${rowId}" placeholder="Montant" value="${edEsc(nvVal('nv-' + which + '-frais-mont-' + rowId))}">
+      <button type="button" class="nv-frais-del" onclick="nvDelFrais('${which}',${rowId})">×</button>
+    </div>`).join('');
+}
+function nvFraisCollect(which) {
+  return nvFraisRows[which].map(rowId => ({
+    type: nvVal('nv-' + which + '-frais-type-' + rowId).trim(),
+    montant: parseFloat(nvVal('nv-' + which + '-frais-mont-' + rowId)),
+  })).filter(f => f.type && isFinite(f.montant));
+}
+
+// ---------- Rendu du panneau « Nouvel élément » ----------
+function renderNouvelContent() {
+  const typeBtn = (t, label) => `<button class="nv-type-btn ${nouvelType === t ? 'sel' : ''}" onclick="setNouvelType('${t}')">${label}</button>`;
+  return `
+    <div style="max-width:720px;">
+      <div class="panel-title">Nouvel élément</div>
+      <div class="nv-type-row">
+        ${typeBtn('Produit', '📦 Produit')}
+        ${typeBtn('Service', '🧾 Service')}
+        ${typeBtn('Mouvement', '↕️ Mouvement')}
+      </div>
+      ${nouvelType === 'Produit' ? nvFormProduit() : ''}
+      ${nouvelType === 'Service' ? nvFormService() : ''}
+      ${nouvelType === 'Mouvement' ? nvFormMouvement() : ''}
+    </div>`;
+}
+
+function nvFormProduit() {
+  return `
+    <div class="ed-inline" id="nv-panel-p">
+      <div class="ed-inline-title">📦 Nouveau produit (article libre, à assigner ensuite à une DA)</div>
+      <div class="ed-grid">
+        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-p-ref" value="${edEsc(nvVal('nv-p-ref'))}"></div>
+        <div class="ed-field"><label>Code GHP</label><input type="text" id="nv-p-ghp" value="${edEsc(nvVal('nv-p-ghp'))}"></div>
+        <div class="ed-field full"><label>Désignation</label><input type="text" id="nv-p-desig" value="${edEsc(nvVal('nv-p-desig'))}"></div>
+        <div class="ed-field"><label>Prix unitaire HT</label><input type="number" step="any" min="0" id="nv-p-prix" value="${edEsc(nvVal('nv-p-prix'))}"></div>
+        <div class="ed-field"><label>Quantité</label><input type="number" step="any" min="0" id="nv-p-qte" value="${edEsc(nvVal('nv-p-qte', '1'))}"></div>
+        <div class="ed-field"><label>Devise</label><select id="nv-p-devise">
+          <option value="EUR" ${nvVal('nv-p-devise', 'EUR') === 'EUR' ? 'selected' : ''}>EUR</option>
+          <option value="USD" ${nvVal('nv-p-devise', 'EUR') === 'USD' ? 'selected' : ''}>USD</option>
+        </select></div>
+        <div class="ed-field"><label>Taux (→ EUR)</label><input type="number" step="any" min="0" id="nv-p-taux" value="${edEsc(nvVal('nv-p-taux', '1'))}"></div>
+        <div class="ed-field full"><label>Demandeur(s)</label><input type="text" id="nv-p-dem" value="${edEsc(nvVal('nv-p-dem'))}">
+          <div class="ed-hint">Plusieurs : séparés par des virgules.</div></div>
+      </div>
+      <div class="nv-frais-title">Frais associés (optionnel)</div>
+      <div id="nv-frais-list-p">${nvFraisRowsHtml('p')}</div>
+      <button type="button" class="btn-add-frais" onclick="nvAddFrais('p')">+ Ajouter des frais</button>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="nv-save-p" onclick="nvSubmitProduit()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="nvCancel()">Annuler</button>
+        <span class="ed-msg" id="nv-msg-p"></span>
+      </div>
+    </div>`;
+}
+
+function nvFormService() {
+  return `
+    <div class="ed-inline" id="nv-panel-s">
+      <div class="ed-inline-title">🧾 Nouveau service (article libre, à assigner ensuite à une DA)</div>
+      <div class="ed-grid">
+        <div class="ed-field"><label>Référence fournisseur</label><input type="text" id="nv-s-ref" value="${edEsc(nvVal('nv-s-ref'))}"></div>
+        <div class="ed-field"><label>Code GHP</label><input type="text" id="nv-s-ghp" value="${edEsc(nvVal('nv-s-ghp'))}"></div>
+        <div class="ed-field full"><label>Désignation</label><input type="text" id="nv-s-desig" value="${edEsc(nvVal('nv-s-desig'))}" placeholder="Ex : Repas 6 personnes"></div>
+        <div class="ed-field"><label>Prix HT (EUR)</label><input type="number" step="any" min="0" id="nv-s-prix" value="${edEsc(nvVal('nv-s-prix'))}"></div>
+        <div class="ed-field full"><label>Demandeur(s)</label><input type="text" id="nv-s-dem" value="${edEsc(nvVal('nv-s-dem'))}">
+          <div class="ed-hint">Plusieurs : séparés par des virgules.</div></div>
+      </div>
+      <div class="nv-frais-title">Frais associés (optionnel)</div>
+      <div id="nv-frais-list-s">${nvFraisRowsHtml('s')}</div>
+      <button type="button" class="btn-add-frais" onclick="nvAddFrais('s')">+ Ajouter des frais</button>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="nv-save-s" onclick="nvSubmitService()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="nvCancel()">Annuler</button>
+        <span class="ed-msg" id="nv-msg-s"></span>
+      </div>
+    </div>`;
+}
+
+function nvFormMouvement() {
+  const today = new Date().toISOString().slice(0, 10);
+  const mType = nvVal('nv-m-type', 'Sortie') || 'Sortie';
+  const ligneSel = nvVal('nv-m-ligne') ? Number(nvVal('nv-m-ligne')) : null;
+  return `
+    <div class="ed-inline" id="nv-panel-m">
+      <div class="ed-inline-title">↕️ Nouveau mouvement (dépense ou entrée directe, hors circuit DA)</div>
+      <div class="ed-field" style="margin-bottom:12px;">
+        <label>Type de mouvement</label>
+        <div class="seg-mvt">
+          <button type="button" class="${mType === 'Sortie' ? 'sel-sortie' : ''}" onclick="nvSetMvtType('Sortie')">Sortie (dépense)</button>
+          <button type="button" class="${mType === 'Entrée' ? 'sel-entree' : ''}" onclick="nvSetMvtType('Entrée')">Entrée</button>
+        </div>
+      </div>
+      <div class="ed-grid">
+        <div class="ed-field full"><label>Ligne budgétaire</label><select id="nv-m-ligne">${edLigneOptionsGrouped(ligneSel)}</select></div>
+        <div class="ed-field"><label>Montant</label><input type="number" step="any" min="0" id="nv-m-montant" value="${edEsc(nvVal('nv-m-montant'))}"></div>
+        <div class="ed-field"><label>Date</label><input type="date" id="nv-m-date" value="${edEsc(nvVal('nv-m-date', today))}"></div>
+        <div class="ed-field full"><label>Motif</label><input type="text" id="nv-m-motif" value="${edEsc(nvVal('nv-m-motif'))}" placeholder="Ex : Repas réunion, note de frais…"></div>
+        <div class="ed-field full"><label>Fournisseur</label><input type="text" id="nv-m-fournisseur" value="${edEsc(nvVal('nv-m-fournisseur'))}"></div>
+      </div>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="nv-save-m" onclick="nvSubmitMouvement()">Enregistrer</button>
+        <button class="btn-del-cancel" onclick="nvCancel()">Annuler</button>
+        <span class="ed-msg" id="nv-msg-m"></span>
+      </div>
+    </div>`;
+}
+
+// ---------- Enregistrement ----------
+async function nvSubmitProduit() {
+  const ref = nvVal('nv-p-ref').trim();
+  const ghp = nvVal('nv-p-ghp').trim();
+  const desig = nvVal('nv-p-desig').trim();
+  const prix = parseFloat(nvVal('nv-p-prix'));
+  const qte = parseFloat(nvVal('nv-p-qte')) || 1;
+  const devise = nvVal('nv-p-devise', 'EUR') || 'EUR';
+  const taux = parseFloat(nvVal('nv-p-taux')) || 1;
+  if (!desig) { nvMsg('p', 'La désignation est obligatoire.', 'err'); return; }
+  if (!isFinite(prix) || prix < 0) { nvMsg('p', 'Le prix unitaire est obligatoire.', 'err'); return; }
+
+  const demTxt = nvVal('nv-p-dem').split(',').map(s => s.trim()).filter(Boolean);
+  const demValue = demTxt.length ? ['L', ...demTxt] : null;
+  const frais = nvFraisCollect('p');
+
+  const actions = [['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref, Code_GHP: ghp, Designation2: desig,
+    Prix_unitaire_HT: prix, Quantite: qte, Devise: devise, Taux_change: taux,
+    Taux_TVA: 0.2, Type_article: 'Produit', Demandeur: demValue,
+  }]];
+  frais.forEach(f => actions.push(['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref, Code_GHP: ghp, Designation2: f.type,
+    Prix_unitaire_HT: f.montant, Quantite: 1, Devise: devise, Taux_change: taux,
+    Taux_TVA: 0.2, Type_article: 'Frais', Demandeur: demValue,
+  }]));
+
+  const btn = document.getElementById('nv-save-p');
+  try {
+    if (btn) btn.disabled = true;
+    nvMsg('p', 'Enregistrement…', '');
+    await grist.docApi.applyUserActions(actions);
+    Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-p-')) delete nvDraft[k]; });
+    nvFraisRows.p = [];
+    await fetchAll();
+    nvMsg('p', (1 + frais.length) + ' ligne(s) enregistrée(s).', 'ok');
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    nvMsg('p', 'Erreur : ' + e.message, 'err');
+  }
+}
+
+async function nvSubmitService() {
+  const ref = nvVal('nv-s-ref').trim();
+  const ghp = nvVal('nv-s-ghp').trim();
+  const desig = nvVal('nv-s-desig').trim();
+  const prix = parseFloat(nvVal('nv-s-prix'));
+  if (!desig) { nvMsg('s', 'La désignation est obligatoire.', 'err'); return; }
+  if (!isFinite(prix) || prix < 0) { nvMsg('s', 'Le prix est obligatoire.', 'err'); return; }
+
+  const demTxt = nvVal('nv-s-dem').split(',').map(s => s.trim()).filter(Boolean);
+  const demValue = demTxt.length ? ['L', ...demTxt] : null;
+  const frais = nvFraisCollect('s');
+
+  const actions = [['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref, Code_GHP: ghp, Designation2: desig,
+    Prix_unitaire_HT: prix, Quantite: 1, Devise: 'EUR', Taux_change: 1,
+    Taux_TVA: 0.2, Type_article: 'Service', Demandeur: demValue,
+  }]];
+  frais.forEach(f => actions.push(['AddRecord', 'Commandes', null, {
+    Reference_fournisseur: ref, Code_GHP: ghp, Designation2: f.type,
+    Prix_unitaire_HT: f.montant, Quantite: 1, Devise: 'EUR', Taux_change: 1,
+    Taux_TVA: 0.2, Type_article: 'Frais', Demandeur: demValue,
+  }]));
+
+  const btn = document.getElementById('nv-save-s');
+  try {
+    if (btn) btn.disabled = true;
+    nvMsg('s', 'Enregistrement…', '');
+    await grist.docApi.applyUserActions(actions);
+    Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-s-')) delete nvDraft[k]; });
+    nvFraisRows.s = [];
+    await fetchAll();
+    nvMsg('s', (1 + frais.length) + ' ligne(s) enregistrée(s).', 'ok');
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    nvMsg('s', 'Erreur : ' + e.message, 'err');
+  }
+}
+
+async function nvSubmitMouvement() {
+  const ligneId = nvVal('nv-m-ligne');
+  const montant = parseFloat(nvVal('nv-m-montant'));
+  const dateVal = nvVal('nv-m-date');
+  const motif = nvVal('nv-m-motif').trim();
+  const fournisseur = nvVal('nv-m-fournisseur').trim();
+  const type = nvVal('nv-m-type', 'Sortie') || 'Sortie';
+
+  if (!ligneId) { nvMsg('m', 'Choisissez une ligne budgétaire.', 'err'); return; }
+  if (!isFinite(montant)) { nvMsg('m', 'Le montant est obligatoire.', 'err'); return; }
+
+  const dateG = dateVal ? Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000) : null;
+  const btn = document.getElementById('nv-save-m');
+  try {
+    if (btn) btn.disabled = true;
+    nvMsg('m', 'Enregistrement…', '');
+    await grist.docApi.applyUserActions([['AddRecord', 'Mouvements', null, {
+      Ligne_budgetaire: Number(ligneId), Type: type, Montant: montant,
+      Date: dateG, Motif: motif, Fournisseur: fournisseur,
+    }]]);
+    Object.keys(nvDraft).forEach(k => { if (k.startsWith('nv-m-')) delete nvDraft[k]; });
+    await fetchAll();
+    nvMsg('m', 'Mouvement enregistré.', 'ok');
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    nvMsg('m', 'Erreur : ' + e.message, 'err');
+  }
+}
+
 function edLigneOptions(contratId, selectedId) {
   const CAT = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
   const rang = l => { const i = CAT.findIndex(c => String(l.label).includes(c)); return i < 0 ? 99 : i; };
