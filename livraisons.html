@@ -78,6 +78,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .art-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .art-name { font-size: 13px; font-weight: 500; }
 .art-ref { font-size: 11px; color: #888; margin-top: 1px; }
+.search-hl { background: #FFE066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+@media (prefers-color-scheme: dark) { .search-hl { background: #B8960C; color: #fff; } }
 .art-dem { font-size: 11px; color: #378ADD; margin-top: 3px; font-weight: 500; }
 @media (prefers-color-scheme: dark) { .art-dem { color: #6FB0EC; } }
 .art-status { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 7px; white-space: nowrap; }
@@ -214,6 +216,16 @@ function fmtDemandeur(v) {
   return String(v);
 }
 function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+
+function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function highlightMatch(text, query) {
+  const escaped = escHtml(text || '');
+  const q = String(query || '').trim();
+  if (!q) return escaped;
+  const reQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try { return escaped.replace(new RegExp('(' + reQ + ')', 'gi'), '<mark class="search-hl">$1</mark>'); }
+  catch (e) { return escaped; }
+}
 
 function onDemChange(v) { filterDem = v; render(); }
 function onFourChange(v) { filterFour = v; render(); }
@@ -429,8 +441,8 @@ function render() {
         <div class="art ${recu ? 'recu' : ''}">
           <div class="art-top">
             <div>
-              <div class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${a.designation || '(sans nom)'}</div>
-              <div class="art-ref">${a.ref ? 'Réf: ' + a.ref + ' · ' : ''}${fmt(a.montant)}</div>
+              <div class="art-name">${a.qte > 1 ? a.qte + '× ' : ''}${highlightMatch(a.designation || '(sans nom)', searchBC)}</div>
+              <div class="art-ref">${a.ref ? 'Réf: ' + highlightMatch(a.ref, searchBC) + ' · ' : ''}${fmt(a.montant)}</div>
               ${fmtDemandeur(a.demandeur) ? `<div class="art-dem">👤 ${fmtDemandeur(a.demandeur)}</div>` : ''}
             </div>
             <span class="art-status ${recu ? 'recu' : 'attente'}">${recu ? '✓ Reçu' : 'En attente'}</span>
