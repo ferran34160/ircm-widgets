@@ -630,6 +630,17 @@ function renderDetail(d) {
         </div>
         <div class="msg" id="pgm-msg"></div>
       </div>`;
+  } else if (d.statut === 'Envoyée PGM') {
+    actionHtml = `
+      <div class="detail-action">
+        <div class="detail-action-title">Réception BC</div>
+        <div class="detail-action-row">
+          <input type="date" id="bc-date" value="${today}">
+          <input type="text" id="bc-num" placeholder="N° BC">
+          <button class="btn-pgm" onclick="receptionBC(${d.id})">Marquer « BC reçu »</button>
+        </div>
+        <div class="msg" id="bc-msg"></div>
+      </div>`;
   }
 
   // Secció de fitxers adjunts
@@ -818,6 +829,29 @@ async function envoyerPGM(id) {
     ]);
     await fetchAll();
     // Re-render del detall amb el nou estat
+    selectDA(id);
+  } catch(e) {
+    if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
+  }
+}
+
+async function receptionBC(id) {
+  const dateVal = document.getElementById('bc-date').value;
+  const numVal = document.getElementById('bc-num').value.trim();
+  const msg = document.getElementById('bc-msg');
+  let dateBC = null;
+  if (dateVal) dateBC = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
+
+  try {
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', id, {
+        Statut: 'BC reçu',
+        Date_reception_BC: dateBC,
+        Num_BC: numVal,
+      }]
+    ]);
+    await fetchAll();
+    // Re-render del detall amb el nou estat (els botons ＋ d'adjunts hi apareixeran)
     selectDA(id);
   } catch(e) {
     if (msg) { msg.className = 'msg err'; msg.textContent = 'Erreur : ' + e.message; }
