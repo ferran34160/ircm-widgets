@@ -17,11 +17,11 @@ select { font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radi
 .leg-item { display: flex; align-items: center; gap: 5px; color: #777; }
 @media (prefers-color-scheme: dark) { .leg-item { color: #aaa; } }
 .leg-dot { width: 9px; height: 9px; border-radius: 50%; }
-.leg-dot.cmd { background: #E24B4A; }
-.leg-dot.sortie { background: #D9803F; }
-.leg-dot.entree { background: #1D9E75; }
+.leg-dot.produit { background: #E24B4A; }
+.leg-dot.service { background: #E24B4A; border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.leg-dot.mouvement { background: #E24B4A; border-radius: 0; clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
 .leg-dot.transf { background: #9C6ADE; }
-.leg-dot.releve { background: #378ADD; border-radius: 2px; }
+.leg-dot.releve { background: #378ADD; border-radius: 2px; width: 11px; height: 11px; }
 .chart-wrap { position: relative; margin-top: 8px; max-width: 1900px; overflow: visible; }
 svg { width: 100%; height: auto; display: block; }
 .grid-line { stroke: rgba(0,0,0,0.07); stroke-width: 1; }
@@ -356,7 +356,10 @@ function drawChart(points, ligne, dernierReleve) {
   maxV=Math.ceil(maxV/step)*step;
   function yOf(v){ return padT + ih - ((v-minV)/(maxV-minV))*ih; }
 
-  const COLORS={ cmd:'#E24B4A', sortie:'#D9803F', entree:'#1D9E75', transf:'#9C6ADE', releve:'#378ADD', notif:'#0E8A6B', start:'#888' };
+  // Produit/Service/Mouvement partagent la même couleur rouge (ce sont les 3 types de
+  // « dépense ») ; seule la forme (et la lettre à l'intérieur) les distingue désormais.
+  const ROUGE = '#E24B4A';
+  const COLORS={ cmd:ROUGE, sortie:ROUGE, entree:ROUGE, transf:'#9C6ADE', releve:'#378ADD', notif:'#0E8A6B', start:'#888' };
 
   let d='';
   points.forEach((p,i)=>{ const x=xOf(p,i), y=yOf(p.dispo); d+=(i===0?'M':'L')+x.toFixed(1)+' '+y.toFixed(1)+' '; });
@@ -373,6 +376,11 @@ function drawChart(points, ligne, dernierReleve) {
   let zeroLine='';
   if(minV<0 && maxV>0){ const yz=yOf(0); zeroLine=`<line class="zero-line" x1="${padL}" y1="${yz.toFixed(1)}" x2="${W-padR}" y2="${yz.toFixed(1)}"/>`; }
 
+  // Petite lettre centrée dans un marqueur (P/S/M), en blanc gras.
+  function lettre(x, y, l, dy){
+    return `<text x="${x.toFixed(1)}" y="${(y+(dy||0)).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="6.5" font-weight="700" style="pointer-events:none;">${l}</text>`;
+  }
+
   let pts='';
   let releveLabels='';
   points.forEach((p,i)=>{
@@ -381,13 +389,26 @@ function drawChart(points, ligne, dernierReleve) {
     const x=xOf(p,i), y=yOf(p.dispo);
     const col=COLORS[p.type]||'#888';
     const isReleve=p.type==='releve';
+    const isMouvement = p.type==='sortie' || p.type==='entree';
     if(isReleve){
-      pts+=`<rect class="pt" x="${(x-4).toFixed(1)}" y="${(y-4).toFixed(1)}" width="8" height="8" fill="${col}" data-i="${i}"/>`;
-      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
+      // Relevé PGM : carré, plus grand que les autres marqueurs (c'est le repère principal du graphique).
+      pts+=`<rect class="pt" x="${(x-6).toFixed(1)}" y="${(y-6).toFixed(1)}" width="12" height="12" fill="${col}" data-i="${i}"/>`;
+      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-13).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
+    } else if(isMouvement){
+      // Mouvement (Sortie ou Entrée) : triangle rouge avec un « M ». Le détail (sens, motif,
+      // montant) reste consultable en cliquant sur le point.
+      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-5.2).toFixed(1)} ${(x+4.8).toFixed(1)},${(y+3.6).toFixed(1)} ${(x-4.8).toFixed(1)},${(y+3.6).toFixed(1)}" fill="${col}" data-i="${i}"/>`;
+      pts+=lettre(x, y, 'M', 1.8);
     } else if(p.serviceOnly){
-      pts+=`<rect class="pt" x="${(x-5).toFixed(1)}" y="${(y-5).toFixed(1)}" width="10" height="10" fill="${col}" data-i="${i}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+      // Service : losange rouge avec un « S » (dessiné en polygone, pas en rect tourné,
+      // pour que la lettre reste droite à l'intérieur).
+      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-4.8).toFixed(1)} ${(x+4.8).toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${(y+4.8).toFixed(1)} ${(x-4.8).toFixed(1)},${y.toFixed(1)}" fill="${col}" data-i="${i}"/>`;
+      pts+=lettre(x, y, 'S', 2.3);
     } else {
-      pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" data-i="${i}"/>`;
+      // Produit (par défaut) et les autres types (transfert, notification) : cercle.
+      const r = p.type==='cmd' ? 4.3 : 4;
+      pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${col}" data-i="${i}"/>`;
+      if(p.type==='cmd') pts+=lettre(x, y, 'P', 2.3);
     }
   });
 
@@ -443,9 +464,9 @@ function drawChart(points, ligne, dernierReleve) {
   const nbOperations = points.filter(p => p.type !== 'releve' && !p.today).length;
   const html=`
     <div class="legend">
-      <div class="leg-item"><span class="leg-dot cmd"></span>Commande</div>
-      <div class="leg-item"><span class="leg-dot sortie"></span>Sortie</div>
-      <div class="leg-item"><span class="leg-dot entree"></span>Entrée</div>
+      <div class="leg-item"><span class="leg-dot produit"></span>Produit</div>
+      <div class="leg-item"><span class="leg-dot service"></span>Service</div>
+      <div class="leg-item"><span class="leg-dot mouvement"></span>Mouvement</div>
       <div class="leg-item"><span class="leg-dot transf"></span>Transfert</div>
       <div class="leg-item"><span class="leg-dot releve"></span>Relevé PGM</div>
     </div>
