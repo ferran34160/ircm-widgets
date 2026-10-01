@@ -116,7 +116,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
     <button class="filter-btn" data-f="recu" onclick="setFilter('recu')">Reçus</button>
     <select id="dem-filter" onchange="onDemChange(this.value)"><option value="">Tous les demandeurs</option></select>
     <select id="four-filter" onchange="onFourChange(this.value)"><option value="">Tous les fournisseurs</option></select>
-    <input type="text" id="bc-search" placeholder="🔍 N° BC…" oninput="onSearchBC(this.value)" autocomplete="off">
+    <input type="text" id="bc-search" placeholder="🔍 BC, produit, réf…" oninput="onSearchBC(this.value)" autocomplete="off">
     <button class="sort-btn" id="sort-btn" onclick="toggleSort()" title="Trier par date de réception du BC"></button>
     <button class="sort-btn" id="hide-btn" onclick="toggleHideRecus()" title="Masquer les articles déjà reçus"></button>
   </div>
@@ -213,6 +213,8 @@ function fmtDemandeur(v) {
   if (Array.isArray(v)) return v.slice(1).filter(Boolean).join(', ');
   return String(v);
 }
+function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+
 function onDemChange(v) { filterDem = v; render(); }
 function onFourChange(v) { filterFour = v; render(); }
 function onSearchBC(v) {
@@ -317,14 +319,23 @@ function render() {
     const dems = Array.isArray(a.demandeur) ? a.demandeur.slice(1) : (a.demandeur ? [a.demandeur] : []);
     return dems.includes(filterDem);
   };
-  const q = searchBC.trim().toLowerCase();
-  const matchBC = (da) => !q || (da.num_bc && String(da.num_bc).toLowerCase().includes(q));
+  const q = normTxt(searchBC.trim());
+  const daSearchCache = {};
+  function daMatchesSearch(daId, da) {
+    if (!q) return true;
+    if (daSearchCache[daId] !== undefined) return daSearchCache[daId];
+    let m = !!(da && da.num_bc && normTxt(da.num_bc).includes(q));
+    if (!m) m = articles.some(x => x.demande_achat === daId && (normTxt(x.designation).includes(q) || normTxt(x.ref).includes(q)));
+    daSearchCache[daId] = m;
+    return m;
+  }
+  const matchBC = (da, daId) => daMatchesSearch(daId, da);
   const totauxDA = {};
   articles.forEach(a => {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu' || da.masque) return;
     if (filterFour && da.fournisseur !== filterFour) return;
-    if (!matchBC(da)) return;
+    if (!matchBC(da, a.demande_achat)) return;
     if (estService(a)) return;
     if (!matchDem(a)) return;
     const key = a.demande_achat || 'sans';
@@ -338,7 +349,7 @@ function render() {
     const da = dasMap[a.demande_achat];
     if (!da || da.statut !== 'BC reçu' || da.masque) return false;
     if (filterFour && da.fournisseur !== filterFour) return false;
-    if (!matchBC(da)) return false;
+    if (!matchBC(da, a.demande_achat)) return false;
     if (estService(a)) return false;
     if (!matchDem(a)) return false;
     return true;
