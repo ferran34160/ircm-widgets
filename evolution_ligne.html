@@ -396,8 +396,8 @@ function drawChart(points, ligne, dernierReleve) {
     const isMouvement = p.type==='sortie' || p.type==='entree';
     if(isReleve){
       // Relevé PGM : carré, plus grand que les autres marqueurs (c'est le repère principal du graphique).
-      pts+=`<rect class="pt" x="${(x-7).toFixed(1)}" y="${(y-7).toFixed(1)}" width="14" height="14" fill="${col}" data-i="${i}"/>`;
-      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-14).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
+      pts+=`<rect class="pt" x="${(x-6).toFixed(1)}" y="${(y-6).toFixed(1)}" width="12" height="12" rx="2.5" fill="${col}" data-i="${i}"/>`;
+      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
     } else if(isMouvement){
       // Mouvement (Sortie ou Entrée) : triangle rouge avec un « M ». Le détail (sens, motif,
       // montant) reste consultable en cliquant sur le point.
