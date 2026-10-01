@@ -679,7 +679,7 @@ function renderDetail(d) {
         <div class="detail-head-top" style="align-items:flex-start; gap:12px;">
           <div style="min-width:0;">
             <span class="detail-num" style="display:block; font-size:12.5px; margin-bottom:2px;">${d.num_da}</span>
-            <div class="detail-route" style="font-size:16px; font-weight:600; color:inherit; line-height:1.3;">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + d.num_bc : ''}</div>
+            <div class="detail-route" style="font-size:16px; font-weight:600; color:inherit; line-height:1.3;">${d.contrat || '—'} → ${d.fournisseur || '—'}${d.num_bc ? ' · BC ' + highlightMatch(d.num_bc, searchBC) : ''}</div>
             ${daCategorieHtml(d)}
             <div class="detail-dates">Créée le ${fmtDate(d.date_da)}${d.date_pgm ? ' · Envoyée PGM le ' + fmtDate(d.date_pgm) : ''}</div>
           </div>
