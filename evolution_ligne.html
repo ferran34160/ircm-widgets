@@ -13,15 +13,17 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .title-dot { width: 9px; height: 9px; border-radius: 50%; background: #378ADD; }
 select { font-size: 13px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; cursor: pointer; max-width: 280px; }
 @media (prefers-color-scheme: dark) { select { border-color: #444; } }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 11px; }
-.leg-item { display: flex; align-items: center; gap: 5px; color: #777; }
+.chart-row { display: flex; gap: 20px; align-items: flex-start; }
+@media (max-width: 760px) { .chart-row { flex-direction: column; } }
+.legend { display: flex; flex-direction: column; gap: 12px; flex: none; width: 150px; font-size: 13px; margin: 10px 0 4px; }
+.leg-item { display: flex; align-items: center; gap: 8px; color: #777; }
 @media (prefers-color-scheme: dark) { .leg-item { color: #aaa; } }
-.leg-dot { width: 9px; height: 9px; border-radius: 50%; }
+.leg-dot { width: 13px; height: 13px; border-radius: 50%; flex: none; }
 .leg-dot.produit { background: #E24B4A; }
 .leg-dot.service { background: #E24B4A; border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
 .leg-dot.mouvement { background: #E24B4A; border-radius: 0; clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
 .leg-dot.transf { background: #9C6ADE; }
-.leg-dot.releve { background: #378ADD; border-radius: 2px; width: 11px; height: 11px; }
+.leg-dot.releve { background: #378ADD; border-radius: 3px; width: 16px; height: 16px; }
 .chart-wrap { position: relative; margin-top: 8px; max-width: 1900px; overflow: visible; }
 svg { width: 100%; height: auto; display: block; }
 .grid-line { stroke: rgba(0,0,0,0.07); stroke-width: 1; }
@@ -38,7 +40,9 @@ svg { width: 100%; height: auto; display: block; }
 .tooltip .tt-date { color: #bbb; font-size: 10px; }
 .tooltip .tt-svc { background: #F0EAFB; color: #5E3A9E; font-size: 9px; padding: 1px 5px; border-radius: 5px; font-weight: 600; }
 .dp-svc { background: #F0EAFB; color: #5E3A9E; font-size: 10px; padding: 1px 6px; border-radius: 5px; font-weight: 600; margin-left: 4px; }
+.dp-prod { background: #FBEAEA; color: #9E3A3A; font-size: 10px; padding: 1px 6px; border-radius: 5px; font-weight: 600; margin-left: 4px; }
 @media (prefers-color-scheme: dark) { .tooltip .tt-svc, .dp-svc { background: #2A1F3D; color: #C4A6EC; } }
+@media (prefers-color-scheme: dark) { .dp-prod { background: #3D2222; color: #E8A6A6; } }
 .tooltip .tt-amount { font-variant-numeric: tabular-nums; }
 .empty { text-align: center; padding: 40px; color: #aaa; }
 .detail-panel { max-width: 760px; margin-top: 16px; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; background: #fafaf8; display: none; }
@@ -377,8 +381,8 @@ function drawChart(points, ligne, dernierReleve) {
   if(minV<0 && maxV>0){ const yz=yOf(0); zeroLine=`<line class="zero-line" x1="${padL}" y1="${yz.toFixed(1)}" x2="${W-padR}" y2="${yz.toFixed(1)}"/>`; }
 
   // Petite lettre centrée dans un marqueur (P/S/M), en blanc gras.
-  function lettre(x, y, l, dy){
-    return `<text x="${x.toFixed(1)}" y="${(y+(dy||0)).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="6.5" font-weight="700" style="pointer-events:none;">${l}</text>`;
+  function lettre(x, y, l, dy, fs){
+    return `<text x="${x.toFixed(1)}" y="${(y+(dy||0)).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="${fs||7}" font-weight="700" style="pointer-events:none;">${l}</text>`;
   }
 
   let pts='';
@@ -392,23 +396,25 @@ function drawChart(points, ligne, dernierReleve) {
     const isMouvement = p.type==='sortie' || p.type==='entree';
     if(isReleve){
       // Relevé PGM : carré, plus grand que les autres marqueurs (c'est le repère principal du graphique).
-      pts+=`<rect class="pt" x="${(x-6).toFixed(1)}" y="${(y-6).toFixed(1)}" width="12" height="12" fill="${col}" data-i="${i}"/>`;
-      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-13).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
+      pts+=`<rect class="pt" x="${(x-7).toFixed(1)}" y="${(y-7).toFixed(1)}" width="14" height="14" fill="${col}" data-i="${i}"/>`;
+      releveLabels+=`<text x="${x.toFixed(1)}" y="${(y-14).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="11" font-weight="600">${fmt(p.dispo)}</text>`;
     } else if(isMouvement){
       // Mouvement (Sortie ou Entrée) : triangle rouge avec un « M ». Le détail (sens, motif,
       // montant) reste consultable en cliquant sur le point.
-      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-5.2).toFixed(1)} ${(x+4.8).toFixed(1)},${(y+3.6).toFixed(1)} ${(x-4.8).toFixed(1)},${(y+3.6).toFixed(1)}" fill="${col}" data-i="${i}"/>`;
-      pts+=lettre(x, y, 'M', 1.8);
+      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-6.2).toFixed(1)} ${(x+5.7).toFixed(1)},${(y+4.3).toFixed(1)} ${(x-5.7).toFixed(1)},${(y+4.3).toFixed(1)}" fill="${col}" data-i="${i}"/>`;
+      pts+=lettre(x, y, 'M', 2.1, 7.5);
     } else if(p.serviceOnly){
       // Service : losange rouge avec un « S » (dessiné en polygone, pas en rect tourné,
       // pour que la lettre reste droite à l'intérieur).
-      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-4.8).toFixed(1)} ${(x+4.8).toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${(y+4.8).toFixed(1)} ${(x-4.8).toFixed(1)},${y.toFixed(1)}" fill="${col}" data-i="${i}"/>`;
-      pts+=lettre(x, y, 'S', 2.3);
+      pts+=`<polygon class="pt" points="${x.toFixed(1)},${(y-5.7).toFixed(1)} ${(x+5.7).toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${(y+5.7).toFixed(1)} ${(x-5.7).toFixed(1)},${y.toFixed(1)}" fill="${col}" data-i="${i}"/>`;
+      pts+=lettre(x, y, 'S', 2.7, 7.5);
     } else {
-      // Produit (par défaut) et les autres types (transfert, notification) : cercle.
-      const r = p.type==='cmd' ? 4.3 : 4;
+      // Produit (par défaut) : cercle rouge avec un « P ». Transfert : cercle violet avec un « T ».
+      // Notification : cercle, sans lettre (pas demandé).
+      const r = (p.type==='cmd' || p.type==='transf') ? 5.2 : 4.5;
       pts+=`<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${col}" data-i="${i}"/>`;
-      if(p.type==='cmd') pts+=lettre(x, y, 'P', 2.3);
+      if(p.type==='cmd') pts+=lettre(x, y, 'P', 2.7, 7.5);
+      if(p.type==='transf') pts+=lettre(x, y, 'T', 2.7, 7.5);
     }
   });
 
@@ -463,14 +469,16 @@ function drawChart(points, ligne, dernierReleve) {
   const sub=ligne.label.includes('|')?ligne.label.split('|').slice(1).join('|').trim():ligne.label;
   const nbOperations = points.filter(p => p.type !== 'releve' && !p.today).length;
   const html=`
-    <div class="legend">
-      <div class="leg-item"><span class="leg-dot produit"></span>Produit</div>
-      <div class="leg-item"><span class="leg-dot service"></span>Service</div>
-      <div class="leg-item"><span class="leg-dot mouvement"></span>Mouvement</div>
-      <div class="leg-item"><span class="leg-dot transf"></span>Transfert</div>
-      <div class="leg-item"><span class="leg-dot releve"></span>Relevé PGM</div>
+    <div class="chart-row">
+      <div class="chart-wrap">${svg}</div>
+      <div class="legend">
+        <div class="leg-item"><span class="leg-dot produit"></span>Produit</div>
+        <div class="leg-item"><span class="leg-dot service"></span>Service</div>
+        <div class="leg-item"><span class="leg-dot mouvement"></span>Mouvement</div>
+        <div class="leg-item"><span class="leg-dot transf"></span>Transfert</div>
+        <div class="leg-item"><span class="leg-dot releve"></span>Relevé PGM</div>
+      </div>
     </div>
-    <div class="chart-wrap">${svg}</div>
     <div class="summary">
       <div class="sum">Dernier relevé<b>${dernierReleve ? fmtDate(dernierReleve.date) : '—'}</b></div>
       <div class="sum">Montant relevé<b>${dernierReleve ? fmt(dernierReleve.officiel) : '—'}</b></div>
@@ -528,7 +536,7 @@ function showDetail(p) {
 
   let title='', body='';
   if(d.kind==='cmd'){
-    title=(d.num_da||'Commande') + (d.serviceOnly ? ' <span class="dp-svc">Service</span>' : '') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
+    title=(d.num_da||'Commande') + (d.serviceOnly ? ' <span class="dp-svc">Service</span>' : ' <span class="dp-prod">Produit</span>') + (d.fournisseur ? ` <span class="dp-four">${d.fournisseur.replace(/</g,'&lt;')}</span>` : '');
     body='';
     if(d.num_bc) body+=`<div class="dp-info" style="margin-bottom:8px;"><b>BC :</b> ${String(d.num_bc).replace(/</g,'&lt;')}</div>`;
     body+=d.articles.map(a=>{
@@ -537,7 +545,7 @@ function showDetail(p) {
     }).join('');
     body+=`<div class="dp-total"><span>Total</span><span>${fmt(d.total)}</span></div>`;
   } else if(d.kind==='mvt'){
-    title=d.type;
+    title = 'Mouvement ' + (d.type === 'Entrée' ? "d'Entrée" : 'de Sortie');
     body=`<div class="dp-info">`;
     if(d.motif) body+=`<b>Motif :</b> ${d.motif.replace(/</g,'&lt;')}<br>`;
     if(d.fournisseur) body+=`<b>Fournisseur :</b> ${d.fournisseur.replace(/</g,'&lt;')}<br>`;
