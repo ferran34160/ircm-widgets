@@ -285,7 +285,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <div id="container"><div class="loading">Chargement…</div></div>
 
 <script>
-let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
+let das = [], commandes = [], commandesByDA = new Map(), contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 let contratsList = [], fournisseursList = [], lignesList = [];
 let tab = 'toutes', selectedDA = null, selectedArts = new Set(), filterFour = '', filterDem = '', searchBC = '';
 let splitArticleId = null;  // id de l'article libre en cours de répartition partielle
@@ -380,6 +380,15 @@ async function fetchAll() {
       statut_livr:(c.Statut_livraison||[])[i]||'', date_livr:(c.Date_livraison||[])[i],
     }));
 
+    // Index commandes par DA : artsOf() devient une simple consultation (O(1)) au lieu
+    // de reparcourir toute la table à chaque appel (ça devenait lent avec beaucoup de DA).
+    commandesByDA = new Map();
+    commandes.forEach(a => {
+      if (a.demande_achat == null) return;
+      if (!commandesByDA.has(a.demande_achat)) commandesByDA.set(a.demande_achat, []);
+      commandesByDA.get(a.demande_achat).push(a);
+    });
+
     render();
   } catch(e) {
     document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
@@ -412,7 +421,7 @@ function choixList(v) {
   return [String(v)];
 }
 
-function artsOf(daId) { return commandes.filter(c => c.demande_achat === daId); }
+function artsOf(daId) { return commandesByDA.get(daId) || []; }
 function totalOf(daId) { return artsOf(daId).reduce((s,a)=>s+a.montant,0); }
 function nbProduits(daId) { return artsOf(daId).filter(a=>a.type_article!=='Service' && a.type_article!=='Frais').length; }
 
