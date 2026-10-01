@@ -15,8 +15,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .bc-search input { font-size: 12px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 7px; background: inherit; color: inherit; width: 200px; }
 .bc-search input:focus { outline: none; border-color: #378ADD; }
 @media (prefers-color-scheme: dark) { .bc-search input { border-color: #444; } }
-.libres-card { --accent: #9C6ADE; }
-.libres-icon { font-size: 24px; }
+.libres-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #9C6ADE; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(156,106,222,0.25); width: 130px; }
+.libres-card:hover { background: #875BC8; }
+.libres-card.active { box-shadow: 0 0 0 3px rgba(156,106,222,0.4); }
+.libres-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
 @media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
 .spacer { flex: 1; }
 .btn-new { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 8px; border: none; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(29,158,117,0.3); }
@@ -33,25 +35,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .four-filter { flex: 1; min-width: 0; font-size: 12px; padding: 6px 9px; border-radius: 7px; border: 1px solid #ccc; background: inherit; color: inherit; }
 @media (prefers-color-scheme: dark) { .four-filter { border-color: #444; } }
 .da-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
-.new-da-card { --accent: #1D9E75; }
-.new-da-icon { font-size: 28px; font-weight: 300; }
-.nouvel-card { --accent: #D97B3F; }
-.nouvel-icon { font-size: 22px; }
-
-/* Les 3 cartes partagent le même style : fond blanc, icône et titre dans la couleur
-   d'accent de chacune (définie via --accent ci-dessus), pour rester cohérent avec
-   la nouvelle esthétique (fond neutre + couleur en accent, pas en aplat). */
-.new-da-card, .libres-card, .nouvel-card {
-  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
-  padding: 18px 16px; border-radius: 12px; width: 130px; cursor: pointer;
-  background: #fff; border: 1px solid #e5e5e5; border-top: 3px solid var(--accent);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05); color: inherit;
-}
-@media (prefers-color-scheme: dark) { .new-da-card, .libres-card, .nouvel-card { background: #202020; border-color: #353535; border-top-color: var(--accent); } }
-.new-da-card:hover, .libres-card:hover, .nouvel-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.libres-card.active, .nouvel-card.active { box-shadow: 0 0 0 2px var(--accent); }
-.new-da-icon, .libres-icon, .nouvel-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; }
-.new-da-title { color: var(--accent); font-weight: 700; }
+.new-da-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #1D9E75; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(29,158,117,0.25); width: 130px; }
+.new-da-card:hover { background: #178A65; }
+.new-da-card.active { box-shadow: 0 0 0 3px rgba(29,158,117,0.4); }
+.new-da-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 300; }
+.nouvel-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 16px; border-radius: 12px; background: #D97B3F; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(217,123,63,0.25); width: 130px; }
+.nouvel-card:hover { background: #C06A32; }
+.nouvel-card.active { box-shadow: 0 0 0 3px rgba(217,123,63,0.4); }
+.nouvel-icon { width: 44px; height: 44px; border-radius: 11px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .nv-type-row { display: flex; gap: 8px; margin: 2px 0 16px; }
 .nv-type-btn { font-size: 13px; padding: 9px 16px; border-radius: 8px; border: 1px solid #ccc; background: none; color: inherit; cursor: pointer; font-weight: 500; }
 .nv-type-btn:hover { background: rgba(128,128,128,.12); }
@@ -254,7 +245,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 12px; }
 .ed-field.full { grid-column: 1 / -1; }
 .ed-field label { font-size: 10.5px; color: #999; text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 4px; }
-.ed-field input, .ed-field select { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: inherit; color: inherit; font-family: inherit; }
+.ed-field input, .ed-field select { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; color: inherit; font-family: inherit; }
+@media (prefers-color-scheme: dark) { .ed-field input, .ed-field select { background: #2a2a2a; }}
 @media (prefers-color-scheme: dark) { .ed-field input, .ed-field select { border-color: #444; } }
 .ed-hint { font-size: 11px; color: #999; margin-top: 3px; }
 .ed-inline-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
@@ -445,7 +437,7 @@ function renderFrame(centerAndRight) {
     <div class="layout">
       <div class="panel">
         <div class="cards-row">
-          <div class="new-da-card" onclick="openNewDA()">
+          <div class="new-da-card ${tab==='nouvelle'?'active':''}" onclick="openNewDA()">
             <div class="new-da-icon">+</div>
             <div>
               <div class="new-da-title">Nouvelle DA</div>
@@ -934,12 +926,14 @@ function renderLibresContent() {
 
   const newDAOuvert = !!(edCtx && edCtx.kind === 'newda');
   const destUiHtml = newDAOuvert ? '' : `
-      <div class="assign-da-label">Choisir la DA de destination :</div>
-      <select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()">${options}</select>
+    <div class="ed-inline">
+      <div class="ed-inline-title">Choisir la DA de destination</div>
+      <div class="ed-field full"><select class="assign-da-select" id="assign-da" onchange="onAssignDAChange()" style="margin-bottom:0;">${options}</select></div>
       <div id="assign-dispo">${dispoInfoHtml(assignDAValue, sommeSel, 'À ajouter (sélection)')}</div>
       <button class="btn-assign" id="btn-assign" ${selectedArts.size===0 ? 'disabled' : ''} onclick="assignArticles()">Assigner</button>
       <button class="btn-assign-alt" id="btn-newda" ${selectedArts.size===0 ? 'disabled' : ''} onclick="openEdit('newda',0)">＋ Créer une DA avec la sélection</button>
-      <div class="msg" id="msg"></div>`;
+      <div class="msg" id="msg"></div>
+    </div>`;
   const bulkHtml = splitArticleId !== null ? '' : `
       ${sommeSelHtml}
       ${destUiHtml}
@@ -1177,32 +1171,19 @@ function renderNewDAContent() {
   return `
     <div style="max-width:380px;">
       <div class="panel-title">Nouvelle demande d'achat</div>
-      <div style="border:1px solid #e5e5e5; border-radius:11px; padding:16px;">
-        <div style="margin-bottom:12px;">
-          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">N° DA</label>
-          <input type="text" class="assign-da-select" id="new-num" style="margin-bottom:0;" value="${nextNumDA()}">
+      <div class="ed-inline">
+        <div class="ed-grid">
+          <div class="ed-field full"><label>N° DA</label><input type="text" id="new-num" value="${nextNumDA()}"></div>
+          <div class="ed-field full"><label>Contrat</label><select id="new-contrat" onchange="onNewContratChange()">${contratsOpts}</select></div>
+          <div class="ed-field full"><label>Ligne budgétaire</label><select id="new-ligne" disabled><option value="">— Choisir d'abord un contrat —</option></select></div>
+          <div class="ed-field full"><label>Fournisseur</label><select id="new-four">${fourOpts}</select></div>
+          <div class="ed-field full"><label>Date DA</label><input type="date" id="new-date" value="${today}"></div>
         </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Contrat</label>
-          <select class="assign-da-select" id="new-contrat" style="margin-bottom:0;" onchange="onNewContratChange()">${contratsOpts}</select>
+        <div class="ed-inline-row">
+          <button class="ed-save" onclick="createDA()">Créer la DA</button>
+          <button class="btn-del-cancel" onclick="setTab('toutes')">Annuler</button>
+          <span class="msg" id="new-msg"></span>
         </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Ligne budgétaire</label>
-          <select class="assign-da-select" id="new-ligne" style="margin-bottom:0;" disabled><option value="">— Choisir d'abord un contrat —</option></select>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Fournisseur</label>
-          <select class="assign-da-select" id="new-four" style="margin-bottom:0;">${fourOpts}</select>
-        </div>
-        <div style="margin-bottom:16px;">
-          <label style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;">Date DA</label>
-          <input type="date" class="assign-da-select" id="new-date" style="margin-bottom:0;" value="${today}">
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button class="btn-assign" style="margin-top:0;" onclick="createDA()">Créer la DA</button>
-          <button class="tab" onclick="setTab('toutes')">Annuler</button>
-        </div>
-        <div class="msg" id="new-msg"></div>
       </div>
     </div>`;
 }
