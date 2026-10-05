@@ -55,6 +55,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .nv-frais-del { background: none; border: none; color: #E24B4A; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }
 .btn-add-frais { background: none; border: 1px dashed #378ADD; color: #378ADD; padding: 7px 13px; font-size: 12px; border-radius: 7px; cursor: pointer; margin-top: 2px; }
 .btn-add-frais:hover { background: rgba(55,138,221,0.08); }
+.detail-addline { padding: 2px 13px 12px; }
 .seg-mvt { display: flex; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; width: fit-content; }
 @media (prefers-color-scheme: dark) { .seg-mvt { border-color: #444; } }
 .seg-mvt button { font-size: 13px; padding: 8px 14px; border: none; background: none; color: inherit; cursor: pointer; font-weight: 500; }
@@ -697,6 +698,10 @@ function renderDetail(d) {
       </div>
       ${edInline('da', d.id)}
       <div class="detail-arts">${artsHtml}</div>
+      ${d.statut !== 'Annulée' ? `<div class="detail-addline">
+        ${edCtx && edCtx.kind === 'addline' && edCtx.id === d.id ? '' : `<button type="button" class="btn-add-frais" onclick="openEdit('addline',${d.id})">＋ Ajouter une ligne (frais, service…)</button>`}
+        ${edInline('addline', d.id)}
+      </div>` : ''}
       <div class="detail-foot">
         <span style="color:#888">${footLabel}</span>
         <span class="detail-total">${fmt(total)}</span>
@@ -1346,6 +1351,7 @@ async function openEdit(kind, id) {
     else if (kind === 'del') edOpenDelete(id);
     else if (kind === 'newda') edOpenNewDA();
     else if (kind === 'merge') edOpenMerge(id);
+    else if (kind === 'addline') edOpenAddLine(id);
     else await edOpenCom(id);
   } catch (e) {
     alert('Erreur : ' + e.message);
@@ -1799,6 +1805,7 @@ function edPanelHtml() {
   const c = edCtx, o = c.orig;
   if (c.kind === 'newda') return edNewDAHtml();
   if (c.kind === 'merge') return edMergeHtml();
+  if (c.kind === 'addline') return edAddLineHtml();
 
   if (c.kind === 'del') {
     const a = commandes.find(x => x.id === c.id);
@@ -1915,6 +1922,85 @@ async function edSaveCom() {
     f.Demandeur = demTxt.length ? (o.demIsList ? ['L', ...demTxt] : demTxt.join(', ')) : null;
   }
   return { table: 'Commandes', fields: f };
+}
+
+// ---------- Ajouter une ligne à une DA existante (ex. frais de gestion ajoutés par le fournisseur) ----------
+function edOpenAddLine(daId) {
+  if (!das.find(x => x.id === daId)) throw new Error('DA introuvable.');
+  edCtx = { kind: 'addline', id: daId, orig: null, draft: {} };
+  edRefresh();
+}
+
+function edAddLineHtml() {
+  const da = das.find(x => x.id === edCtx.id);
+  if (!da) return '';
+  const arts = artsOf(da.id);
+  // Article « parent » par défaut : le premier qui n'est pas déjà un frais
+  const defParent = (arts.find(a => a.type_article !== 'Frais') || arts[0] || {}).id || '';
+  const pVal = String(edDv('ed-al-parent', defParent));
+  const tVal = edDv('ed-al-type', 'Frais');
+  const typeOpts = ['Frais', 'Service', 'Produit'].map(t => `<option value="${t}" ${t === tVal ? 'selected' : ''}>${t}</option>`).join('');
+  const parentOpts = '<option value="">— Aucun (sans référence, en EUR) —</option>' + arts.map(a =>
+    `<option value="${a.id}" ${String(a.id) === pVal ? 'selected' : ''}>${edEsc((a.qte > 1 ? a.qte + '× ' : '') + (a.designation || '(sans nom)') + (a.ref ? ' [' + a.ref + ']' : ''))}</option>`).join('');
+  const warn = da.statut !== 'En cours'
+    ? `<div class="ed-warn">⚠ Cette DA est « ${edEsc(da.statut)} » : ajouter une ligne modifiera le disponible calculé du contrat.</div>` : '';
+  return `
+    <div class="ed-inline" id="ed-panel">
+      <div class="ed-inline-title">＋ Ajouter une ligne à ${edEsc(da.num_da)}</div>
+      ${warn}
+      <div class="ed-grid">
+        <div class="ed-field"><label>Type</label><select id="ed-al-type">${typeOpts}</select></div>
+        <div class="ed-field full"><label>Désignation</label><input type="text" id="ed-al-desig" value="${edEsc(edDv('ed-al-desig', ''))}" placeholder="Ex : Frais de gestion"></div>
+        <div class="ed-field"><label>Prix unitaire HT</label><input type="number" step="any" min="0" id="ed-al-prix" value="${edEsc(edDv('ed-al-prix', ''))}"></div>
+        <div class="ed-field"><label>Quantité</label><input type="number" step="any" min="0" id="ed-al-qte" value="${edEsc(edDv('ed-al-qte', '1'))}"></div>
+        <div class="ed-field full"><label>Associée à (réf., code GHP, devise et demandeur hérités)</label><select id="ed-al-parent">${parentOpts}</select></div>
+      </div>
+      <div class="ed-inline-row">
+        <button class="ed-save" id="ed-save" onclick="edSaveAddLine()">Ajouter</button>
+        <button class="btn-del-cancel" onclick="edClose()">Annuler</button>
+        <span class="ed-msg" id="ed-msg"></span>
+      </div>
+    </div>`;
+}
+
+async function edSaveAddLine() {
+  if (!edCtx || edCtx.kind !== 'addline') return;
+  const btn = document.getElementById('ed-save');
+  const daId = edCtx.id;
+  const type = edVal('ed-al-type') || 'Frais';
+  const desig = edVal('ed-al-desig').trim();
+  const prix = parseFloat(edVal('ed-al-prix'));
+  const qte = parseFloat(edVal('ed-al-qte'));
+  if (!desig) { edMsg('La désignation est obligatoire.', 'err'); return; }
+  if (!isFinite(prix) || prix < 0) { edMsg('Le prix est obligatoire.', 'err'); return; }
+  if (!isFinite(qte) || qte <= 0) { edMsg('Quantité invalide.', 'err'); return; }
+
+  // L'article choisi (s'il y en a un) fournit référence, code GHP, devise, taux et demandeur
+  const parentId = edVal('ed-al-parent') ? Number(edVal('ed-al-parent')) : null;
+  const parent = parentId ? commandes.find(a => a.id === parentId) : null;
+  const fields = {
+    Demande_achat: daId,
+    Reference_fournisseur: parent ? parent.ref : '',
+    Code_GHP: parent ? parent.code_ghp : '',
+    Designation2: desig,
+    Prix_unitaire_HT: prix,
+    Quantite: qte,
+    Devise: parent ? (parent.devise || 'EUR') : 'EUR',
+    Taux_change: parent ? (parent.taux || 1) : 1,
+    Taux_TVA: parent && typeof parent.tva === 'number' ? parent.tva : 0.2,
+    Type_article: type,
+    Demandeur: parent ? (parent.demandeur || null) : null,
+  };
+  try {
+    if (btn) btn.disabled = true;
+    edMsg('Enregistrement…', '');
+    await grist.docApi.applyUserActions([['AddRecord', 'Commandes', null, fields]]);
+    edCtx = null;
+    await fetchAll();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    edMsg('Erreur : ' + e.message, 'err');
+  }
 }
 
 async function edSave() {
