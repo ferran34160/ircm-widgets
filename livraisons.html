@@ -104,10 +104,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
 @media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
 .btn-edit { font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 6px; cursor: pointer; padding: 5px 12px; margin-top: 8px; }
-.art-comment-wrap { margin-top: 8px; }
+.btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.btn-row .btn-edit, .btn-row .btn-comm { margin-top: 0; }
+.art-comment-wrap { margin-top: 6px; }
 .art-comment { cursor: pointer; }
 .comm-edit { opacity: .5; font-style: normal; margin-left: 4px; }
-.btn-comm { font-size: 12px; color: #C2410C; background: none; border: 1px dashed #C2410C; border-radius: 6px; cursor: pointer; padding: 3px 10px; }
+.btn-comm { font-size: 12px; color: #C2410C; background: none; border: 1px solid #C2410C; border-radius: 6px; cursor: pointer; padding: 5px 12px; }
 .btn-comm:hover { background: rgba(194,65,12,.1); }
 .comm-form { display: none; gap: 6px; margin-top: 6px; align-items: center; }
 .comm-form.open { display: flex; }
@@ -465,11 +467,12 @@ function render() {
             ${a.recu_par ? `<span><b>Reçu par:</b> ${a.recu_par}</span>` : ''}
             ${a.notes ? `<span><b>Notes:</b> ${a.notes}</span>` : ''}
           </div>` : ''}
-          <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
+          <div class="btn-row">
+            <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
+            <button class="btn-comm" onclick="toggleComm(${a.id})">${a.commentaire ? '✎ Commentaire' : '＋ Commentaire'}</button>
+          </div>
           <div class="art-comment-wrap">
-            ${a.commentaire
-              ? `<div class="art-comment" title="Cliquer pour modifier" onclick="toggleComm(${a.id})">💬 ${escHtml(a.commentaire)} <span class="comm-edit">✎</span></div>`
-              : `<button class="btn-comm" onclick="toggleComm(${a.id})">＋ Commentaire</button>`}
+            ${a.commentaire ? `<div class="art-comment" title="Cliquer pour modifier" onclick="toggleComm(${a.id})">💬 ${escHtml(a.commentaire)}</div>` : ''}
             <div class="comm-form" id="commform-${a.id}">
               <input type="text" id="comm-${a.id}" value="${escHtml(a.commentaire)}" placeholder="Ex. livraison prévue le 20/10 selon le site du fournisseur…" onkeydown="if(event.key==='Enter')saveComm(${a.id});if(event.key==='Escape')toggleComm(${a.id})">
               <button class="btn btn-save" onclick="saveComm(${a.id})">OK</button>
