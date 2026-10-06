@@ -104,8 +104,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
 @media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
 .btn-edit { font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 6px; cursor: pointer; padding: 5px 12px; margin-top: 8px; }
-@keyframes blink-alert { 0%,100% { opacity: 1; } 50% { opacity: .15; } }
-.blink-alert { animation: blink-alert 1.1s ease-in-out infinite; font-style: normal; }
+@keyframes blink-alert { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+.blink-alert { animation: blink-alert 1s ease-in-out infinite; font-style: normal; }
 @media (prefers-reduced-motion: reduce) { .blink-alert { animation: none; } }
 .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .btn-row .btn-edit, .btn-row .btn-comm { margin-top: 0; }
@@ -470,12 +470,12 @@ function render() {
             ${a.recu_par ? `<span><b>Reçu par:</b> ${a.recu_par}</span>` : ''}
             ${a.notes ? `<span><b>Notes:</b> ${a.notes}</span>` : ''}
           </div>` : ''}
+          ${a.commentaire ? `<div class="art-comment${recu ? '' : ' blink-alert'}" style="margin-top:8px" title="Cliquer pour modifier" onclick="toggleComm(${a.id})">💬 ${escHtml(a.commentaire)}</div>` : ''}
           <div class="btn-row">
             <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
             <button class="btn-comm" onclick="toggleComm(${a.id})">${a.commentaire ? '✎ Commentaire' : '＋ Commentaire'}</button>
           </div>
           <div class="art-comment-wrap">
-            ${a.commentaire ? `<div class="art-comment" title="Cliquer pour modifier" onclick="toggleComm(${a.id})">💬 ${escHtml(a.commentaire)}${recu ? '' : ' <span class="blink-alert">❗</span>'}</div>` : ''}
             <div class="comm-form" id="commform-${a.id}">
               <input type="text" id="comm-${a.id}" value="${escHtml(a.commentaire)}" placeholder="Ex. livraison prévue le 20/10 selon le site du fournisseur…" onkeydown="if(event.key==='Enter')saveComm(${a.id});if(event.key==='Escape')toggleComm(${a.id})">
               <button class="btn btn-save" onclick="saveComm(${a.id})">OK</button>
