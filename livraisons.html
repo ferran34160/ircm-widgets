@@ -221,6 +221,7 @@ async function fetchAll() {
 }
 
 function setFilter(f) {
+  if (f !== filter) sortAsc = (f === 'attente');  // Reçus et Tous: més recents primer (el botó d'ordre continua funcionant)
   filter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f));
   render();
