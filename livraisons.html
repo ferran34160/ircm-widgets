@@ -104,7 +104,15 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
 @media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
 .btn-edit { font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 6px; cursor: pointer; padding: 5px 12px; margin-top: 8px; }
-.art-comment { margin-top: 8px; font-size: 12.5px; font-style: italic; color: #C2410C; font-weight: 500; }
+.art-comment-wrap { margin-top: 8px; }
+.art-comment { cursor: pointer; }
+.comm-edit { opacity: .5; font-style: normal; margin-left: 4px; }
+.btn-comm { font-size: 12px; color: #C2410C; background: none; border: 1px dashed #C2410C; border-radius: 6px; cursor: pointer; padding: 3px 10px; }
+.btn-comm:hover { background: rgba(194,65,12,.1); }
+.comm-form { display: none; gap: 6px; margin-top: 6px; align-items: center; }
+.comm-form.open { display: flex; }
+.comm-form input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; background: #fff; color: #1a1a1a; }
+.art-comment { margin-top: 0; font-size: 12.5px; font-style: italic; color: #C2410C; font-weight: 500; }
 @media (prefers-color-scheme: dark) { .art-comment { color: #FB923C; } }
 .btn-edit:hover { background: #378ADD; color: #fff; }
 .empty { text-align: center; padding: 30px; color: #aaa; }
@@ -458,7 +466,16 @@ function render() {
             ${a.notes ? `<span><b>Notes:</b> ${a.notes}</span>` : ''}
           </div>` : ''}
           <button class="btn-edit" onclick="toggleForm(${a.id})">${recu ? 'Modifier' : 'Enregistrer la livraison'}</button>
-          ${a.commentaire ? `<div class="art-comment">💬 ${escHtml(a.commentaire)}</div>` : ''}
+          <div class="art-comment-wrap">
+            ${a.commentaire
+              ? `<div class="art-comment" title="Cliquer pour modifier" onclick="toggleComm(${a.id})">💬 ${escHtml(a.commentaire)} <span class="comm-edit">✎</span></div>`
+              : `<button class="btn-comm" onclick="toggleComm(${a.id})">＋ Commentaire</button>`}
+            <div class="comm-form" id="commform-${a.id}">
+              <input type="text" id="comm-${a.id}" value="${escHtml(a.commentaire)}" placeholder="Ex. livraison prévue le 20/10 selon le site du fournisseur…" onkeydown="if(event.key==='Enter')saveComm(${a.id});if(event.key==='Escape')toggleComm(${a.id})">
+              <button class="btn btn-save" onclick="saveComm(${a.id})">OK</button>
+              <button class="btn btn-cancel" onclick="toggleComm(${a.id})">Annuler</button>
+            </div>
+          </div>
           <div class="form" id="form-${a.id}">
             <div class="form-row">
               <div class="form-field"><label>Date livraison</label><input type="date" id="date-${a.id}" value="${dateInput(a.date_livraison) || new Date().toISOString().slice(0,10)}"></div>
@@ -468,7 +485,6 @@ function render() {
               <div class="form-field"><label>Reçu par</label><input type="text" id="recu-${a.id}" value="${a.recu_par.replace(/"/g,'&quot;')}"></div>
               <div class="form-field"><label>Notes</label><input type="text" id="notes-${a.id}" value="${a.notes.replace(/"/g,'&quot;')}"></div>
             </div>
-            <div class="form-row"><div class="form-field" style="grid-column:1/-1"><label>Commentaire (ex. date prévue sur le site du fournisseur)</label><input type="text" id="comm-${a.id}" value="${escHtml(a.commentaire)}" placeholder="Retard, nouvelle date prévue…"></div></div>
             <label class="mail-check"><input type="checkbox" id="mail-${a.id}"> ✉ Prévenir par e-mail</label>
             <label class="mail-check wa-check"><input type="checkbox" id="wa-${a.id}"> 📱 Prévenir par WhatsApp</label>
             <div class="form-actions">
@@ -484,6 +500,27 @@ function render() {
   html += '</div>';
 
   container.innerHTML = html;
+}
+
+function toggleComm(id) {
+  const f = document.getElementById('commform-' + id);
+  if (!f) return;
+  f.classList.toggle('open');
+  if (f.classList.contains('open')) { const i = document.getElementById('comm-' + id); if (i) i.focus(); }
+}
+
+async function saveComm(id) {
+  const val = document.getElementById('comm-' + id).value.trim();
+  try {
+    if (!hasCommCol) {
+      try { await grist.docApi.applyUserActions([['AddColumn','Commandes','Commentaire_livraison',{type:'Text'}]]); } catch(e) {}
+      hasCommCol = true;
+    }
+    await grist.docApi.applyUserActions([['UpdateRecord','Commandes',id,{Commentaire_livraison: val}]]);
+    await fetchAll();
+  } catch(e) {
+    alert('Erreur: ' + e.message);
+  }
 }
 
 function toggleForm(id) {
@@ -612,7 +649,6 @@ async function saveLivraison(id) {
   const lieu = document.getElementById('lieu-' + id).value;
   const recu = document.getElementById('recu-' + id).value;
   const notes = document.getElementById('notes-' + id).value;
-  const comm = document.getElementById('comm-' + id).value;
 
   // Convertir data a segons des de epoch (format Grist)
   let dateGrist = null;
@@ -621,13 +657,8 @@ async function saveLivraison(id) {
   }
 
   try {
-    if (!hasCommCol) {
-      try { await grist.docApi.applyUserActions([['AddColumn','Commandes','Commentaire_livraison',{type:'Text'}]]); } catch(e) {}
-      hasCommCol = true;
-    }
     await grist.docApi.applyUserActions([
       ['UpdateRecord', 'Commandes', id, {
-        Commentaire_livraison: comm,
         Date_livraison: dateGrist,
         Lieu_stockage: lieu,
         Recu_par: recu,
