@@ -476,7 +476,6 @@ function renderToolbar() {
     tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
     `<button class="tab imp ${onlyImp?'on':''}" title="Afficher seulement les tâches importantes" onclick="toggleOnlyImp()">★ Importantes<span class="n">${nImp}</span></button>` +
     `<button class="tab wait ${onlyWait?'on':''}" title="Afficher seulement les tâches en attente d'une réponse" onclick="toggleOnlyWait()">⏳ En attente<span class="n">${nWait}</span></button>` +
-    (tasks.some(t => t.ordre) ? `<button class="tab" title="Supprimer l'ordre manuel et revenir au tri automatique (important, relances, activité)" onclick="resetOrdre()">↺ Tri auto</button>` : '') +
     (nRetard ? `<span class="chip relance retard" title="Tâches avec une relance ou une action à faire arrivée à échéance">⏰ ${nRetard} à traiter</span>` : '') +
     `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
 }
