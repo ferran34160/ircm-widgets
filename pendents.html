@@ -87,6 +87,14 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tl-item { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; }
 .tl-date { color: #888; font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 40px; }
 .tl-txt { flex: 1; min-width: 0; word-break: break-word; white-space: pre-wrap; }
+.tl-edit { visibility: hidden; border: none; background: none; color: #aaa; cursor: pointer; font-size: 12px; line-height: 1; padding: 0 4px; border-radius: 5px; }
+.tl-item:hover .tl-edit { visibility: visible; }
+.tl-edit:hover { color: #378ADD; background: rgba(55,138,221,.12); }
+.tl-editbox { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 3px 0; padding: 8px; border: 1px dashed #378ADD; border-radius: 8px; width: 100%; }
+.tl-editbox input[type=date] { font-size: 12px; padding: 5px 7px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+.tl-editbox input[type=text] { flex: 1; min-width: 160px; font-size: 13px; padding: 6px 9px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+@media (prefers-color-scheme: dark) { .tl-editbox input { background: #2a2a2a !important; border-color: #444 !important; } }
+.seg button.on.neutre { background: #888; color: #fff; opacity: 1; }
 .tl-del { visibility: hidden; border: none; background: none; color: #aaa; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; border-radius: 5px; }
 .tl-item:hover .tl-del { visibility: visible; }
 .tl-del:hover { color: #E24B4A; background: rgba(226,75,74,.1); }
@@ -138,7 +146,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 const TABLE = 'Pendents';
 const ST_AFAIRE = 'À faire', ST_ATTENTE = 'En attente', ST_FAIT = 'Fait';
 const TABLE_H = 'Pendents_historial';
-let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
+let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, entryEditId = null, entrySens = '', onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',timeZone:'UTC'}); }
@@ -200,7 +208,7 @@ async function fetchAll() {
       });
       Object.values(hist).forEach(a => a.sort((x,y) => toMs(x.data) - toMs(y.data) || x.id - y.id));
     } catch (e) { hist = {}; }
-    if (editId != null || closeId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
+    if (editId != null || closeId != null || entryEditId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
     render();
   } catch (e) {
     document.getElementById('list').innerHTML = '<div class="err">Erreur : ' + esc(e.message) + '</div>';
@@ -227,7 +235,7 @@ function toggleImportant(id) {
 }
 function rouvrir(id) { act([['UpdateRecord', TABLE, id, { Statut: ST_AFAIRE, Fait_le: null }]]); }
 function openClose(id) {
-  editId = null; closeId = id; render();
+  editId = null; entryEditId = null; closeId = id; render();
   const el = document.getElementById('cl-text'); if (el) el.focus();
 }
 function cancelClose() { closeId = null; pendingRender = false; render(); }
@@ -265,9 +273,28 @@ async function saveEntry(id) {
     await fetchAll();
   } catch (e) { alert('Erreur : ' + e.message); }
 }
+function openEntryEdit(eid) {
+  const e = Object.values(hist).flat().find(x => x.id === eid); if (!e) return;
+  editId = null; closeId = null; entryEditId = eid; entrySens = e.sens || '';
+  render();
+  const el = document.getElementById('ee-text'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (x) {} }
+}
+function cancelEntryEdit() { entryEditId = null; pendingRender = false; render(); }
+function setEntrySens(v) {
+  entrySens = v;
+  document.querySelectorAll('#ee-seg button').forEach(b => b.classList.toggle('on', b.dataset.s === v));
+}
+async function saveEntryEdit() {
+  const eid = entryEditId; if (eid == null) return;
+  const text = document.getElementById('ee-text').value.trim();
+  if (!text) { document.getElementById('ee-text').focus(); return; }
+  const data = dateToGrist(document.getElementById('ee-date').value) || todayG();
+  entryEditId = null; pendingRender = false;
+  await act([['UpdateRecord', TABLE_H, eid, { Data: data, Text: text, Sens: entrySens }]]);
+}
 function delEntry(eid) { act([['RemoveRecord', TABLE_H, eid]]); }
 function openEdit(id) {
-  closeId = null; editId = id;
+  closeId = null; entryEditId = null; editId = id;
   render();
   const el = document.getElementById('e-titre');
   if (el) el.focus();
@@ -290,9 +317,9 @@ async function saveEdit() {
 }
 
 // ---------- Rendu ----------
-function setTab(t) { tab = t; editId = null; closeId = null; pendingRender = false; render(); }
-function toggleOnlyImp() { onlyImp = !onlyImp; editId = null; closeId = null; pendingRender = false; render(); }
-function onSearch(v) { q = v; if (editId == null && closeId == null) renderList(); }
+function setTab(t) { tab = t; editId = null; closeId = null; entryEditId = null; pendingRender = false; render(); }
+function toggleOnlyImp() { onlyImp = !onlyImp; editId = null; closeId = null; entryEditId = null; pendingRender = false; render(); }
+function onSearch(v) { q = v; if (editId == null && closeId == null && entryEditId == null) renderList(); }
 
 function relanceInfo(t) {
   if (!t.relance || t.statut === ST_FAIT) return null;
@@ -402,9 +429,23 @@ function dirHtml(s) {
 function timelineHtml(t) {
   const list = hist[t.id] || [];
   if (!list.length) return '';
-  return '<div class="tl">' + list.map(e =>
-    `<div class="tl-item ${e.sens==='cloture'?'cloture':''}"><span class="tl-date">${fmtEntryDate(e.data)}</span>${dirHtml(e.sens)}<span class="tl-txt">${esc(e.text)}</span><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`
-  ).join('') + '</div>';
+  return '<div class="tl">' + list.map(e => {
+    if (e.id === entryEditId) {
+      const clot = e.sens === 'cloture';
+      return `<div class="tl-editbox">
+        <input type="date" id="ee-date" value="${dateInput(e.data) || todayStr()}">
+        ${clot ? '' : `<div class="seg" id="ee-seg">
+          <button type="button" class="moi ${entrySens==='moi'?'on':''}" data-s="moi" onclick="setEntrySens('moi')">➡ J'ai fait</button>
+          <button type="button" class="recu ${entrySens==='recu'?'on':''}" data-s="recu" onclick="setEntrySens('recu')">⬅ J'ai reçu</button>
+          <button type="button" class="neutre ${entrySens===''?'on':''}" data-s="" title="Sans indication" onclick="setEntrySens('')">—</button>
+        </div>`}
+        <input type="text" id="ee-text" value="${esc(e.text)}" autocomplete="off" onkeydown="if(event.key==='Enter')saveEntryEdit();if(event.key==='Escape')cancelEntryEdit()">
+        <button class="btn btn-primary" onclick="saveEntryEdit()">OK</button>
+        <button class="btn btn-ghost" onclick="cancelEntryEdit()">Annuler</button>
+      </div>`;
+    }
+    return `<div class="tl-item ${e.sens==='cloture'?'cloture':''}"><span class="tl-date">${fmtEntryDate(e.data)}</span>${dirHtml(e.sens)}<span class="tl-txt">${esc(e.text)}</span><button class="tl-edit" title="Modifier cette actualisation" onclick="openEntryEdit(${e.id})">✎</button><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`;
+  }).join('') + '</div>';
 }
 
 function editHtml(t, cls) {
@@ -438,7 +479,7 @@ let focusKeep = null;
 function render() {
   const ae = document.activeElement;
   let fid = focusKeep, pos = null;
-  if (!fid && ae && ae.id && /^(en-text-|en-date-|search)/.test(ae.id)) { fid = ae.id; try { pos = ae.selectionStart; } catch (e) {} }
+  if (!fid && ae && ae.id && /^(en-text-|en-date-|ee-text|ee-date|search)/.test(ae.id)) { fid = ae.id; try { pos = ae.selectionStart; } catch (e) {} }
   focusKeep = null;
   renderToolbar();
   renderList();
