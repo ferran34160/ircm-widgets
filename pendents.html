@@ -120,6 +120,15 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .tl-dir.moi { color: #378ADD; }
 .tl-dir.recu { color: #D97B3F; }
 .tl-dir.cloture { color: #1D9E75; }
+.tl-chk { flex-shrink: 0; width: 16px; text-align: center; border: none; background: none; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; color: #7B5EA7; }
+.tl-chk:hover { transform: scale(1.2); }
+.tl-item.todo .tl-txt { font-weight: 600; color: #7B5EA7; }
+.tl-item.todo-fait .tl-txt { text-decoration: line-through; opacity: .6; }
+.tl-item.todo.due .tl-txt::after { content: ' ⏰'; }
+.seg button.on.todo { background: #7B5EA7; color: #fff; opacity: 1; }
+.chip.todo { background: #EADFF5; color: #4F3380; font-weight: 500; }
+.chip.todo.retard { background: #7B5EA7; color: #fff; }
+@media (prefers-color-scheme: dark) { .chip.todo { background: #3A2B57; color: #CDB8EE; } .tl-chk, .tl-item.todo .tl-txt { color: #B79BE0; } }
 .tl-item.cloture .tl-txt { color: #1D9E75; font-weight: 500; }
 .close-box { margin-top: 10px; padding: 10px; border: 1px dashed #1D9E75; border-radius: 9px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .close-box input[type=date] { font-size: 12px; padding: 5px 7px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
@@ -146,7 +155,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 const TABLE = 'Pendents';
 const ST_AFAIRE = 'À faire', ST_ATTENTE = 'En attente', ST_FAIT = 'Fait';
 const TABLE_H = 'Pendents_historial';
-let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, entryEditId = null, entrySens = '', onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
+let entryWasDone = false, tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, entryEditId = null, entrySens = '', onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',timeZone:'UTC'}); }
@@ -255,7 +264,8 @@ function delTask(id) {
   act([...(hist[id]||[]).map(e => ['RemoveRecord', TABLE_H, e.id]), ['RemoveRecord', TABLE, id]]);
 }
 function setSens(id, v) {
-  lastSens = v; setDraft(id, 'sens', v);
+  if (v !== 'todo') lastSens = v;
+  setDraft(id, 'sens', v);
   document.querySelectorAll('#seg-' + id + ' button').forEach(b => b.classList.toggle('on', b.dataset.s === v));
   const el = document.getElementById('en-text-' + id); if (el) el.focus();
 }
@@ -275,7 +285,7 @@ async function saveEntry(id) {
 }
 function openEntryEdit(eid) {
   const e = Object.values(hist).flat().find(x => x.id === eid); if (!e) return;
-  editId = null; closeId = null; entryEditId = eid; entrySens = e.sens || '';
+  editId = null; closeId = null; entryEditId = eid; entrySens = (e.sens === 'todo_fait') ? 'todo' : (e.sens || ''); entryWasDone = e.sens === 'todo_fait';
   render();
   const el = document.getElementById('ee-text'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (x) {} }
 }
@@ -290,7 +300,12 @@ async function saveEntryEdit() {
   if (!text) { document.getElementById('ee-text').focus(); return; }
   const data = dateToGrist(document.getElementById('ee-date').value) || todayG();
   entryEditId = null; pendingRender = false;
-  await act([['UpdateRecord', TABLE_H, eid, { Data: data, Text: text, Sens: entrySens }]]);
+  const sensFinal = (entrySens === 'todo' && entryWasDone) ? 'todo_fait' : entrySens;
+  await act([['UpdateRecord', TABLE_H, eid, { Data: data, Text: text, Sens: sensFinal }]]);
+}
+function toggleTodo(eid) {
+  const e = Object.values(hist).flat().find(x => x.id === eid); if (!e) return;
+  act([['UpdateRecord', TABLE_H, eid, { Sens: e.sens === 'todo' ? 'todo_fait' : 'todo' }]]);
 }
 function delEntry(eid) { act([['RemoveRecord', TABLE_H, eid]]); }
 function openEdit(id) {
@@ -332,8 +347,10 @@ function relanceInfo(t) {
   return { diff, txt, retard: diff <= 0 };
 }
 
-function enRetard(t) { const r = relanceInfo(t); return !!(r && r.retard); }
-function dernierActivite(t) { const l = hist[t.id] || []; return l.length ? Math.max(...l.map(e => toMs(e.data))) : toMs(t.cree); }
+function todosOuverts(t) { return (hist[t.id] || []).filter(e => e.sens === 'todo'); }
+function todosDus(t) { const today = toMs(todayG()); return todosOuverts(t).filter(e => toMs(e.data) <= today); }
+function enRetard(t) { const r = relanceInfo(t); return !!(r && r.retard) || (t.statut !== ST_FAIT && todosDus(t).length > 0); }
+function dernierActivite(t) { const l = hist[t.id] || []; return l.length ? Math.max(toMs(t.cree), ...l.filter(e => e.sens !== 'todo').map(e => toMs(e.data))) : toMs(t.cree); }
 
 function visibleTasks() {
   let list = tasks.slice();
@@ -361,7 +378,7 @@ function renderToolbar() {
   document.getElementById('toolbar').innerHTML =
     tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
     `<button class="tab imp ${onlyImp?'on':''}" title="Afficher seulement les tâches importantes" onclick="toggleOnlyImp()">★ Importantes<span class="n">${nImp}</span></button>` +
-    (nRetard ? `<span class="chip relance retard" title="Tâches dont la date de relance est atteinte">⏰ ${nRetard} à relancer</span>` : '') +
+    (nRetard ? `<span class="chip relance retard" title="Tâches avec une relance ou une action à faire arrivée à échéance">⏰ ${nRetard} à traiter</span>` : '') +
     `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
 }
 
@@ -376,6 +393,7 @@ function taskHtml(t) {
         <div class="t-titre">${esc(t.titre)}</div>
         <div class="t-meta">
           ${r ? `<span class="chip relance ${r.retard?'retard':''}">${esc(r.txt)}</span>` : ''}
+          ${fait ? '' : todoChips(t)}
           ${t.lien ? `<span class="chip lien">🔗 ${esc(t.lien)}</span>` : ''}
           ${fait && t.fait ? `<span class="chip">clôturée le ${fmtDate(t.fait)}</span>` : ''}
         </div>
@@ -392,6 +410,11 @@ function taskHtml(t) {
   </div>`;
 }
 
+function todoChips(t) {
+  const o = todosOuverts(t); if (!o.length) return '';
+  const due = todosDus(t).length;
+  return `<span class="chip todo ${due?'retard':''}" title="Actions à faire dans l'historique">☐ ${o.length} à faire${due && due !== o.length ? ' (' + due + ' échue' + (due>1?'s':'') + ')' : ''}</span>`;
+}
 function entryRowHtml(t) {
   const d = drafts[t.id] || {};
   const sens = d.sens || lastSens;
@@ -399,9 +422,10 @@ function entryRowHtml(t) {
     <div class="seg" id="seg-${t.id}">
       <button type="button" class="moi ${sens==='moi'?'on':''}" data-s="moi" title="Une action que j'ai faite (mail envoyé, appel…)" onclick="setSens(${t.id},'moi')">➡ J'ai fait</button>
       <button type="button" class="recu ${sens==='recu'?'on':''}" data-s="recu" title="Quelque chose que j'ai reçu (réponse, devis…)" onclick="setSens(${t.id},'recu')">⬅ J'ai reçu</button>
+      <button type="button" class="todo ${sens==='todo'?'on':''}" data-s="todo" title="Une chose à faire plus tard (ex. : transférer le BC quand je le recevrai). La date = pour quand." onclick="setSens(${t.id},'todo')">☐ À faire</button>
     </div>
     <input type="date" id="en-date-${t.id}" value="${esc(d.date || todayStr())}" title="Date de l'événement" oninput="setDraft(${t.id},'date',this.value)">
-    <input type="text" id="en-text-${t.id}" value="${esc(d.text || '')}" placeholder="Actualisation : écris ce qui s'est passé…" autocomplete="off" oninput="setDraft(${t.id},'text',this.value)" onkeydown="if(event.key==='Enter')saveEntry(${t.id})">
+    <input type="text" id="en-text-${t.id}" value="${esc(d.text || '')}" placeholder="Actualisation : ce qui s'est passé… (ou ce qu'il faudra faire)" autocomplete="off" oninput="setDraft(${t.id},'text',this.value)" onkeydown="if(event.key==='Enter')saveEntry(${t.id})">
     <button class="btn btn-primary" onclick="saveEntry(${t.id})">Ajouter</button>
   </div>`;
 }
@@ -420,7 +444,9 @@ function fmtEntryDate(g) {
   const same = d.getUTCFullYear() === new Date().getFullYear();
   return d.toLocaleDateString('fr-FR', same ? { day:'2-digit', month:'2-digit', timeZone:'UTC' } : { day:'2-digit', month:'2-digit', year:'2-digit', timeZone:'UTC' });
 }
-function dirHtml(s) {
+function dirHtml(s, id) {
+  if (s === 'todo') return `<button class="tl-chk" title="À faire — cliquer pour cocher" onclick="toggleTodo(${id})">☐</button>`;
+  if (s === 'todo_fait') return `<button class="tl-chk" title="Fait — cliquer pour décocher" onclick="toggleTodo(${id})">☑</button>`;
   if (s === 'moi') return '<span class="tl-dir moi" title="Action de ma part">➡</span>';
   if (s === 'recu') return '<span class="tl-dir recu" title="Reçu">⬅</span>';
   if (s === 'cloture') return '<span class="tl-dir cloture" title="Clôture">✓</span>';
@@ -437,6 +463,7 @@ function timelineHtml(t) {
         ${clot ? '' : `<div class="seg" id="ee-seg">
           <button type="button" class="moi ${entrySens==='moi'?'on':''}" data-s="moi" onclick="setEntrySens('moi')">➡ J'ai fait</button>
           <button type="button" class="recu ${entrySens==='recu'?'on':''}" data-s="recu" onclick="setEntrySens('recu')">⬅ J'ai reçu</button>
+          <button type="button" class="todo ${entrySens==='todo'?'on':''}" data-s="todo" onclick="setEntrySens('todo')">☐ À faire</button>
           <button type="button" class="neutre ${entrySens===''?'on':''}" data-s="" title="Sans indication" onclick="setEntrySens('')">—</button>
         </div>`}
         <input type="text" id="ee-text" value="${esc(e.text)}" autocomplete="off" onkeydown="if(event.key==='Enter')saveEntryEdit();if(event.key==='Escape')cancelEntryEdit()">
@@ -444,7 +471,7 @@ function timelineHtml(t) {
         <button class="btn btn-ghost" onclick="cancelEntryEdit()">Annuler</button>
       </div>`;
     }
-    return `<div class="tl-item ${e.sens==='cloture'?'cloture':''}"><span class="tl-date">${fmtEntryDate(e.data)}</span>${dirHtml(e.sens)}<span class="tl-txt">${esc(e.text)}</span><button class="tl-edit" title="Modifier cette actualisation" onclick="openEntryEdit(${e.id})">✎</button><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`;
+    return `<div class="tl-item ${e.sens==='cloture'?'cloture':''} ${e.sens==='todo'?'todo'+(toMs(e.data)<=toMs(todayG())?' due':''):''} ${e.sens==='todo_fait'?'todo-fait':''}"><span class="tl-date">${fmtEntryDate(e.data)}</span>${dirHtml(e.sens, e.id)}<span class="tl-txt">${esc(e.text)}</span><button class="tl-edit" title="Modifier cette actualisation" onclick="openEntryEdit(${e.id})">✎</button><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`;
   }).join('') + '</div>';
 }
 
