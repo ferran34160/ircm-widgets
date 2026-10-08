@@ -109,6 +109,11 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ib.star.on { color: #E0A100; opacity: 1; }
 .ib.close { color: #1D9E75; border-color: #1D9E7566; opacity: 1; }
 .ib.close:hover { background: #1D9E75; color: #fff; }
+.tab.wait.on { background: #D97B3F; border-color: #D97B3F; }
+.ib.wait { font-size: 15px; opacity: .45; padding: 2px 6px; }
+.ib.wait.on { opacity: 1; background: #FBE2CC; }
+.task.attend:not(.retard) { border-left-color: #D97B3F; opacity: .8; }
+.task.attend:not(.retard) .t-titre { font-style: italic; }
 .tab.imp.on { background: #E0A100; border-color: #E0A100; }
 .seg { display: inline-flex; border: 1px solid #d5d5d5; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
 @media (prefers-color-scheme: dark) { .seg { border-color: #444; } }
@@ -155,7 +160,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 const TABLE = 'Pendents';
 const ST_AFAIRE = 'À faire', ST_ATTENTE = 'En attente', ST_FAIT = 'Fait';
 const TABLE_H = 'Pendents_historial';
-let entryWasDone = false, tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, entryEditId = null, entrySens = '', onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
+let entryWasDone = false, tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, entryEditId = null, entrySens = '', onlyImp = false, onlyWait = false, lastSens = 'moi', drafts = {}, pendingRender = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',timeZone:'UTC'}); }
@@ -180,6 +185,7 @@ async function ensureTable() {
     {id:'Attente_de', type:'Text'},
     {id:'Relance', type:'Date'},
     {id:'Important', type:'Bool'},
+    {id:'En_attente', type:'Bool'},
     {id:'Lie_a', type:'Text'},
     {id:'Note', type:'Text'},
     {id:'Cree_le', type:'Date'},
@@ -193,6 +199,9 @@ async function fetchAll() {
     if (!t.Important) {           // table créée avant l'ajout de « Important » : on ajoute la colonne
       try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'Important', { type: 'Bool' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
     }
+    if (!t.En_attente) {          // colonne « En_attente » ajoutée plus tard
+      try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'En_attente', { type: 'Bool' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
+    }
     tasks = (t.id||[]).map((id,i)=>({
       id,
       titre:(t.Titre||[])[i]||'',
@@ -200,6 +209,7 @@ async function fetchAll() {
       attente:(t.Attente_de||[])[i]||'',
       relance:(t.Relance||[])[i]||null,
       important:!!(t.Important||[])[i],
+      enAttente:!!(t.En_attente||[])[i],
       lien:(t.Lie_a||[])[i]||'',
       note:(t.Note||[])[i]||'',
       cree:(t.Cree_le||[])[i]||null,
@@ -242,6 +252,10 @@ function toggleImportant(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
   act([['UpdateRecord', TABLE, id, { Important: !t.important }]]);
 }
+function toggleAttente(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  act([['UpdateRecord', TABLE, id, { En_attente: !t.enAttente }]]);
+}
 function rouvrir(id) { act([['UpdateRecord', TABLE, id, { Statut: ST_AFAIRE, Fait_le: null }]]); }
 function openClose(id) {
   editId = null; entryEditId = null; closeId = id; render();
@@ -278,6 +292,8 @@ async function saveEntry(id) {
   const data = dateToGrist(dEl && dEl.value) || todayG();
   try {
     await grist.docApi.applyUserActions([['AddRecord', TABLE_H, null, { Tasca: id, Data: data, Text: text, Sens: ((drafts[id] || {}).sens || lastSens) }]]);
+    const tk = tasks.find(x => x.id === id);
+    if (((drafts[id] || {}).sens || lastSens) === 'recu' && tk && tk.enAttente) await grist.docApi.applyUserActions([['UpdateRecord', TABLE, id, { En_attente: false }]]);   // réponse reçue : plus en attente
     delete drafts[id];
     focusKeep = 'en-text-' + id;
     await fetchAll();
@@ -333,6 +349,7 @@ async function saveEdit() {
 
 // ---------- Rendu ----------
 function setTab(t) { tab = t; editId = null; closeId = null; entryEditId = null; pendingRender = false; render(); }
+function toggleOnlyWait() { onlyWait = !onlyWait; editId = null; closeId = null; entryEditId = null; pendingRender = false; render(); }
 function toggleOnlyImp() { onlyImp = !onlyImp; editId = null; closeId = null; entryEditId = null; pendingRender = false; render(); }
 function onSearch(v) { q = v; if (editId == null && closeId == null && entryEditId == null) renderList(); }
 
@@ -357,11 +374,14 @@ function visibleTasks() {
   if (tab === 'actives') list = list.filter(t => t.statut !== ST_FAIT);
   else if (tab === 'fait') list = list.filter(t => t.statut === ST_FAIT);
   if (onlyImp) list = list.filter(t => t.important);
+  if (onlyWait) list = list.filter(t => t.enAttente);
   const nq = norm(q.trim());
   if (nq) list = list.filter(t => norm([t.titre, t.lien, ...(hist[t.id]||[]).map(e => e.text)].join(' ')).includes(nq));
   if (tab === 'fait') return list.sort((a,b) => toMs(b.fait) - toMs(a.fait) || b.id - a.id);
   // Importantes d'abord, puis relances échues, puis activité la plus récente
   return list.sort((a,b) => {
+    const wa = a.enAttente && !enRetard(a), wb = b.enAttente && !enRetard(b);   // en attente de réponse (rien à faire) : en bas, sauf si relance / action échue
+    if (wa !== wb) return wa ? 1 : -1;
     if (a.important !== b.important) return a.important ? -1 : 1;
     const ra = enRetard(a), rb = enRetard(b);
     if (ra !== rb) return ra ? -1 : 1;
@@ -373,11 +393,13 @@ function renderToolbar() {
   const nAct = tasks.filter(t => t.statut !== ST_FAIT).length;
   const nFait = tasks.filter(t => t.statut === ST_FAIT).length;
   const nRetard = tasks.filter(enRetard).length;
+  const nWait = tasks.filter(t => t.enAttente && t.statut !== ST_FAIT).length;
   const nImp = tasks.filter(t => t.important && t.statut !== ST_FAIT).length;
   const tabs = [['actives','À suivre',nAct],['fait','Clôturées',nFait],['tout','Tout',tasks.length]];
   document.getElementById('toolbar').innerHTML =
     tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
     `<button class="tab imp ${onlyImp?'on':''}" title="Afficher seulement les tâches importantes" onclick="toggleOnlyImp()">★ Importantes<span class="n">${nImp}</span></button>` +
+    `<button class="tab wait ${onlyWait?'on':''}" title="Afficher seulement les tâches en attente d'une réponse" onclick="toggleOnlyWait()">⏳ En attente<span class="n">${nWait}</span></button>` +
     (nRetard ? `<span class="chip relance retard" title="Tâches avec une relance ou une action à faire arrivée à échéance">⏰ ${nRetard} à traiter</span>` : '') +
     `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
 }
@@ -385,7 +407,7 @@ function renderToolbar() {
 function taskHtml(t) {
   const fait = t.statut === ST_FAIT;
   const r = relanceInfo(t);
-  const cls = fait ? 's-fait' : (enRetard(t) ? 'retard ' : '') + (t.important ? 'important ' : '') + 's-afaire';
+  const cls = fait ? 's-fait' : (enRetard(t) ? 'retard ' : '') + (t.important ? 'important ' : '') + (t.enAttente ? 'attend ' : '') + 's-afaire';
   if (editId === t.id) return editHtml(t, cls);
   return `<div class="task ${cls}">
     <div class="t-top">
@@ -393,6 +415,7 @@ function taskHtml(t) {
         <div class="t-titre">${esc(t.titre)}</div>
         <div class="t-meta">
           ${r ? `<span class="chip relance ${r.retard?'retard':''}">${esc(r.txt)}</span>` : ''}
+          ${!fait && t.enAttente ? `<span class="chip attente">⏳ en attente de réponse</span>` : ''}
           ${fait ? '' : todoChips(t)}
           ${t.lien ? `<span class="chip lien">🔗 ${esc(t.lien)}</span>` : ''}
           ${fait && t.fait ? `<span class="chip">clôturée le ${fmtDate(t.fait)}</span>` : ''}
@@ -402,6 +425,7 @@ function taskHtml(t) {
       </div>
       <div class="t-actions">
         <button class="ib star ${t.important?'on':''}" title="${t.important?'Retirer l\'importance':'Marquer comme important'}" onclick="toggleImportant(${t.id})">${t.important?'★':'☆'}</button>
+        ${fait ? '' : `<button class="ib wait ${t.enAttente?'on':''}" title="${t.enAttente?'Plus en attente : je peux avancer':'En attente d\'une réponse : je ne peux rien faire pour l\'instant'}" onclick="toggleAttente(${t.id})">⏳</button>`}
         ${fait ? `<button class="ib" title="Rouvrir cette tâche" onclick="rouvrir(${t.id})">↺ Rouvrir</button>` : `<button class="ib close" title="Clôturer cette tâche" onclick="openClose(${t.id})">✓ Clôturer</button>`}
         <button class="ib" title="Modifier" onclick="openEdit(${t.id})">✎</button>
         <button class="ib del" title="Supprimer" onclick="delTask(${t.id})">🗑</button>
