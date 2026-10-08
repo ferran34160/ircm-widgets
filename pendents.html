@@ -54,15 +54,12 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .chip { background: rgba(255,255,255,.1); } }
 .chip.attente { background: #FBE2CC; color: #9A5410; font-weight: 500; }
 .chip.lien { background: #E6F1FB; color: #0C447C; }
-.chip.echeance { background: #E6F1FB; color: #0C447C; font-weight: 500; }
-.chip.echeance.retard { background: #E24B4A; color: #fff; }
 .chip.relance { background: #FAF0CC; color: #8A7510; font-weight: 500; }
 .chip.relance.retard { background: #E24B4A; color: #fff; }
 @media (prefers-color-scheme: dark) {
   .chip.attente { background: #4A3318; color: #E8B27C; }
   .chip.lien { background: #223a52; color: #9FC6EE; }
   .chip.relance { background: #4A4413; color: #E8D77C; }
-  .chip.echeance { background: #223a52; color: #9FC6EE; }
 }
 .t-note { font-size: 12px; font-style: italic; color: #777; margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
 @media (prefers-color-scheme: dark) { .t-note { color: #aaa; } }
@@ -97,6 +94,30 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .entry-add input[type=date] { font-size: 12px; padding: 5px 7px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
 .entry-add input[type=text] { flex: 1; min-width: 160px; font-size: 13px; padding: 6px 9px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
 @media (prefers-color-scheme: dark) { .entry-add input { background: #2a2a2a !important; border-color: #444 !important; } }
+.task.important { border-left-color: #E0A100; box-shadow: 0 0 0 1px rgba(224,161,0,.35); }
+.task.important:not(.retard) { background: #FFF9E6; }
+@media (prefers-color-scheme: dark) { .task.important:not(.retard) { background: #2E2A17; } }
+.ib.star { font-size: 16px; opacity: .55; padding: 2px 6px; }
+.ib.star.on { color: #E0A100; opacity: 1; }
+.ib.close { color: #1D9E75; border-color: #1D9E7566; opacity: 1; }
+.ib.close:hover { background: #1D9E75; color: #fff; }
+.tab.imp.on { background: #E0A100; border-color: #E0A100; }
+.seg { display: inline-flex; border: 1px solid #d5d5d5; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+@media (prefers-color-scheme: dark) { .seg { border-color: #444; } }
+.seg button { font-size: 12px; padding: 5px 9px; border: none; background: none; color: inherit; cursor: pointer; opacity: .6; white-space: nowrap; }
+.seg button:hover { opacity: 1; }
+.seg button.on.moi { background: #378ADD; color: #fff; opacity: 1; }
+.seg button.on.recu { background: #D97B3F; color: #fff; opacity: 1; }
+.tl-dir { flex-shrink: 0; width: 16px; text-align: center; font-weight: 700; }
+.tl-dir.moi { color: #378ADD; }
+.tl-dir.recu { color: #D97B3F; }
+.tl-dir.cloture { color: #1D9E75; }
+.tl-item.cloture .tl-txt { color: #1D9E75; font-weight: 500; }
+.close-box { margin-top: 10px; padding: 10px; border: 1px dashed #1D9E75; border-radius: 9px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.close-box input[type=date] { font-size: 12px; padding: 5px 7px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+.close-box input[type=text] { flex: 1; min-width: 160px; font-size: 13px; padding: 6px 9px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+@media (prefers-color-scheme: dark) { .close-box input { background: #2a2a2a !important; border-color: #444 !important; } }
+.btn-ok { background: #1D9E75; color: #fff; }
 .ib.log { color: #378ADD; border-color: #378ADD55; opacity: 1; }
 .empty, .loading { text-align: center; padding: 36px; color: #aaa; }
 .err { text-align: center; padding: 20px; color: #A32D2D; }
@@ -107,7 +128,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   <div class="title"><span class="title-dot"></span>Pense-bête</div>
   <div class="add-row">
     <input type="text" id="new-titre" placeholder="Nouvelle tâche… (Entrée pour ajouter)" autocomplete="off" onkeydown="if(event.key==='Enter')addTask()">
-    <input type="date" id="new-date" title="Date de l'action (optionnel)" style="flex:0 0 auto;width:135px">
     <button class="btn btn-primary" onclick="addTask()">Ajouter</button>
   </div>
   <div class="toolbar" id="toolbar"></div>
@@ -118,7 +138,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 const TABLE = 'Pendents';
 const ST_AFAIRE = 'À faire', ST_ATTENTE = 'En attente', ST_FAIT = 'Fait';
 const TABLE_H = 'Pendents_historial';
-let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, drafts = {}, pendingRender = false;
+let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, closeId = null, onlyImp = false, lastSens = 'moi', drafts = {}, pendingRender = false;
 
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',timeZone:'UTC'}); }
@@ -134,7 +154,7 @@ function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[
 async function ensureTable() {
   try { await grist.docApi.fetchTable(TABLE_H); }
   catch (e) { await grist.docApi.applyUserActions([['AddTable', TABLE_H, [
-    {id:'Tasca', type:'Int'}, {id:'Data', type:'Date'}, {id:'Text', type:'Text'},
+    {id:'Tasca', type:'Int'}, {id:'Data', type:'Date'}, {id:'Text', type:'Text'}, {id:'Sens', type:'Text'},
   ]]]); }
   try { await grist.docApi.fetchTable(TABLE); return; } catch (e) {}
   await grist.docApi.applyUserActions([['AddTable', TABLE, [
@@ -142,7 +162,7 @@ async function ensureTable() {
     {id:'Statut', type:'Text'},
     {id:'Attente_de', type:'Text'},
     {id:'Relance', type:'Date'},
-    {id:'Echeance', type:'Date'},
+    {id:'Important', type:'Bool'},
     {id:'Lie_a', type:'Text'},
     {id:'Note', type:'Text'},
     {id:'Cree_le', type:'Date'},
@@ -153,8 +173,8 @@ async function ensureTable() {
 async function fetchAll() {
   try {
     let t = await grist.docApi.fetchTable(TABLE);
-    if (!t.Echeance) {            // table créée avant l'ajout de « Pour le » : on ajoute la colonne
-      try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'Echeance', { type: 'Date' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
+    if (!t.Important) {           // table créée avant l'ajout de « Important » : on ajoute la colonne
+      try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'Important', { type: 'Bool' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
     }
     tasks = (t.id||[]).map((id,i)=>({
       id,
@@ -162,7 +182,7 @@ async function fetchAll() {
       statut:(t.Statut||[])[i]||ST_AFAIRE,
       attente:(t.Attente_de||[])[i]||'',
       relance:(t.Relance||[])[i]||null,
-      echeance:(t.Echeance||[])[i]||null,
+      important:!!(t.Important||[])[i],
       lien:(t.Lie_a||[])[i]||'',
       note:(t.Note||[])[i]||'',
       cree:(t.Cree_le||[])[i]||null,
@@ -170,14 +190,17 @@ async function fetchAll() {
     }));
     hist = {};
     try {
-      const h = await grist.docApi.fetchTable(TABLE_H);
+      let h = await grist.docApi.fetchTable(TABLE_H);
+      if (!h.Sens) {              // historique créé avant l'ajout du sens (moi / reçu)
+        try { await grist.docApi.applyUserActions([['AddColumn', TABLE_H, 'Sens', { type: 'Text' }]]); h = await grist.docApi.fetchTable(TABLE_H); } catch (e) {}
+      }
       (h.id||[]).forEach((id,i) => {
         const tid = (h.Tasca||[])[i];
-        (hist[tid] = hist[tid] || []).push({ id, data:(h.Data||[])[i]||null, text:(h.Text||[])[i]||'' });
+        (hist[tid] = hist[tid] || []).push({ id, data:(h.Data||[])[i]||null, text:(h.Text||[])[i]||'', sens:(h.Sens||[])[i]||'' });
       });
       Object.values(hist).forEach(a => a.sort((x,y) => toMs(x.data) - toMs(y.data) || x.id - y.id));
     } catch (e) { hist = {}; }
-    if (editId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
+    if (editId != null || closeId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
     render();
   } catch (e) {
     document.getElementById('list').innerHTML = '<div class="err">Erreur : ' + esc(e.message) + '</div>';
@@ -195,21 +218,38 @@ async function addTask() {
   const titre = inp.value.trim();
   if (!titre) return;
   inp.value = '';
-  const dEl = document.getElementById('new-date');
-  const ech = dEl && dEl.value ? dateToGrist(dEl.value) : null;
-  if (dEl) dEl.value = '';
-  await act([['AddRecord', TABLE, null, { Titre: titre, Statut: ST_AFAIRE, Cree_le: todayG(), Echeance: ech }]]);
+  await act([['AddRecord', TABLE, null, { Titre: titre, Statut: ST_AFAIRE, Cree_le: todayG() }]]);
   inp.focus();
 }
-function toggleFait(id) {
+function toggleImportant(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
-  if (t.statut === ST_FAIT) act([['UpdateRecord', TABLE, id, { Statut: ST_AFAIRE, Fait_le: null }]]);
-  else act([['UpdateRecord', TABLE, id, { Statut: ST_FAIT, Fait_le: todayG() }]]);
+  act([['UpdateRecord', TABLE, id, { Important: !t.important }]]);
+}
+function rouvrir(id) { act([['UpdateRecord', TABLE, id, { Statut: ST_AFAIRE, Fait_le: null }]]); }
+function openClose(id) {
+  editId = null; closeId = id; render();
+  const el = document.getElementById('cl-text'); if (el) el.focus();
+}
+function cancelClose() { closeId = null; pendingRender = false; render(); }
+async function confirmClose() {
+  const id = closeId; if (id == null) return;
+  const data = dateToGrist(document.getElementById('cl-date').value) || todayG();
+  const concl = document.getElementById('cl-text').value.trim();
+  closeId = null; pendingRender = false;
+  await act([
+    ['UpdateRecord', TABLE, id, { Statut: ST_FAIT, Fait_le: data }],
+    ['AddRecord', TABLE_H, null, { Tasca: id, Data: data, Text: 'Clôturé' + (concl ? ' — ' + concl : ''), Sens: 'cloture' }],
+  ]);
 }
 function delTask(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
   if (!confirm('Supprimer « ' + t.titre + ' » ?')) return;
   act([...(hist[id]||[]).map(e => ['RemoveRecord', TABLE_H, e.id]), ['RemoveRecord', TABLE, id]]);
+}
+function setSens(id, v) {
+  lastSens = v; setDraft(id, 'sens', v);
+  document.querySelectorAll('#seg-' + id + ' button').forEach(b => b.classList.toggle('on', b.dataset.s === v));
+  const el = document.getElementById('en-text-' + id); if (el) el.focus();
 }
 function setDraft(id, k, v) { (drafts[id] = drafts[id] || {})[k] = v; }
 async function saveEntry(id) {
@@ -219,7 +259,7 @@ async function saveEntry(id) {
   if (!text) { tEl.focus(); return; }
   const data = dateToGrist(dEl && dEl.value) || todayG();
   try {
-    await grist.docApi.applyUserActions([['AddRecord', TABLE_H, null, { Tasca: id, Data: data, Text: text }]]);
+    await grist.docApi.applyUserActions([['AddRecord', TABLE_H, null, { Tasca: id, Data: data, Text: text, Sens: ((drafts[id] || {}).sens || lastSens) }]]);
     delete drafts[id];
     focusKeep = 'en-text-' + id;
     await fetchAll();
@@ -227,7 +267,7 @@ async function saveEntry(id) {
 }
 function delEntry(eid) { act([['RemoveRecord', TABLE_H, eid]]); }
 function openEdit(id) {
-  editId = id;
+  closeId = null; editId = id;
   render();
   const el = document.getElementById('e-titre');
   if (el) el.focus();
@@ -244,15 +284,15 @@ async function saveEdit() {
   const titre = document.getElementById('e-titre').value.trim();
   if (!titre) { alert('Le titre est obligatoire.'); return; }
   const relance = dateToGrist(document.getElementById('e-relance').value);
-  const echeance = dateToGrist(document.getElementById('e-echeance').value);
   const lien = document.getElementById('e-lien').value.trim();
   editId = null; pendingRender = false;
-  await act([['UpdateRecord', TABLE, id, { Titre: titre, Relance: relance, Echeance: echeance, Lie_a: lien }]]);
+  await act([['UpdateRecord', TABLE, id, { Titre: titre, Relance: relance, Lie_a: lien }]]);
 }
 
 // ---------- Rendu ----------
-function setTab(t) { tab = t; editId = null; pendingRender = false; render(); }
-function onSearch(v) { q = v; if (editId == null) renderList(); }
+function setTab(t) { tab = t; editId = null; closeId = null; pendingRender = false; render(); }
+function toggleOnlyImp() { onlyImp = !onlyImp; editId = null; closeId = null; pendingRender = false; render(); }
+function onSearch(v) { q = v; if (editId == null && closeId == null) renderList(); }
 
 function relanceInfo(t) {
   if (!t.relance || t.statut === ST_FAIT) return null;
@@ -265,37 +305,23 @@ function relanceInfo(t) {
   return { diff, txt, retard: diff <= 0 };
 }
 
-function echeanceInfo(t) {
-  if (!t.echeance || t.statut === ST_FAIT) return null;
-  const diff = Math.round((toMs(t.echeance) - toMs(todayG())) / 86400000);
-  let txt;
-  if (diff < 0) txt = 'en retard de ' + (-diff) + ' j';
-  else if (diff === 0) txt = "pour aujourd'hui";
-  else if (diff === 1) txt = 'pour demain';
-  else txt = 'pour le ' + fmtDate(t.echeance);
-  return { diff, txt, retard: diff < 0, urgent: diff <= 0 };
-}
-function dateCle(t) {
-  const r = relanceInfo(t), e = echeanceInfo(t);
-  const ds = [];
-  if (r) ds.push(toMs(t.relance));
-  if (e) ds.push(toMs(t.echeance));
-  return ds.length ? Math.min(...ds) : Infinity;
-}
-function enRetard(t) { const r = relanceInfo(t), e = echeanceInfo(t); return !!((r && r.retard) || (e && e.urgent)); }
+function enRetard(t) { const r = relanceInfo(t); return !!(r && r.retard); }
+function dernierActivite(t) { const l = hist[t.id] || []; return l.length ? Math.max(...l.map(e => toMs(e.data))) : toMs(t.cree); }
 
 function visibleTasks() {
   let list = tasks.slice();
   if (tab === 'actives') list = list.filter(t => t.statut !== ST_FAIT);
   else if (tab === 'fait') list = list.filter(t => t.statut === ST_FAIT);
+  if (onlyImp) list = list.filter(t => t.important);
   const nq = norm(q.trim());
   if (nq) list = list.filter(t => norm([t.titre, t.lien, ...(hist[t.id]||[]).map(e => e.text)].join(' ')).includes(nq));
   if (tab === 'fait') return list.sort((a,b) => toMs(b.fait) - toMs(a.fait) || b.id - a.id);
-  // Actives : relances échues/proches d'abord, puis le reste (plus récent en premier)
+  // Importantes d'abord, puis relances échues, puis activité la plus récente
   return list.sort((a,b) => {
-    const ka = dateCle(a), kb = dateCle(b);
-    if (ka !== kb) return ka - kb;
-    return b.id - a.id;
+    if (a.important !== b.important) return a.important ? -1 : 1;
+    const ra = enRetard(a), rb = enRetard(b);
+    if (ra !== rb) return ra ? -1 : 1;
+    return dernierActivite(b) - dernierActivite(a) || b.id - a.id;
   });
 }
 
@@ -303,33 +329,35 @@ function renderToolbar() {
   const nAct = tasks.filter(t => t.statut !== ST_FAIT).length;
   const nFait = tasks.filter(t => t.statut === ST_FAIT).length;
   const nRetard = tasks.filter(enRetard).length;
-  const tabs = [['actives','À suivre',nAct],['fait','Fait',nFait],['tout','Tout',tasks.length]];
+  const nImp = tasks.filter(t => t.important && t.statut !== ST_FAIT).length;
+  const tabs = [['actives','À suivre',nAct],['fait','Clôturées',nFait],['tout','Tout',tasks.length]];
   document.getElementById('toolbar').innerHTML =
     tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
-    (nRetard ? `<span class="chip relance retard" title="Tâches dont la date (action ou relance) est atteinte">⏰ ${nRetard} à traiter</span>` : '') +
+    `<button class="tab imp ${onlyImp?'on':''}" title="Afficher seulement les tâches importantes" onclick="toggleOnlyImp()">★ Importantes<span class="n">${nImp}</span></button>` +
+    (nRetard ? `<span class="chip relance retard" title="Tâches dont la date de relance est atteinte">⏰ ${nRetard} à relancer</span>` : '') +
     `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
 }
 
 function taskHtml(t) {
   const fait = t.statut === ST_FAIT;
-  const r = relanceInfo(t), ech = echeanceInfo(t);
-  const cls = fait ? 's-fait' : (enRetard(t) ? 'retard ' : '') + 's-afaire';
+  const r = relanceInfo(t);
+  const cls = fait ? 's-fait' : (enRetard(t) ? 'retard ' : '') + (t.important ? 'important ' : '') + 's-afaire';
   if (editId === t.id) return editHtml(t, cls);
   return `<div class="task ${cls}">
     <div class="t-top">
-      <input type="checkbox" class="t-check" ${fait?'checked':''} title="${fait?'Rouvrir':'Marquer comme fait'}" onchange="toggleFait(${t.id})">
       <div class="t-main">
         <div class="t-titre">${esc(t.titre)}</div>
         <div class="t-meta">
-          ${ech ? `<span class="chip echeance ${ech.urgent?'retard':''}">📅 ${esc(ech.txt)}</span>` : ''}
           ${r ? `<span class="chip relance ${r.retard?'retard':''}">${esc(r.txt)}</span>` : ''}
           ${t.lien ? `<span class="chip lien">🔗 ${esc(t.lien)}</span>` : ''}
-          ${fait && t.fait ? `<span class="chip">fait le ${fmtDate(t.fait)}</span>` : ''}
+          ${fait && t.fait ? `<span class="chip">clôturée le ${fmtDate(t.fait)}</span>` : ''}
         </div>
         ${timelineHtml(t)}
-        ${fait ? '' : entryRowHtml(t)}
+        ${fait ? '' : (closeId === t.id ? closeBoxHtml(t) : entryRowHtml(t))}
       </div>
       <div class="t-actions">
+        <button class="ib star ${t.important?'on':''}" title="${t.important?'Retirer l\'importance':'Marquer comme important'}" onclick="toggleImportant(${t.id})">${t.important?'★':'☆'}</button>
+        ${fait ? `<button class="ib" title="Rouvrir cette tâche" onclick="rouvrir(${t.id})">↺ Rouvrir</button>` : `<button class="ib close" title="Clôturer cette tâche" onclick="openClose(${t.id})">✓ Clôturer</button>`}
         <button class="ib" title="Modifier" onclick="openEdit(${t.id})">✎</button>
         <button class="ib del" title="Supprimer" onclick="delTask(${t.id})">🗑</button>
       </div>
@@ -339,10 +367,24 @@ function taskHtml(t) {
 
 function entryRowHtml(t) {
   const d = drafts[t.id] || {};
+  const sens = d.sens || lastSens;
   return `<div class="entry-add">
+    <div class="seg" id="seg-${t.id}">
+      <button type="button" class="moi ${sens==='moi'?'on':''}" data-s="moi" title="Une action que j'ai faite (mail envoyé, appel…)" onclick="setSens(${t.id},'moi')">➡ J'ai fait</button>
+      <button type="button" class="recu ${sens==='recu'?'on':''}" data-s="recu" title="Quelque chose que j'ai reçu (réponse, devis…)" onclick="setSens(${t.id},'recu')">⬅ J'ai reçu</button>
+    </div>
     <input type="date" id="en-date-${t.id}" value="${esc(d.date || todayStr())}" title="Date de l'événement" oninput="setDraft(${t.id},'date',this.value)">
     <input type="text" id="en-text-${t.id}" value="${esc(d.text || '')}" placeholder="Actualisation : écris ce qui s'est passé…" autocomplete="off" oninput="setDraft(${t.id},'text',this.value)" onkeydown="if(event.key==='Enter')saveEntry(${t.id})">
     <button class="btn btn-primary" onclick="saveEntry(${t.id})">Ajouter</button>
+  </div>`;
+}
+function closeBoxHtml(t) {
+  return `<div class="close-box">
+    <span style="font-weight:600;color:#1D9E75">✓ Clôturer</span>
+    <input type="date" id="cl-date" value="${todayStr()}" title="Date de clôture">
+    <input type="text" id="cl-text" placeholder="Conclusion (optionnel) : ce qui a été décidé / obtenu…" autocomplete="off" onkeydown="if(event.key==='Enter')confirmClose();if(event.key==='Escape')cancelClose()">
+    <button class="btn btn-ok" onclick="confirmClose()">Clôturer</button>
+    <button class="btn btn-ghost" onclick="cancelClose()">Annuler</button>
   </div>`;
 }
 function fmtEntryDate(g) {
@@ -351,11 +393,17 @@ function fmtEntryDate(g) {
   const same = d.getUTCFullYear() === new Date().getFullYear();
   return d.toLocaleDateString('fr-FR', same ? { day:'2-digit', month:'2-digit', timeZone:'UTC' } : { day:'2-digit', month:'2-digit', year:'2-digit', timeZone:'UTC' });
 }
+function dirHtml(s) {
+  if (s === 'moi') return '<span class="tl-dir moi" title="Action de ma part">➡</span>';
+  if (s === 'recu') return '<span class="tl-dir recu" title="Reçu">⬅</span>';
+  if (s === 'cloture') return '<span class="tl-dir cloture" title="Clôture">✓</span>';
+  return '<span class="tl-dir"></span>';
+}
 function timelineHtml(t) {
   const list = hist[t.id] || [];
   if (!list.length) return '';
   return '<div class="tl">' + list.map(e =>
-    `<div class="tl-item"><span class="tl-date">${fmtEntryDate(e.data)}</span><span class="tl-txt">${esc(e.text)}</span><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`
+    `<div class="tl-item ${e.sens==='cloture'?'cloture':''}"><span class="tl-date">${fmtEntryDate(e.data)}</span>${dirHtml(e.sens)}<span class="tl-txt">${esc(e.text)}</span><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`
   ).join('') + '</div>';
 }
 
@@ -367,7 +415,6 @@ function editHtml(t, cls) {
       <div class="f"><label>Me le rappeler le</label><input type="date" id="e-relance" value="${dateInput(t.relance)}">
         <div class="quick"><button type="button" onclick="setQuick(2)">+2 j</button><button type="button" onclick="setQuick(7)">+1 sem.</button><button type="button" onclick="setQuick(14)">+2 sem.</button><button type="button" onclick="clearRelance()">aucune</button></div>
       </div>
-      <div class="f"><label>Pour le (date de l'action)</label><input type="date" id="e-echeance" value="${dateInput(t.echeance)}"></div>
       <div class="f full"><label>Lié à (DA, BC, contrat… — libre)</label><input type="text" id="e-lien" value="${esc(t.lien)}" placeholder="Ex. DA-2026-045"></div>
       <div class="edit-actions">
         <button class="btn btn-primary" onclick="saveEdit()">Enregistrer</button>
@@ -381,7 +428,7 @@ function renderList() {
   const box = document.getElementById('list');
   const list = visibleTasks();
   if (!list.length) {
-    box.innerHTML = '<div class="empty">' + (q.trim() ? 'Aucun résultat.' : tab === 'fait' ? 'Rien de fait pour le moment.' : 'Rien à suivre 🎉') + '</div>';
+    box.innerHTML = '<div class="empty">' + (q.trim() ? 'Aucun résultat.' : tab === 'fait' ? 'Aucune tâche clôturée pour le moment.' : 'Rien à suivre 🎉') + '</div>';
     return;
   }
   box.innerHTML = '<div class="list">' + list.map(taskHtml).join('') + '</div>';
