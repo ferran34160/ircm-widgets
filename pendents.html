@@ -110,10 +110,18 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ib.close { color: #1D9E75; border-color: #1D9E7566; opacity: 1; }
 .ib.close:hover { background: #1D9E75; color: #fff; }
 .tab.wait.on { background: #D97B3F; border-color: #D97B3F; }
-.mv { display: inline-flex; flex-direction: column; gap: 0; margin-right: 2px; }
-.mv .ib { font-size: 9px; line-height: 1; padding: 2px 6px; opacity: .55; }
-.mv .ib:hover:not(:disabled) { opacity: 1; }
-.mv .ib:disabled { opacity: .15; cursor: default; }
+.row { display: flex; align-items: stretch; gap: 8px; }
+.row > .task { flex: 1; min-width: 0; }
+.side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; flex-shrink: 0; width: 40px; }
+.side button { width: 36px; height: 30px; border: 1px solid #d0d0d0; border-radius: 8px; background: #fff; color: #555; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+@media (prefers-color-scheme: dark) { .side button { background: #2a2a2a; border-color: #444; color: #bbb; } }
+.side button:hover:not(:disabled) { background: #378ADD; border-color: #378ADD; color: #fff; }
+.side button:disabled { opacity: .25; cursor: default; }
+.side .grip { cursor: grab; letter-spacing: -2px; font-size: 15px; height: 26px; }
+.side .grip:active { cursor: grabbing; }
+.row.dragging { opacity: .35; }
+.row.over-top { box-shadow: 0 -3px 0 0 #378ADD; }
+.row.over-bottom { box-shadow: 0 3px 0 0 #378ADD; }
 .ib.wait { font-size: 15px; opacity: .45; padding: 2px 6px; }
 .ib.wait.on { opacity: 1; background: #FBE2CC; }
 .task.attend:not(.retard) { border-left-color: #D97B3F; opacity: .8; }
@@ -236,7 +244,7 @@ async function fetchAll() {
       });
       Object.values(hist).forEach(a => a.sort((x,y) => toMs(x.data) - toMs(y.data) || x.id - y.id));
     } catch (e) { hist = {}; }
-    if (editId != null || closeId != null || entryEditId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
+    if (editId != null || closeId != null || entryEditId != null || dragId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
     render();
   } catch (e) {
     document.getElementById('list').innerHTML = '<div class="err">Erreur : ' + esc(e.message) + '</div>';
@@ -270,6 +278,43 @@ async function moveTask(id, dir) {
   [full[a], full[b]] = [full[b], full[a]];
   const acts = [];
   full.forEach((t, k) => { if (t.ordre !== k + 1) acts.push(['UpdateRecord', TABLE, t.id, { Ordre: k + 1 }]); });
+  if (acts.length) await act(acts);
+}
+let dragId = null;
+function gripDown(e) { const r = e.target.closest('.row'); if (r) r.draggable = true; }
+function dragStart(e) {
+  const r = e.target.closest('.row'); if (!r) return;
+  dragId = +r.dataset.id; r.classList.add('dragging');
+  try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dragId)); e.dataTransfer.setDragImage(r, 20, 20); } catch (x) {}
+}
+function dragOver(e) {
+  if (dragId == null) return;
+  e.preventDefault();
+  const r = e.currentTarget, b = r.getBoundingClientRect(), top = e.clientY < b.top + b.height / 2;
+  document.querySelectorAll('.row.over-top,.row.over-bottom').forEach(x => { if (x !== r) x.classList.remove('over-top', 'over-bottom'); });
+  r.classList.toggle('over-top', top); r.classList.toggle('over-bottom', !top);
+}
+async function dropOn(e) {
+  if (dragId == null) return;
+  e.preventDefault();
+  const r = e.currentTarget, b = r.getBoundingClientRect(), before = e.clientY < b.top + b.height / 2;
+  await dropTask(dragId, +r.dataset.id, before);
+}
+function dragEnd() {
+  dragId = null;
+  document.querySelectorAll('.row').forEach(x => { x.classList.remove('dragging', 'over-top', 'over-bottom'); x.draggable = false; });
+  if (pendingRender) { pendingRender = false; render(); }
+}
+async function dropTask(id, targetId, before) {
+  if (id === targetId) return;
+  const full = tasks.slice().sort(cmpTasks);
+  const from = full.findIndex(t => t.id === id); if (from < 0) return;
+  const [m] = full.splice(from, 1);
+  let to = full.findIndex(t => t.id === targetId); if (to < 0) return;
+  full.splice(before ? to : to + 1, 0, m);
+  const acts = [];
+  full.forEach((t, k) => { if (t.ordre !== k + 1) acts.push(['UpdateRecord', TABLE, t.id, { Ordre: k + 1 }]); });
+  dragEnd();
   if (acts.length) await act(acts);
 }
 function resetOrdre() {
@@ -455,7 +500,6 @@ function taskHtml(t) {
         ${fait ? '' : (closeId === t.id ? closeBoxHtml(t) : entryRowHtml(t))}
       </div>
       <div class="t-actions">
-        ${fait || tab === 'fait' ? '' : (() => { const k = visIds.indexOf(t.id); return `<span class="mv"><button class="ib" title="Monter" ${k<=0?'disabled':''} onclick="moveTask(${t.id},-1)">▲</button><button class="ib" title="Descendre" ${k<0||k>=visIds.length-1?'disabled':''} onclick="moveTask(${t.id},1)">▼</button></span>`; })()}
         <button class="ib star ${t.important?'on':''}" title="${t.important?'Retirer l\'importance':'Marquer comme important'}" onclick="toggleImportant(${t.id})">${t.important?'★':'☆'}</button>
         ${fait ? '' : `<button class="ib wait ${t.enAttente?'on':''}" title="${t.enAttente?'Plus en attente : je peux avancer':'En attente d\'une réponse : je ne peux rien faire pour l\'instant'}" onclick="toggleAttente(${t.id})">⏳</button>`}
         ${fait ? `<button class="ib" title="Rouvrir cette tâche" onclick="rouvrir(${t.id})">↺ Rouvrir</button>` : `<button class="ib close" title="Clôturer cette tâche" onclick="openClose(${t.id})">✓ Clôturer</button>`}
@@ -556,7 +600,17 @@ function renderList() {
     return;
   }
   visIds = list.map(t => t.id);
-  box.innerHTML = '<div class="list">' + list.map(taskHtml).join('') + '</div>';
+  box.innerHTML = '<div class="list">' + list.map((t, k) => {
+    if (tab === 'fait' || t.statut === ST_FAIT) return taskHtml(t);
+    return `<div class="row" data-id="${t.id}" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dropOn(event)" ondragend="dragEnd()" ondragleave="this.classList.remove('over-top','over-bottom')">
+      ${taskHtml(t)}
+      <div class="side">
+        <button title="Monter" ${k===0?'disabled':''} onclick="moveTask(${t.id},-1)">▲</button>
+        <button class="grip" title="Glisser pour déplacer" onmousedown="gripDown(event)" onmouseup="this.closest('.row').draggable=false">⋮⋮</button>
+        <button title="Descendre" ${k===list.length-1?'disabled':''} onclick="moveTask(${t.id},1)">▼</button>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
 }
 
 let focusKeep = null;
