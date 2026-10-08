@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pense-bête</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 16px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+
+.wrap { max-width: 860px; margin: 0 auto; }
+.title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 9px; height: 9px; border-radius: 50%; background: #BA9517; }
+
+.add-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.add-row input { flex: 1; min-width: 0; font-size: 14px; padding: 10px 12px; border: 1px solid #d5d5d5; border-radius: 9px; background: #fff; color: inherit; }
+.add-row input:focus { outline: none; border-color: #BA9517; box-shadow: 0 0 0 3px rgba(186,149,23,.15); }
+@media (prefers-color-scheme: dark) { .add-row input { background: #2a2a2a; border-color: #444; } }
+.btn { font-size: 12.5px; padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-primary { background: #BA9517; color: #fff; }
+.btn-primary:hover { background: #a38214; }
+.btn-ghost { background: rgba(0,0,0,.06); color: inherit; }
+.btn-ghost:hover { background: rgba(0,0,0,.1); }
+@media (prefers-color-scheme: dark) { .btn-ghost { background: rgba(255,255,255,.1); } .btn-ghost:hover { background: rgba(255,255,255,.16); } }
+
+.toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tab { font-size: 12.5px; padding: 6px 12px; border: 1px solid #d5d5d5; border-radius: 16px; background: none; color: inherit; cursor: pointer; }
+.tab:hover { background: rgba(128,128,128,.12); }
+.tab.on { background: #378ADD; border-color: #378ADD; color: #fff; }
+.tab .n { opacity: .75; margin-left: 4px; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) { .tab { border-color: #444; } }
+.search { margin-left: auto; font-size: 12.5px; padding: 6px 10px; border: 1px solid #d5d5d5; border-radius: 8px; background: #fff; color: inherit; width: 170px; }
+@media (prefers-color-scheme: dark) { .search { background: #2a2a2a; border-color: #444; } }
+
+.list { display: flex; flex-direction: column; gap: 9px; }
+.task { border: 1px solid #e5e5e5; border-left-width: 4px; border-radius: 11px; padding: 11px 14px; background: #fafaf8; }
+@media (prefers-color-scheme: dark) { .task { background: #202020; border-color: #353535; } }
+.task.s-afaire { border-left-color: #378ADD; }
+.task.s-attente { border-left-color: #D97B3F; }
+.task.s-fait { border-left-color: #1D9E75; opacity: .72; }
+.task.retard { border-left-color: #E24B4A; background: #FCEEEE; border-color: #F3CACA; }
+@media (prefers-color-scheme: dark) { .task.retard { background: #3A1D1D; border-color: #5E2A2A; } }
+
+.t-top { display: flex; align-items: flex-start; gap: 10px; }
+.t-check { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; cursor: pointer; accent-color: #1D9E75; }
+.t-main { flex: 1; min-width: 0; }
+.t-titre { font-size: 14px; font-weight: 500; word-break: break-word; }
+.s-fait .t-titre { text-decoration: line-through; }
+.t-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; align-items: center; }
+.chip { font-size: 11px; padding: 2px 9px; border-radius: 10px; background: rgba(0,0,0,.07); white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .chip { background: rgba(255,255,255,.1); } }
+.chip.attente { background: #FBE2CC; color: #9A5410; font-weight: 500; }
+.chip.lien { background: #E6F1FB; color: #0C447C; }
+.chip.relance { background: #FAF0CC; color: #8A7510; font-weight: 500; }
+.chip.relance.retard { background: #E24B4A; color: #fff; }
+@media (prefers-color-scheme: dark) {
+  .chip.attente { background: #4A3318; color: #E8B27C; }
+  .chip.lien { background: #223a52; color: #9FC6EE; }
+  .chip.relance { background: #4A4413; color: #E8D77C; }
+}
+.t-note { font-size: 12px; font-style: italic; color: #777; margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
+@media (prefers-color-scheme: dark) { .t-note { color: #aaa; } }
+
+.t-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.ib { font-size: 12px; padding: 4px 8px; border: 1px solid transparent; border-radius: 7px; background: none; color: inherit; cursor: pointer; opacity: .75; white-space: nowrap; }
+.ib:hover { background: rgba(128,128,128,.18); opacity: 1; }
+.ib.wait { color: #D97B3F; border-color: #D97B3F55; opacity: 1; }
+.ib.del:hover { color: #E24B4A; }
+
+.edit { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (prefers-color-scheme: dark) { .edit { border-top-color: #444; } }
+.edit .f { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.edit .f.full { grid-column: 1 / -1; }
+.edit label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #999; font-weight: 600; }
+.edit input, .edit textarea { font-size: 13px; padding: 7px 9px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; font-family: inherit; width: 100%; }
+.edit textarea { resize: vertical; min-height: 54px; }
+@media (prefers-color-scheme: dark) { .edit input, .edit textarea { background: #2a2a2a; border-color: #444; } }
+.quick { display: flex; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
+.quick button { font-size: 11px; padding: 2px 8px; border: 1px solid #ccc; border-radius: 10px; background: none; color: inherit; cursor: pointer; }
+.quick button:hover { background: rgba(128,128,128,.15); }
+.edit-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+
+.tl { margin-top: 8px; border-left: 2px solid rgba(128,128,128,.3); padding-left: 10px; display: flex; flex-direction: column; gap: 3px; }
+.tl-item { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; }
+.tl-date { color: #888; font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 40px; }
+.tl-txt { flex: 1; min-width: 0; word-break: break-word; white-space: pre-wrap; }
+.tl-del { visibility: hidden; border: none; background: none; color: #aaa; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; border-radius: 5px; }
+.tl-item:hover .tl-del { visibility: visible; }
+.tl-del:hover { color: #E24B4A; background: rgba(226,75,74,.1); }
+.entry-add { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.entry-add input[type=date] { font-size: 12px; padding: 5px 7px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+.entry-add input[type=text] { flex: 1; min-width: 160px; font-size: 13px; padding: 6px 9px; border: 1px solid #d5d5d5; border-radius: 7px; background: #fff; color: inherit; }
+@media (prefers-color-scheme: dark) { .entry-add input { background: #2a2a2a !important; border-color: #444 !important; } }
+.ib.log { color: #378ADD; border-color: #378ADD55; opacity: 1; }
+.empty, .loading { text-align: center; padding: 36px; color: #aaa; }
+.err { text-align: center; padding: 20px; color: #A32D2D; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title"><span class="title-dot"></span>Pense-bête</div>
+  <div class="add-row">
+    <input type="text" id="new-titre" placeholder="Nouvelle tâche… (Entrée pour ajouter)" autocomplete="off" onkeydown="if(event.key==='Enter')addTask()">
+    <button class="btn btn-primary" onclick="addTask()">Ajouter</button>
+  </div>
+  <div class="toolbar" id="toolbar"></div>
+  <div id="list"><div class="loading">Chargement…</div></div>
+</div>
+
+<script>
+const TABLE = 'Pendents';
+const ST_AFAIRE = 'À faire', ST_ATTENTE = 'En attente', ST_FAIT = 'Fait';
+const TABLE_H = 'Pendents_historial';
+let tasks = [], hist = {}, tab = 'actives', q = '', editId = null, addId = null, pendingRender = false;
+
+function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',timeZone:'UTC'}); }
+function dateInput(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d))return ''; return d.toISOString().slice(0,10); }
+function dateToGrist(s){ return s ? Math.floor(new Date(s+'T00:00:00Z').getTime()/1000) : null; }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function todayG(){ return dateToGrist(todayStr()); }
+function plusDaysStr(n){ const d=new Date(todayStr()+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+// ---------- Données ----------
+async function ensureTable() {
+  try { await grist.docApi.fetchTable(TABLE_H); }
+  catch (e) { await grist.docApi.applyUserActions([['AddTable', TABLE_H, [
+    {id:'Tasca', type:'Int'}, {id:'Data', type:'Date'}, {id:'Text', type:'Text'},
+  ]]]); }
+  try { await grist.docApi.fetchTable(TABLE); return; } catch (e) {}
+  await grist.docApi.applyUserActions([['AddTable', TABLE, [
+    {id:'Titre', type:'Text'},
+    {id:'Statut', type:'Text'},
+    {id:'Attente_de', type:'Text'},
+    {id:'Relance', type:'Date'},
+    {id:'Lie_a', type:'Text'},
+    {id:'Note', type:'Text'},
+    {id:'Cree_le', type:'Date'},
+    {id:'Fait_le', type:'Date'},
+  ]]]);
+}
+
+async function fetchAll() {
+  try {
+    const t = await grist.docApi.fetchTable(TABLE);
+    tasks = (t.id||[]).map((id,i)=>({
+      id,
+      titre:(t.Titre||[])[i]||'',
+      statut:(t.Statut||[])[i]||ST_AFAIRE,
+      attente:(t.Attente_de||[])[i]||'',
+      relance:(t.Relance||[])[i]||null,
+      lien:(t.Lie_a||[])[i]||'',
+      note:(t.Note||[])[i]||'',
+      cree:(t.Cree_le||[])[i]||null,
+      fait:(t.Fait_le||[])[i]||null,
+    }));
+    hist = {};
+    try {
+      const h = await grist.docApi.fetchTable(TABLE_H);
+      (h.id||[]).forEach((id,i) => {
+        const tid = (h.Tasca||[])[i];
+        (hist[tid] = hist[tid] || []).push({ id, data:(h.Data||[])[i]||null, text:(h.Text||[])[i]||'' });
+      });
+      Object.values(hist).forEach(a => a.sort((x,y) => toMs(x.data) - toMs(y.data) || x.id - y.id));
+    } catch (e) { hist = {}; }
+    if (editId != null || addId != null) { pendingRender = true; return; }   // ne pas détruire un formulaire en cours
+    render();
+  } catch (e) {
+    document.getElementById('list').innerHTML = '<div class="err">Erreur : ' + esc(e.message) + '</div>';
+  }
+}
+
+async function act(actions) {
+  try { await grist.docApi.applyUserActions(actions); await fetchAll(); }
+  catch (e) { alert('Erreur : ' + e.message); }
+}
+
+// ---------- Actions ----------
+async function addTask() {
+  const inp = document.getElementById('new-titre');
+  const titre = inp.value.trim();
+  if (!titre) return;
+  inp.value = '';
+  await act([['AddRecord', TABLE, null, { Titre: titre, Statut: ST_AFAIRE, Cree_le: todayG() }]]);
+  inp.focus();
+}
+function toggleFait(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  if (t.statut === ST_FAIT) act([['UpdateRecord', TABLE, id, { Statut: t.attente ? ST_ATTENTE : ST_AFAIRE, Fait_le: null }]]);
+  else act([['UpdateRecord', TABLE, id, { Statut: ST_FAIT, Fait_le: todayG() }]]);
+}
+function delTask(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  if (!confirm('Supprimer « ' + t.titre + ' » ?')) return;
+  act([...(hist[id]||[]).map(e => ['RemoveRecord', TABLE_H, e.id]), ['RemoveRecord', TABLE, id]]);
+}
+function openAdd(id) {
+  editId = null; addId = id;
+  render();
+  const el = document.getElementById('en-text'); if (el) el.focus();
+}
+function closeAdd() { addId = null; pendingRender = false; render(); }
+async function saveEntry() {
+  const id = addId; if (id == null) return;
+  const text = document.getElementById('en-text').value.trim();
+  if (!text) return;
+  const data = dateToGrist(document.getElementById('en-date').value) || todayG();
+  try {
+    await grist.docApi.applyUserActions([['AddRecord', TABLE_H, null, { Tasca: id, Data: data, Text: text }]]);
+    pendingRender = false; addId = null;
+    await fetchAll();
+    addId = id; render();                       // le champ reste ouvert pour enchaîner plusieurs entrées
+    const el = document.getElementById('en-text'); if (el) el.focus();
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+function delEntry(eid) {
+  const keep = addId;
+  act([['RemoveRecord', TABLE_H, eid]]).then(() => { if (keep != null) { addId = keep; render(); } });
+}
+function openEdit(id, wait) {
+  addId = null;
+  editId = id;
+  render();
+  const el = document.getElementById(wait ? 'e-attente' : 'e-titre');
+  if (el) el.focus();
+}
+function closeEdit() {
+  editId = null; addId = null; pendingRender = false;
+  render();
+}
+function setQuick(n) { const el = document.getElementById('e-relance'); if (el) el.value = plusDaysStr(n); }
+function clearRelance() { const el = document.getElementById('e-relance'); if (el) el.value = ''; }
+async function saveEdit() {
+  const id = editId; if (id == null) return;
+  const t = tasks.find(x => x.id === id); if (!t) { closeEdit(); return; }
+  const titre = document.getElementById('e-titre').value.trim();
+  if (!titre) { alert('Le titre est obligatoire.'); return; }
+  const attente = document.getElementById('e-attente').value.trim();
+  const relance = dateToGrist(document.getElementById('e-relance').value);
+  const lien = document.getElementById('e-lien').value.trim();
+  const note = document.getElementById('e-note').value.trim();
+  let statut = t.statut;
+  if (statut !== ST_FAIT) statut = attente ? ST_ATTENTE : ST_AFAIRE;   // « en attente de… » rempli → En attente
+  editId = null; pendingRender = false;
+  await act([['UpdateRecord', TABLE, id, { Titre: titre, Attente_de: attente, Relance: relance, Lie_a: lien, Note: note, Statut: statut }]]);
+}
+
+// ---------- Rendu ----------
+function setTab(t) { tab = t; editId = null; addId = null; pendingRender = false; render(); }
+function onSearch(v) { q = v; if (editId == null && addId == null) renderList(); }
+
+function relanceInfo(t) {
+  if (!t.relance || t.statut === ST_FAIT) return null;
+  const diff = Math.round((toMs(t.relance) - toMs(todayG())) / 86400000);
+  let txt;
+  if (diff < 0) txt = 'relance en retard de ' + (-diff) + ' j';
+  else if (diff === 0) txt = "relance aujourd'hui";
+  else if (diff === 1) txt = 'relance demain';
+  else txt = 'relance le ' + fmtDate(t.relance);
+  return { diff, txt, retard: diff <= 0 };
+}
+
+function visibleTasks() {
+  let list = tasks.slice();
+  if (tab === 'actives') list = list.filter(t => t.statut !== ST_FAIT);
+  else if (tab === 'attente') list = list.filter(t => t.statut === ST_ATTENTE);
+  else if (tab === 'fait') list = list.filter(t => t.statut === ST_FAIT);
+  const nq = norm(q.trim());
+  if (nq) list = list.filter(t => norm([t.titre, t.attente, t.lien, t.note, ...(hist[t.id]||[]).map(e => e.text)].join(' ')).includes(nq));
+  if (tab === 'fait') return list.sort((a,b) => toMs(b.fait) - toMs(a.fait) || b.id - a.id);
+  // Actives : relances échues/proches d'abord, puis le reste (plus récent en premier)
+  const key = t => { const r = relanceInfo(t); return r ? toMs(t.relance) : Infinity; };
+  return list.sort((a,b) => {
+    const ka = key(a), kb = key(b);
+    if (ka !== kb) return ka - kb;
+    return b.id - a.id;
+  });
+}
+
+function renderToolbar() {
+  const nAct = tasks.filter(t => t.statut !== ST_FAIT).length;
+  const nAtt = tasks.filter(t => t.statut === ST_ATTENTE).length;
+  const nFait = tasks.filter(t => t.statut === ST_FAIT).length;
+  const nRetard = tasks.filter(t => { const r = relanceInfo(t); return r && r.retard; }).length;
+  const tabs = [['actives','À suivre',nAct],['attente','En attente',nAtt],['fait','Fait',nFait],['tout','Tout',tasks.length]];
+  document.getElementById('toolbar').innerHTML =
+    tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
+    (nRetard ? `<span class="chip relance retard" title="Tâches dont la date de relance est atteinte">⏰ ${nRetard} à relancer</span>` : '') +
+    `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
+}
+
+function taskHtml(t) {
+  const fait = t.statut === ST_FAIT;
+  const r = relanceInfo(t);
+  const cls = fait ? 's-fait' : (r && r.retard ? 'retard ' : '') + (t.statut === ST_ATTENTE ? 's-attente' : 's-afaire');
+  if (editId === t.id) return editHtml(t, cls);
+  return `<div class="task ${cls}">
+    <div class="t-top">
+      <input type="checkbox" class="t-check" ${fait?'checked':''} title="${fait?'Rouvrir':'Marquer comme fait'}" onchange="toggleFait(${t.id})">
+      <div class="t-main">
+        <div class="t-titre">${esc(t.titre)}</div>
+        <div class="t-meta">
+          ${t.attente && !fait ? `<span class="chip attente">⏳ ${esc(t.attente)}</span>` : ''}
+          ${r ? `<span class="chip relance ${r.retard?'retard':''}">${esc(r.txt)}</span>` : ''}
+          ${t.lien ? `<span class="chip lien">🔗 ${esc(t.lien)}</span>` : ''}
+          ${fait && t.fait ? `<span class="chip">fait le ${fmtDate(t.fait)}</span>` : ''}
+        </div>
+        ${t.note ? `<div class="t-note">${esc(t.note)}</div>` : ''}
+        ${timelineHtml(t)}
+        ${addId === t.id ? `<div class="entry-add">
+          <input type="date" id="en-date" value="${todayStr()}">
+          <input type="text" id="en-text" placeholder="Ex. mail envoyé / réponse reçue…" autocomplete="off" onkeydown="if(event.key==='Enter')saveEntry();if(event.key==='Escape')closeAdd()">
+          <button class="btn btn-primary" onclick="saveEntry()">Ajouter</button>
+          <button class="btn btn-ghost" onclick="closeAdd()">Fermer</button>
+        </div>` : ''}
+      </div>
+      <div class="t-actions">
+        ${addId === t.id ? '' : `<button class="ib log" title="Ajouter une entrée au suivi (mail envoyé, réponse reçue…)" onclick="openAdd(${t.id})">＋ Suivi</button>`}
+        ${fait ? '' : `<button class="ib wait" title="Je suis en attente d'une réponse" onclick="openEdit(${t.id}, true)">⏳ Attente</button>`}
+        <button class="ib" title="Modifier" onclick="openEdit(${t.id}, false)">✎</button>
+        <button class="ib del" title="Supprimer" onclick="delTask(${t.id})">🗑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function fmtEntryDate(g) {
+  const ms = toMs(g); if (!ms) return '';
+  const d = new Date(ms);
+  const same = d.getUTCFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('fr-FR', same ? { day:'2-digit', month:'2-digit', timeZone:'UTC' } : { day:'2-digit', month:'2-digit', year:'2-digit', timeZone:'UTC' });
+}
+function timelineHtml(t) {
+  const list = hist[t.id] || [];
+  if (!list.length) return '';
+  return '<div class="tl">' + list.map(e =>
+    `<div class="tl-item"><span class="tl-date">${fmtEntryDate(e.data)}</span><span class="tl-txt">${esc(e.text)}</span><button class="tl-del" title="Supprimer cette entrée" onclick="delEntry(${e.id})">×</button></div>`
+  ).join('') + '</div>';
+}
+
+function editHtml(t, cls) {
+  return `<div class="task ${cls}">
+    <div class="t-top"><div class="t-main"><div class="t-titre">Modifier la tâche</div></div></div>
+    <div class="edit">
+      <div class="f full"><label>Tâche</label><input type="text" id="e-titre" value="${esc(t.titre)}" onkeydown="if(event.key==='Enter')saveEdit();if(event.key==='Escape')closeEdit()"></div>
+      <div class="f"><label>En attente de… (qui / quoi)</label><input type="text" id="e-attente" value="${esc(t.attente)}" placeholder="Ex. devis de Sigma" onkeydown="if(event.key==='Enter')saveEdit();if(event.key==='Escape')closeEdit()"></div>
+      <div class="f"><label>Me le rappeler le</label><input type="date" id="e-relance" value="${dateInput(t.relance)}">
+        <div class="quick"><button type="button" onclick="setQuick(2)">+2 j</button><button type="button" onclick="setQuick(7)">+1 sem.</button><button type="button" onclick="setQuick(14)">+2 sem.</button><button type="button" onclick="clearRelance()">aucune</button></div>
+      </div>
+      <div class="f full"><label>Lié à (DA, BC, contrat… — libre)</label><input type="text" id="e-lien" value="${esc(t.lien)}" placeholder="Ex. DA-2026-045"></div>
+      <div class="f full"><label>Note</label><textarea id="e-note">${esc(t.note)}</textarea></div>
+      <div class="edit-actions">
+        <button class="btn btn-primary" onclick="saveEdit()">Enregistrer</button>
+        <button class="btn btn-ghost" onclick="closeEdit()">Annuler</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderList() {
+  const box = document.getElementById('list');
+  const list = visibleTasks();
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">' + (q.trim() ? 'Aucun résultat.' : tab === 'fait' ? 'Rien de fait pour le moment.' : 'Rien à suivre 🎉') + '</div>';
+    return;
+  }
+  box.innerHTML = '<div class="list">' + list.map(taskHtml).join('') + '</div>';
+}
+
+function render() {
+  renderToolbar();
+  renderList();
+}
+
+// ---------- Démarrage ----------
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = async () => {
+  grist.ready({ requiredAccess: 'full' });
+  try { await ensureTable(); await fetchAll(); grist.onRecords(() => fetchAll()); }
+  catch (e) { document.getElementById('list').innerHTML = '<div class="err">Erreur : ' + esc(e.message) + '</div>'; }
+};
+gristScript.onerror = () => { document.getElementById('list').innerHTML = '<div class="loading">Grist non disponible.</div>'; };
+document.head.appendChild(gristScript);
+</script>
+<script>
+/* FIX-PREMIER-CLIC: si le widget se re-dessine (focus / onRecords) entre l'appui et le relâchement
+   de la souris, le clic se perdait. On le rejoue sur l'élément équivalent du nouveau DOM. */
+(function(){
+  var down=null;
+  function pathOf(el){var p=[];while(el&&el!==document.body&&el.parentNode){p.unshift(Array.prototype.indexOf.call(el.parentNode.children,el));el=el.parentNode;}return p;}
+  function resolve(p){var n=document.body;for(var i=0;i<p.length;i++){n=n&&n.children[p[i]];if(!n)return null;}return n;}
+  document.addEventListener('pointerdown',function(e){
+    if(e.button!==0){down=null;return;}
+    down={el:e.target,path:pathOf(e.target),clicked:false};
+  },true);
+  document.addEventListener('click',function(e){ if(down&&e.target===down.el)down.clicked=true; },true);
+  document.addEventListener('pointerup',function(){
+    var d=down; if(!d)return; down=null;
+    setTimeout(function(){
+      if(d.clicked||d.el.isConnected)return;
+      var n=resolve(d.path); if(!n||n.disabled)return;
+      var tag=(n.tagName||'').toLowerCase();
+      if(tag==='input'||tag==='textarea'||tag==='select'){n.focus();if(tag==='input'&&(n.type==='checkbox'||n.type==='radio'))n.click();}
+      else n.click();
+    },0);
+  },true);
+})();
+</script>
+</body>
+</html>
