@@ -110,6 +110,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .ib.close { color: #1D9E75; border-color: #1D9E7566; opacity: 1; }
 .ib.close:hover { background: #1D9E75; color: #fff; }
 .tab.wait.on { background: #D97B3F; border-color: #D97B3F; }
+.mv { display: inline-flex; flex-direction: column; gap: 0; margin-right: 2px; }
+.mv .ib { font-size: 9px; line-height: 1; padding: 2px 6px; opacity: .55; }
+.mv .ib:hover:not(:disabled) { opacity: 1; }
+.mv .ib:disabled { opacity: .15; cursor: default; }
 .ib.wait { font-size: 15px; opacity: .45; padding: 2px 6px; }
 .ib.wait.on { opacity: 1; background: #FBE2CC; }
 .task.attend:not(.retard) { border-left-color: #D97B3F; opacity: .8; }
@@ -186,6 +190,7 @@ async function ensureTable() {
     {id:'Relance', type:'Date'},
     {id:'Important', type:'Bool'},
     {id:'En_attente', type:'Bool'},
+    {id:'Ordre', type:'Int'},
     {id:'Lie_a', type:'Text'},
     {id:'Note', type:'Text'},
     {id:'Cree_le', type:'Date'},
@@ -202,6 +207,9 @@ async function fetchAll() {
     if (!t.En_attente) {          // colonne « En_attente » ajoutée plus tard
       try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'En_attente', { type: 'Bool' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
     }
+    if (!t.Ordre) {               // colonne « Ordre » (tri manuel)
+      try { await grist.docApi.applyUserActions([['AddColumn', TABLE, 'Ordre', { type: 'Int' }]]); t = await grist.docApi.fetchTable(TABLE); } catch (e) {}
+    }
     tasks = (t.id||[]).map((id,i)=>({
       id,
       titre:(t.Titre||[])[i]||'',
@@ -210,6 +218,7 @@ async function fetchAll() {
       relance:(t.Relance||[])[i]||null,
       important:!!(t.Important||[])[i],
       enAttente:!!(t.En_attente||[])[i],
+      ordre:(t.Ordre||[])[i] || null,
       lien:(t.Lie_a||[])[i]||'',
       note:(t.Note||[])[i]||'',
       cree:(t.Cree_le||[])[i]||null,
@@ -251,6 +260,21 @@ async function addTask() {
 function toggleImportant(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
   act([['UpdateRecord', TABLE, id, { Important: !t.important }]]);
+}
+let visIds = [];
+async function moveTask(id, dir) {
+  const v = visibleTasks(); const i = v.findIndex(t => t.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= v.length) return;
+  const full = tasks.slice().sort(cmpTasks);                 // ordre complet actuel (toutes les tâches)
+  const a = full.findIndex(t => t.id === v[i].id), b = full.findIndex(t => t.id === v[j].id);
+  [full[a], full[b]] = [full[b], full[a]];
+  const acts = [];
+  full.forEach((t, k) => { if (t.ordre !== k + 1) acts.push(['UpdateRecord', TABLE, t.id, { Ordre: k + 1 }]); });
+  if (acts.length) await act(acts);
+}
+function resetOrdre() {
+  const acts = tasks.filter(t => t.ordre).map(t => ['UpdateRecord', TABLE, t.id, { Ordre: null }]);
+  if (acts.length) act(acts);
 }
 function toggleAttente(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
@@ -378,15 +402,21 @@ function visibleTasks() {
   const nq = norm(q.trim());
   if (nq) list = list.filter(t => norm([t.titre, t.lien, ...(hist[t.id]||[]).map(e => e.text)].join(' ')).includes(nq));
   if (tab === 'fait') return list.sort((a,b) => toMs(b.fait) - toMs(a.fait) || b.id - a.id);
-  // Importantes d'abord, puis relances échues, puis activité la plus récente
-  return list.sort((a,b) => {
+  return list.sort(cmpTasks);
+}
+function cmpTasks(a, b) {
+  // Ordre manuel (flèches) ; les tâches sans rang (nouvelles) passent en premier, triées automatiquement
+  if (!!a.ordre !== !!b.ordre) return a.ordre ? 1 : -1;
+  if (a.ordre && b.ordre && a.ordre !== b.ordre) return a.ordre - b.ordre;
+  // Auto : importantes d'abord, puis relances échues, puis activité la plus récente
+  {
     const wa = a.enAttente && !enRetard(a), wb = b.enAttente && !enRetard(b);   // en attente de réponse (rien à faire) : en bas, sauf si relance / action échue
     if (wa !== wb) return wa ? 1 : -1;
     if (a.important !== b.important) return a.important ? -1 : 1;
     const ra = enRetard(a), rb = enRetard(b);
     if (ra !== rb) return ra ? -1 : 1;
     return dernierActivite(b) - dernierActivite(a) || b.id - a.id;
-  });
+  }
 }
 
 function renderToolbar() {
@@ -400,6 +430,7 @@ function renderToolbar() {
     tabs.map(([k,l,n]) => `<button class="tab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}<span class="n">${n}</span></button>`).join('') +
     `<button class="tab imp ${onlyImp?'on':''}" title="Afficher seulement les tâches importantes" onclick="toggleOnlyImp()">★ Importantes<span class="n">${nImp}</span></button>` +
     `<button class="tab wait ${onlyWait?'on':''}" title="Afficher seulement les tâches en attente d'une réponse" onclick="toggleOnlyWait()">⏳ En attente<span class="n">${nWait}</span></button>` +
+    (tasks.some(t => t.ordre) ? `<button class="tab" title="Supprimer l'ordre manuel et revenir au tri automatique (important, relances, activité)" onclick="resetOrdre()">↺ Tri auto</button>` : '') +
     (nRetard ? `<span class="chip relance retard" title="Tâches avec une relance ou une action à faire arrivée à échéance">⏰ ${nRetard} à traiter</span>` : '') +
     `<input class="search" id="search" type="text" placeholder="🔍 Rechercher…" value="${esc(q)}" oninput="onSearch(this.value)">`;
 }
@@ -424,6 +455,7 @@ function taskHtml(t) {
         ${fait ? '' : (closeId === t.id ? closeBoxHtml(t) : entryRowHtml(t))}
       </div>
       <div class="t-actions">
+        ${fait || tab === 'fait' ? '' : (() => { const k = visIds.indexOf(t.id); return `<span class="mv"><button class="ib" title="Monter" ${k<=0?'disabled':''} onclick="moveTask(${t.id},-1)">▲</button><button class="ib" title="Descendre" ${k<0||k>=visIds.length-1?'disabled':''} onclick="moveTask(${t.id},1)">▼</button></span>`; })()}
         <button class="ib star ${t.important?'on':''}" title="${t.important?'Retirer l\'importance':'Marquer comme important'}" onclick="toggleImportant(${t.id})">${t.important?'★':'☆'}</button>
         ${fait ? '' : `<button class="ib wait ${t.enAttente?'on':''}" title="${t.enAttente?'Plus en attente : je peux avancer':'En attente d\'une réponse : je ne peux rien faire pour l\'instant'}" onclick="toggleAttente(${t.id})">⏳</button>`}
         ${fait ? `<button class="ib" title="Rouvrir cette tâche" onclick="rouvrir(${t.id})">↺ Rouvrir</button>` : `<button class="ib close" title="Clôturer cette tâche" onclick="openClose(${t.id})">✓ Clôturer</button>`}
@@ -523,6 +555,7 @@ function renderList() {
     box.innerHTML = '<div class="empty">' + (q.trim() ? 'Aucun résultat.' : tab === 'fait' ? 'Aucune tâche clôturée pour le moment.' : 'Rien à suivre 🎉') + '</div>';
     return;
   }
+  visIds = list.map(t => t.id);
   box.innerHTML = '<div class="list">' + list.map(taskHtml).join('') + '</div>';
 }
 
