@@ -347,5 +347,31 @@ gristScript.onload = loadData;
 gristScript.onerror = loadData;
 document.head.appendChild(gristScript);
 </script>
+<script>
+/* FIX-PREMIER-CLIC v2: si le widget se re-dessine (focus / onRecords) entre l'appui et le relâchement
+   de la souris, le clic se perdait. On le rejoue sur l'élément équivalent du nouveau DOM,
+   uniquement si AUCUN clic n'a été reçu et que l'élément équivalent est identique (même balise, même texte). */
+(function(){
+  var d=null;
+  function pathOf(el){var p=[];while(el&&el!==document.body&&el.parentNode){p.unshift(Array.prototype.indexOf.call(el.parentNode.children,el));el=el.parentNode;}return p;}
+  function resolve(p){var n=document.body;for(var i=0;i<p.length;i++){n=n&&n.children[p[i]];if(!n)return null;}return n;}
+  document.addEventListener('pointerdown',function(e){
+    if(e.button!==0){d=null;return;}
+    var t=e.target;
+    d={el:t,path:pathOf(t),tag:t.tagName,text:t.textContent,type:t.type||'',clicked:false};
+  },true);
+  document.addEventListener('click',function(e){ if(d&&(e.target===d.el||(d.el.contains&&d.el.contains(e.target))))d.clicked=true; },true);
+  document.addEventListener('pointerup',function(){
+    var dd=d; if(!dd)return;
+    setTimeout(function(){
+      if(dd.clicked||dd.el.isConnected)return;
+      var n=resolve(dd.path); if(!n||n.disabled||n.tagName!==dd.tag||(n.type||'')!==dd.type||n.textContent!==dd.text)return;
+      var tag=n.tagName.toLowerCase();
+      if(tag==='input'||tag==='textarea'||tag==='select'){n.focus();if(tag==='input'&&(n.type==='checkbox'||n.type==='radio'))n.click();}
+      else n.click();
+    },40);
+  },true);
+})();
+</script>
 </body>
 </html>

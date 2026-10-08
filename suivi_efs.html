@@ -31,17 +31,14 @@ select { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radi
 .mrow { border-top: 1px solid rgba(0,0,0,.07); }
 @media (prefers-color-scheme: dark) { .mrow { border-top-color: rgba(255,255,255,.08); } }
 .qcell.qcell-bottom { border-radius: 0 0 12px 12px; padding-bottom: 13px; }
-/* Teinte douce par trimestre, cohérente avec la palette déjà utilisée ailleurs dans la suite */
-.qcolor-1 { background: #EAF3FB; }
-.qcolor-2 { background: #EAFBF3; }
-.qcolor-3 { background: #FBF0E8; }
-.qcolor-4 { background: #F0EAFB; }
-@media (prefers-color-scheme: dark) {
-  .qcolor-1 { background: #16314A; }
-  .qcolor-2 { background: #16402F; }
-  .qcolor-3 { background: #3D2A1A; }
-  .qcolor-4 { background: #2A1F3D; }
-}
+/* Cellules blanches : la couleur du trimestre reste visible en accent (liseré à gauche),
+   pas en aplat sur tout le fond — cohérent avec l'esthétique des cartes de gestion_da. */
+.qcell { background: #fff; border-left: 3px solid var(--qc, transparent); }
+@media (prefers-color-scheme: dark) { .qcell { background: #202020; } }
+.qcolor-1 { --qc: #378ADD; }
+.qcolor-2 { --qc: #1D9E75; }
+.qcolor-3 { --qc: #D97B3F; }
+.qcolor-4 { --qc: #9C6ADE; }
 .mname { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; }
 .mtag { font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 8px; }
 .mtag.futur { background: #eee; color: #999; }
@@ -466,6 +463,32 @@ gs.src = 'https://docs.getgrist.com/grist-plugin-api.js';
 gs.onload = () => { grist.ready({ requiredAccess: 'full' }); fetchAll(); grist.onRecords(fetchAll); };
 gs.onerror = () => { document.getElementById('container').innerHTML = '<div class="empty">Grist non disponible.</div>'; };
 document.head.appendChild(gs);
+</script>
+<script>
+/* FIX-PREMIER-CLIC v2: si le widget se re-dessine (focus / onRecords) entre l'appui et le relâchement
+   de la souris, le clic se perdait. On le rejoue sur l'élément équivalent du nouveau DOM,
+   uniquement si AUCUN clic n'a été reçu et que l'élément équivalent est identique (même balise, même texte). */
+(function(){
+  var d=null;
+  function pathOf(el){var p=[];while(el&&el!==document.body&&el.parentNode){p.unshift(Array.prototype.indexOf.call(el.parentNode.children,el));el=el.parentNode;}return p;}
+  function resolve(p){var n=document.body;for(var i=0;i<p.length;i++){n=n&&n.children[p[i]];if(!n)return null;}return n;}
+  document.addEventListener('pointerdown',function(e){
+    if(e.button!==0){d=null;return;}
+    var t=e.target;
+    d={el:t,path:pathOf(t),tag:t.tagName,text:t.textContent,type:t.type||'',clicked:false};
+  },true);
+  document.addEventListener('click',function(e){ if(d&&(e.target===d.el||(d.el.contains&&d.el.contains(e.target))))d.clicked=true; },true);
+  document.addEventListener('pointerup',function(){
+    var dd=d; if(!dd)return;
+    setTimeout(function(){
+      if(dd.clicked||dd.el.isConnected)return;
+      var n=resolve(dd.path); if(!n||n.disabled||n.tagName!==dd.tag||(n.type||'')!==dd.type||n.textContent!==dd.text)return;
+      var tag=n.tagName.toLowerCase();
+      if(tag==='input'||tag==='textarea'||tag==='select'){n.focus();if(tag==='input'&&(n.type==='checkbox'||n.type==='radio'))n.click();}
+      else n.click();
+    },40);
+  },true);
+})();
 </script>
 </body>
 </html>
