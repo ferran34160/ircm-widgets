@@ -291,7 +291,7 @@ function render(data) {
 
     // Ratllat : toutes les lignes « actives » du contrat ont une part bloquée
     const actives = c.lignes.filter(l => l.disponible + l.bloque !== 0 || l.bloque_tout);
-    const bloc = actives.length > 0 && actives.every(l => l.bloque > 0 || l.bloque_tout);
+    const bloc = actives.length > 0 && actives.every(l => l.bloque_tout || (l.bloque > 0 && l.disponible <= 0));
     html += `
       <div class="card ${state}${bloc ? ' bloque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
