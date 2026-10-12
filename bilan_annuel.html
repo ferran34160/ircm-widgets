@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bilan annuel</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; padding: 20px 22px; font-size: 13px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1a1a; color: #e8e8e8; } }
+.wrap { max-width: 1300px; margin: 0 auto; }
+.title { font-size: 19px; font-weight: 600; }
+.subtitle { font-size: 12px; color: #999; margin-top: 3px; max-width: 900px; line-height: 1.45; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0 16px; }
+select, .btn { font-size: 13px; padding: 6px 11px; border: 1px solid #ccc; border-radius: 8px; background: inherit; color: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) { select, .btn { border-color: #444; } }
+.btn:hover { background: rgba(0,0,0,0.06); }
+.spacer { flex: 1; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.kpi { border: 1px solid #e5e5e5; border-radius: 12px; padding: 12px 14px; background: #fafaf8; }
+@media (prefers-color-scheme: dark) { .kpi { background: #202020; border-color: #353535; } }
+.kpi .l { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
+.kpi .v { font-size: 20px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 11px; color: #999; margin-top: 2px; }
+.kpi.main { border-top: 3px solid #378ADD; }
+.sec { font-size: 13px; font-weight: 600; margin: 18px 0 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: right; font-size: 11px; font-weight: 500; color: #888; padding: 6px 8px; border-bottom: 1.5px solid rgba(0,0,0,0.12); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+@media (prefers-color-scheme: dark) { th { border-bottom-color: rgba(255,255,255,0.15); } }
+td { padding: 6px 8px; white-space: nowrap; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) { td { border-bottom-color: rgba(255,255,255,0.08); } }
+tr.contrat td { font-weight: 600; background: rgba(55,138,221,0.07); cursor: pointer; }
+tr.ligne td { font-size: 12px; color: #666; }
+@media (prefers-color-scheme: dark) { tr.ligne td { color: #bbb; } }
+tr.ligne td:first-child { padding-left: 26px; white-space: normal; }
+tr.total td { font-weight: 700; border-top: 1.5px solid rgba(0,0,0,0.2); border-bottom: none; }
+.neg { color: #E24B4A; }
+.lock { color: #8A7510; }
+.caret { display: inline-block; width: 14px; color: #999; }
+.note { font-size: 11.5px; color: #999; margin-top: 14px; line-height: 1.5; max-width: 900px; }
+.loading, .empty { text-align: center; padding: 40px; color: #aaa; }
+@media print {
+  body { padding: 0; } .bar { display: none; } tr.contrat td { background: none; }
+  tr.ligne { display: table-row !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">Bilan annuel</div>
+  <div class="subtitle">Dépenses, mouvements et transferts de l'année choisie, par contrat. Le budget, le disponible, le bloqué et le reste à notifier sont ceux d'aujourd'hui (pas ceux du 31/12 de l'année).</div>
+  <div class="bar">
+    <label for="an">Année</label>
+    <select id="an" onchange="onAn(this.value)"></select>
+    <select id="cat" onchange="onCat(this.value)"><option value="">Toutes catégories</option></select>
+    <select id="ctr" onchange="onCtr(this.value)"><option value="">Tous les contrats</option></select>
+    <button class="btn" onclick="toutDeplier(true)">Tout déplier</button>
+    <button class="btn" onclick="toutDeplier(false)">Tout replier</button>
+    <span class="spacer"></span>
+    <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn" onclick="window.print()">🖨 Imprimer</button>
+  </div>
+  <div id="container"><div class="loading">Chargement…</div></div>
+</div>
+
+<script>
+let ctx = null;            // données brutes chargées
+let annee = null, filtreCat = '', filtreCtr = '';
+const ouverts = new Set();
+let lastRows = [];
+
+const CAT_ORDER = ['Fonctionnement', 'Équipement', 'Personnel', 'Prestation', 'Mission'];
+function getCat(label){ for (const k of CAT_ORDER) if (String(label).includes(k)) return k; return 'Autre'; }
+function fmt(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toMs(g){ if(!g) return 0; if (g > 1e15) return g/1000; if (g > 1e11) return g; return g*1000; }
+function refId(v){ if (v==null) return null; if (typeof v==='number') return v; if (Array.isArray(v)) return v[1]; return v; }
+function yearOf(ms){ return ms ? new Date(ms).getUTCFullYear() : 0; }
+
+// Part bloquée d'une ligne (même règle que Disponible / Échéances)
+function blocPartiel(montant, dateG, tout, dispo) {
+  const t = !!tout && tout !== 'false' && tout !== 0;
+  const m = t ? Math.max(Number(dispo) || 0, 0) : (Number(montant) || 0);
+  if (!t && m <= 0) return 0;
+  let ms = 0; if (dateG) ms = dateG > 1e15 ? dateG/1000 : dateG > 1e11 ? dateG : dateG*1000;
+  if (ms && ms <= Date.now()) return 0;
+  return m;
+}
+
+async function fetchAll() {
+  try {
+    const [c, m, d, lb, ct, tr, no] = await Promise.all([
+      grist.docApi.fetchTable('Commandes'),
+      grist.docApi.fetchTable('Mouvements'),
+      grist.docApi.fetchTable('Demandes_achat'),
+      grist.docApi.fetchTable('Lignes_budgetaires'),
+      grist.docApi.fetchTable('Contrats'),
+      grist.docApi.fetchTable('Transferts'),
+      grist.docApi.fetchTable('Notifications_credit'),
+    ]);
+    const noms = {}, masques = new Set();
+    (ct.id||[]).forEach((id,i) => {
+      noms[id] = (ct.Nom||[])[i] || ('#'+id);
+      if ((ct.Masquer||[])[i]) { const n = (ct.Nom||[])[i]; if (n) masques.add(String(n).trim()); }
+    });
+    const resol = v => { if (v==null) return ''; if (typeof v==='number') return noms[v]||''; if (Array.isArray(v)) return noms[v[1]]||''; return String(v); };
+
+    const lignes = {};
+    (lb.id||[]).forEach((id,i) => {
+      const contrat = resol((lb.Contrat||[])[i]);
+      if (!contrat || masques.has(contrat.trim())) return;
+      const label = (lb.Label||[])[i] || '';
+      const dispo = (lb.Disponible||[])[i] || 0;
+      lignes[id] = {
+        id, contrat, label, cat: getCat(label),
+        sub: String(label).split('|').slice(1).join('|').trim() || label,
+        budget: (lb.Budget_ajuste||[])[i] || 0,
+        dispo, rest: (lb.Reste_a_notifier||[])[i] || 0,
+        bloque: blocPartiel((lb.Montant_bloque||[])[i], (lb.Bloque_jusqu_au||[])[i], (lb.Bloque_tout||[])[i], dispo),
+        cmd: {}, sortie: {}, entree: {}, tin: {}, tout: {}, notif: {},
+      };
+    });
+
+    const das = {};
+    (d.id||[]).forEach((id,i) => { das[id] = {
+      statut: (d.Statut||[])[i] || '', bc: toMs((d.Date_reception_BC||[])[i]),
+      pgm: toMs((d.Date_OrderPGM||[])[i]), ligne: refId((d.Ligne_budgetaire||[])[i]),
+    }; });
+
+    const add = (obj, y, v) => { obj[y] = (obj[y]||0) + v; };
+    const annees = new Set();
+
+    (c.id||[]).forEach((id,i) => {
+      const da = das[refId((c.Demande_achat||[])[i])];
+      if (!da || (da.statut !== 'BC reçu' && da.statut !== 'Envoyée PGM')) return;
+      const dt = da.bc || (da.statut === 'BC reçu' ? da.pgm : 0);
+      const L = lignes[da.ligne]; if (!dt || !L) return;
+      const mt = (c.Montant2||[])[i] || ((c.Prix_unitaire_HT||[])[i]||0) * ((c.Quantite||[])[i]||1);
+      const y = yearOf(dt); annees.add(y); add(L.cmd, y, mt);
+    });
+    (m.id||[]).forEach((id,i) => {
+      const L = lignes[refId((m.Ligne_budgetaire||[])[i])]; const dt = toMs((m.Date||[])[i]);
+      if (!L || !dt) return;
+      const y = yearOf(dt); annees.add(y);
+      add(((m.Type||[])[i] === 'Sortie') ? L.sortie : L.entree, y, (m.Montant||[])[i] || 0);
+    });
+    (tr.id||[]).forEach((id,i) => {
+      const dt = toMs((tr.Date||[])[i]); if (!dt) return;
+      const y = yearOf(dt), mt = (tr.Montant||[])[i] || 0;
+      const Ls = lignes[refId((tr.Ligne_source||[])[i])], Ld = lignes[refId((tr.Ligne_destination||[])[i])];
+      if (Ls) { annees.add(y); add(Ls.tout, y, mt); }
+      if (Ld) { annees.add(y); add(Ld.tin, y, mt); }
+    });
+    (no.id||[]).forEach((id,i) => {
+      const L = lignes[refId((no.Ligne_budgetaire||[])[i])]; const dt = toMs((no.Date_notification||[])[i]);
+      if (!L || !dt) return;
+      const y = yearOf(dt); annees.add(y); add(L.notif, y, (no.Montant||[])[i] || 0);
+    });
+
+    ctx = { lignes: Object.values(lignes), annees: [...annees].filter(Boolean).sort((a,b)=>b-a) };
+    const now = new Date().getFullYear();
+    if (!ctx.annees.includes(now)) ctx.annees.unshift(now);
+    if (annee == null || !ctx.annees.includes(annee)) annee = now;
+    remplirSelecteurs();
+    render();
+  } catch (e) {
+    document.getElementById('container').innerHTML = '<div class="loading">Erreur : ' + esc(e.message) + '</div>';
+  }
+}
+
+function remplirSelecteurs() {
+  const a = document.getElementById('an');
+  a.innerHTML = ctx.annees.map(y => `<option value="${y}">${y}</option>`).join('');
+  a.value = String(annee);
+  const cats = [...new Set(ctx.lignes.map(l => l.cat))].sort((x,y) => CAT_ORDER.indexOf(x) - CAT_ORDER.indexOf(y));
+  const cs = document.getElementById('cat');
+  cs.innerHTML = '<option value="">Toutes catégories</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  cs.value = filtreCat;
+  const ctrs = [...new Set(ctx.lignes.map(l => l.contrat))].sort((x,y) => x.localeCompare(y,'fr'));
+  const ks = document.getElementById('ctr');
+  ks.innerHTML = '<option value="">Tous les contrats</option>' + ctrs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  ks.value = filtreCtr;
+}
+function onAn(v){ annee = parseInt(v,10); render(); }
+function onCat(v){ filtreCat = v; render(); }
+function onCtr(v){ filtreCtr = v; render(); }
+
+function calcLigne(l) {
+  const y = annee;
+  const cmd = l.cmd[y]||0, sortie = l.sortie[y]||0, entree = l.entree[y]||0;
+  const tin = l.tin[y]||0, tout = l.tout[y]||0, notif = l.notif[y]||0;
+  return { cmd, sortie, depense: cmd + sortie, entree, tin, tout, notif, budget: l.budget, dispo: l.dispo, bloque: l.bloque, utilisable: l.dispo - l.bloque, rest: l.rest };
+}
+
+function render() {
+  if (!ctx) return;
+  const sel = ctx.lignes.filter(l => (!filtreCat || l.cat === filtreCat) && (!filtreCtr || l.contrat === filtreCtr));
+  const parContrat = {};
+  sel.forEach(l => { (parContrat[l.contrat] = parContrat[l.contrat] || []).push(l); });
+  const sum = (arr, k) => arr.reduce((s,x) => s + x[k], 0);
+  const rows = [];
+  Object.keys(parContrat).sort((a,b) => a.localeCompare(b,'fr')).forEach(nom => {
+    const ls = parContrat[nom].slice().sort((a,b) => CAT_ORDER.indexOf(a.cat) - CAT_ORDER.indexOf(b.cat) || a.sub.localeCompare(b.sub,'fr')).map(l => ({ l, c: calcLigne(l) }));
+    const c = ls.map(x => x.c);
+    const tot = {}; ['cmd','sortie','depense','entree','tin','tout','notif','budget','dispo','bloque','utilisable','rest'].forEach(k => tot[k] = sum(c, k));
+    rows.push({ nom, tot, lignes: ls, actif: tot.depense || tot.entree || tot.tin || tot.tout || tot.notif });
+  });
+  lastRows = rows;
+
+  const T = {}; ['cmd','sortie','depense','entree','tin','tout','notif','budget','dispo','bloque','utilisable','rest'].forEach(k => T[k] = sum(rows.map(r => r.tot), k));
+
+  if (!rows.length) { document.getElementById('container').innerHTML = '<div class="empty">Aucune donnée.</div>'; return; }
+
+  const kpi = (l, v, s, cls) => `<div class="kpi ${cls||''}"><div class="l">${l}</div><div class="v">${fmt(v)}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+  let html = '<div class="kpis">'
+    + kpi('Dépensé en ' + annee, T.depense, 'commandes ' + fmt(T.cmd) + ' · mouvements ' + fmt(T.sortie), 'main')
+    + kpi('Crédits notifiés en ' + annee, T.notif, 'mises à disposition')
+    + kpi('Transferts nets', T.tin - T.tout, 'reçus ' + fmt(T.tin) + ' · cédés ' + fmt(T.tout))
+    + kpi('Disponible actuel', T.dispo, 'dont bloqué ' + fmt(T.bloque))
+    + kpi('Disponible utilisable', T.utilisable, 'après déduction du bloqué')
+    + kpi('Reste à notifier', T.rest, 'au dernier relevé')
+    + '</div>';
+
+  html += '<table><thead><tr><th>Contrat / ligne</th><th>Commandes</th><th>Mouvements (sorties)</th><th>Dépensé ' + annee + '</th><th>Entrées</th><th>Transferts reçus</th><th>Transferts cédés</th><th>Crédits notifiés</th><th>Budget ajusté</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
+  rows.forEach((r, ri) => {
+    const open = ouverts.has(r.nom);
+    const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${v ? fmt(v) : '–'}</td>`;
+    html += `<tr class="contrat" onclick="toggle(${ri})"><td><span class="caret">${open ? '▾' : '▸'}</span>${esc(r.nom)}</td>`
+      + cell(r.tot.cmd) + cell(r.tot.sortie) + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.entree) + cell(r.tot.tin) + cell(r.tot.tout) + cell(r.tot.notif)
+      + `<td>${fmt(r.tot.budget)}</td><td class="${r.tot.dispo < 0 ? 'neg' : ''}">${fmt(r.tot.dispo)}</td>`
+      + `<td class="lock">${r.tot.bloque ? '🔒 ' + fmt(r.tot.bloque) : '–'}</td><td class="${r.tot.utilisable < 0 ? 'neg' : ''}">${fmt(r.tot.utilisable)}</td></tr>`;
+    r.lignes.forEach(({ l, c }) => {
+      html += `<tr class="ligne" style="display:${open ? 'table-row' : 'none'}" data-ri="${ri}"><td>${esc(l.cat)} – ${esc(l.sub.replace(/^.*?–\s*/, ''))}</td>`
+        + cell(c.cmd) + cell(c.sortie) + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.entree) + cell(c.tin) + cell(c.tout) + cell(c.notif)
+        + `<td>${fmt(c.budget)}</td><td class="${c.dispo < 0 ? 'neg' : ''}">${fmt(c.dispo)}</td><td class="lock">${c.bloque ? '🔒 ' + fmt(c.bloque) : '–'}</td><td class="${c.utilisable < 0 ? 'neg' : ''}">${fmt(c.utilisable)}</td></tr>`;
+    });
+  });
+  html += `<tr class="total"><td>Total</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.depense)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.tin)}</td><td>${fmt(T.tout)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.budget)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
+  html += '</tbody></table>';
+  html += '<div class="note">Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Budget, Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
+  document.getElementById('container').innerHTML = html;
+}
+
+function toggle(ri) {
+  const nom = lastRows[ri].nom;
+  if (ouverts.has(nom)) ouverts.delete(nom); else ouverts.add(nom);
+  render();
+}
+function toutDeplier(o) { ouverts.clear(); if (o) lastRows.forEach(r => ouverts.add(r.nom)); render(); }
+
+function exportCSV() {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const n = v => String(Math.round((v||0)*100)/100).replace('.', ',');
+  const head = ['Contrat','Ligne','Année','Commandes','Mouvements sorties','Dépensé','Entrées','Transferts reçus','Transferts cédés','Crédits notifiés','Budget ajusté','Disponible','Bloqué','Utilisable','Reste à notifier'];
+  const out = [head.map(q).join(';')];
+  lastRows.forEach(r => r.lignes.forEach(({ l, c }) => {
+    out.push([q(r.nom), q(l.label), annee, n(c.cmd), n(c.sortie), n(c.depense), n(c.entree), n(c.tin), n(c.tout), n(c.notif), n(c.budget), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
+  }));
+  const blob = new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'bilan_annuel_' + annee + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function loadData() {
+  if (window.grist) {
+    grist.ready({ requiredAccess: 'full' });
+    fetchAll();
+    grist.onRecords(() => fetchAll());
+  } else {
+    document.getElementById('container').innerHTML = '<div class="loading">Connectez ce widget à Grist.</div>';
+  }
+}
+const gristScript = document.createElement('script');
+gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
+gristScript.onload = loadData;
+gristScript.onerror = loadData;
+document.head.appendChild(gristScript);
+</script>
+<script>
+/* FIX-PREMIER-CLIC v2: si le widget se re-dessine (focus / onRecords) entre l'appui et le relâchement
+   de la souris, le clic se perdait. On le rejoue sur l'élément équivalent du nouveau DOM,
+   uniquement si AUCUN clic n'a été reçu et que l'élément équivalent est identique (même balise, même texte). */
+(function(){
+  var d=null;
+  function pathOf(el){var p=[];while(el&&el!==document.body&&el.parentNode){p.unshift(Array.prototype.indexOf.call(el.parentNode.children,el));el=el.parentNode;}return p;}
+  function resolve(p){var n=document.body;for(var i=0;i<p.length;i++){n=n&&n.children[p[i]];if(!n)return null;}return n;}
+  document.addEventListener('pointerdown',function(e){
+    if(e.button!==0){d=null;return;}
+    var t=e.target;
+    d={el:t,path:pathOf(t),tag:t.tagName,text:t.textContent,type:t.type||'',clicked:false};
+  },true);
+  document.addEventListener('click',function(e){ if(d&&(e.target===d.el||(d.el.contains&&d.el.contains(e.target))))d.clicked=true; },true);
+  document.addEventListener('pointerup',function(){
+    var dd=d; if(!dd)return;
+    setTimeout(function(){
+      if(dd.clicked||dd.el.isConnected)return;
+      var n=resolve(dd.path); if(!n||n.disabled||n.tagName!==dd.tag||(n.type||'')!==dd.type||n.textContent!==dd.text)return;
+      var tag=n.tagName.toLowerCase();
+      if(tag==='input'||tag==='textarea'||tag==='select'){n.focus();if(tag==='input'&&(n.type==='checkbox'||n.type==='radio'))n.click();}
+      else n.click();
+    },40);
+  },true);
+})();
+</script>
+</body>
+</html>
