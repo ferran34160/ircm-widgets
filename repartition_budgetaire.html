@@ -135,6 +135,17 @@ let LIGNES = [], CONTRATS = [], COMMANDES = [], DAS = {};
 let filterContrat = '';
 let filterCategorie = ''; // filtre de catégorie
 
+// Part du budget d'une ligne bloquée temporairement (colonnes Montant_bloque / Bloque_jusqu_au de Lignes_budgetaires)
+function blocPartiel(montant, dateG, tout, dispo) {
+  // Bloque_tout coché : tout le disponible de la ligne est bloqué ; sinon Montant_bloque
+  const t = !!tout && tout !== 'false' && tout !== 0;
+  let m = t ? Math.max(Number(dispo) || 0, 0) : (Number(montant) || 0);
+  if (!t && m <= 0) return { m: 0, ms: 0, tout: false };
+  let ms = 0; if (dateG) ms = dateG > 1e15 ? dateG / 1000 : dateG > 1e11 ? dateG : dateG * 1000;
+  if (ms && ms <= Date.now()) return { m: 0, ms: 0, tout: false };
+  return { m, ms, tout: t };
+}
+
 async function fetchAll() {
   try {
     const [l, c, cmd, da] = await Promise.all([
@@ -169,7 +180,7 @@ async function fetchAll() {
       id,
       label: (l.Label_ligne || l.Label || [])[i] || '',
       contrat: refId((l.Contrat || [])[i]),
-      disponible: (l.Disponible || [])[i] || 0,
+      disponible: ((l.Disponible || [])[i] || 0) - blocPartiel((l.Montant_bloque || [])[i], (l.Bloque_jusqu_au || [])[i], (l.Bloque_tout || [])[i], (l.Disponible || [])[i]).m,   // utilisable = disponible - part bloquée
       reste: (l.Reste_a_notifier || [])[i] || 0,
     })).filter(ligne => !contratsMasques.has(ligne.contrat));
 

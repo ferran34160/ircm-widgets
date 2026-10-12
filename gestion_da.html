@@ -314,10 +314,10 @@ function blocPartiel(montant, dateG, tout, dispo) {
   return { m, ms, tout: t };
 }
 function ligneInfoTxt(l){
-  if(!l.bloque || !l.bloque.m) return '';
+  if(!l.bloque || (!l.bloque.m && !l.bloque.tout)) return '';
   const eur = v => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
   const net = (l.dispo!=null) ? ' · dispo. utilisable ' + eur(l.dispo - l.bloque.m) : '';
-  return ' — 🔒 ' + (l.bloque.tout ? 'tout bloqué (' + eur(l.bloque.m) + ')' : eur(l.bloque.m) + ' bloqués') + (l.bloque.ms ? ' jusqu\'au ' + new Date(l.bloque.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : '') + net;
+  return ' — 🔒 ' + (l.bloque.tout ? 'tout bloqué' + (l.bloque.m > 0 ? ' (' + eur(l.bloque.m) + ')' : '') : eur(l.bloque.m) + ' bloqués') + (l.bloque.ms ? ' jusqu\'au ' + new Date(l.bloque.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : '') + net;
 }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 

@@ -20,7 +20,6 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 .cat-total { margin-left: 10px; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 360px)); gap: 12px; }
 .bcard { border-radius: 12px; padding: 14px 16px; border: 1px solid; border-left-width: 4px; }
-.bcard.bloque { opacity: .62; border-style: dashed; border-left-style: solid; }
 .bcard-bloc { font-size: 11px; font-weight: 600; margin: 0 0 6px; padding: 2px 8px; border-radius: 6px; display: inline-block; background: #ECECEC; color: #444; }
 @media (prefers-color-scheme: dark) { .bcard-bloc { background: #3a3a3a; color: #ddd; } }
 .bcard-cat { font-size: 12px; margin: 0 0 2px; opacity: 0.75; }
@@ -57,7 +56,6 @@ select { font-size: 13px; padding: 5px 10px; border: 1px solid #ccc; border-radi
 let allData = [];
 let rawData = [];
 let contratsMasques = new Set();
-let contratsBloques = new Map();   // nom du contrat -> { ms } (bloqué temporairement)
 let notifsParLigne = {};
 function applyMasque() {
   allData = rawData.filter(d => !contratsMasques.has(String(d.contrat).trim()));
@@ -99,6 +97,26 @@ function notifActive(d) {
   if (!list || !list.length) return [];
   const dRel = toMsCB(d.date_releve);
   return list.filter(n => n.date && (!dRel || n.date > dRel));
+}
+// Part du budget d'une ligne bloquée temporairement (colonnes Montant_bloque / Bloque_jusqu_au de Lignes_budgetaires)
+
+// Les colonnes de blocage ne sont pas toujours transmises par onRecords (colonnes absentes de la vue) : lecture directe de la table
+async function chargerBlocs() {
+  const m = {};
+  try {
+    const t = await grist.docApi.fetchTable('Lignes_budgetaires');
+    (t.id || []).forEach((id, i) => { m[id] = { Montant_bloque: (t.Montant_bloque || [])[i], Bloque_tout: (t.Bloque_tout || [])[i], Bloque_jusqu_au: (t.Bloque_jusqu_au || [])[i] }; });
+  } catch (e) {}
+  return m;
+}
+function blocPartiel(montant, dateG, tout, dispo) {
+  // Bloque_tout coché : tout le disponible de la ligne est bloqué ; sinon Montant_bloque
+  const t = !!tout && tout !== 'false' && tout !== 0;
+  let m = t ? Math.max(Number(dispo) || 0, 0) : (Number(montant) || 0);
+  if (!t && m <= 0) return { m: 0, ms: 0, tout: false };
+  let ms = 0; if (dateG) ms = dateG > 1e15 ? dateG / 1000 : dateG > 1e11 ? dateG : dateG * 1000;
+  if (ms && ms <= Date.now()) return { m: 0, ms: 0, tout: false };
+  return { m, ms, tout: t };
 }
 function getState(d) {
   if (d.disponible < 0) return 'danger';
@@ -201,15 +219,14 @@ function render(data) {
         ? notifsActives.map(n => `<p class="bcard-mise">🔓 Mise à disposition : ${fmt(n.montant)}${n.date ? ' · ' + fmtDate(n.date) : ''}</p>`).join('')
         : '';
 
-      const bloc = contratsBloques.get(contrat);
-      const blocHtml = bloc ? `<p class="bcard-bloc">🔒 Contrat bloqué${bloc.ms ? " jusqu'au " + new Date(bloc.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}</p>` : '';
+      const blocPartHtml = (d.bloque || d.bloque_tout) ? `<p class="bcard-bloc">🔒 ${d.bloque_tout ? 'Tout bloqué' : fmt(d.bloque) + ' bloqués'}${d.bloque_ms ? " jusqu'au " + new Date(d.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}${d.bloque_tout ? (d.bloque > 0 ? ' (' + fmt(d.bloque) + ')' : '') : ' · déjà déduits'}</p>` : '';
       const contratAttr = contrat.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       html += `
-        <div class="bcard${bloc ? ' bloque' : ''}" data-contrat="${contratAttr}" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" title="Filtrer sur ${contratAttr}">
+        <div class="bcard" data-contrat="${contratAttr}" style="background:${cardBg}; border-color:${st.c}33; border-left-color:${st.c}; cursor:pointer;" title="Filtrer sur ${contratAttr}">
           <p class="bcard-cat" style="color:${txtColor}">${contrat}</p>
-          ${blocHtml}
           <p class="bcard-sub" style="color:${txtColor}">${sub} ${alertIcon}</p>
           <p class="bcard-dispo ${state === 'danger' ? 'neg' : ''}" style="${state !== 'danger' ? 'color:'+txtColor : ''}">${fmt(d.disponible)}</p>
+          ${blocPartHtml}
           ${infoHtml}
           ${barHtml}
           ${resteHtml}
@@ -288,12 +305,7 @@ function loadData() {
       grist.docApi.fetchTable('Notifications_credit').catch(() => null),
     ]).then(([ct, no]) => {
       contratsMasques = new Set();
-      contratsBloques = new Map();
       (ct.id||[]).forEach((id,i) => {
-        if ((ct.Bloque||[])[i]) {
-          const nomB = String((ct.Nom||[])[i] || '').trim(), dB = toMsCB((ct.Bloque_jusqu_au||[])[i]);
-          if (nomB && !(dB && dB <= Date.now())) contratsBloques.set(nomB, { ms: dB });
-        }
         if ((ct.Masquer||[])[i]) {
           const nom = (ct.Nom||[])[i];
           if (nom) contratsMasques.add(String(nom).trim());
@@ -318,14 +330,18 @@ function loadData() {
       if (rawData.length) { applyMasque(); rebuildContratSelect(); updateView(); }
     }).catch(()=>{});
 
-    grist.onRecords((records) => {
+    grist.onRecords(async (records) => {
+      const BL = await chargerBlocs();
       rawData = records.map(r => ({
         id:              r.id,
         label:           r.Label || r.label || '',
         contrat:         r.Contrat || '',
         budget_ajuste:   r.Budget_ajuste || 0,
         total_commandes: r.Total_commandes || 0,
-        disponible:      r.Disponible || 0,
+        disponible:      (r.Disponible || 0) - blocPartiel((BL[r.id]||r).Montant_bloque, (BL[r.id]||r).Bloque_jusqu_au, (BL[r.id]||r).Bloque_tout, r.Disponible).m,   // utilisable = disponible - part bloquée
+        bloque:          blocPartiel((BL[r.id]||r).Montant_bloque, (BL[r.id]||r).Bloque_jusqu_au, (BL[r.id]||r).Bloque_tout, r.Disponible).m,
+        bloque_ms:       blocPartiel((BL[r.id]||r).Montant_bloque, (BL[r.id]||r).Bloque_jusqu_au, (BL[r.id]||r).Bloque_tout, r.Disponible).ms,
+        bloque_tout:     blocPartiel((BL[r.id]||r).Montant_bloque, (BL[r.id]||r).Bloque_jusqu_au, (BL[r.id]||r).Bloque_tout, r.Disponible).tout,
         montant_releve:  r.Montant_dernier_releve,
         date_releve:     r.Date_dernier_releve,
         commandes_post:  r.Commandes_post_releve || 0,

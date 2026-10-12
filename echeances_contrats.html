@@ -465,12 +465,6 @@ function loadData() {
       await loadContratsMasques();
       await loadNotifs();
       const BL = await chargerBlocs();
-      try {
-        const nb = records.filter(r => { const b = BL[r.id] || {}; return b.Bloque_tout || Number(b.Montant_bloque) > 0; }).length;
-        let d = document.getElementById('diag-bloc');
-        if (!d) { d = document.createElement('div'); d.id = 'diag-bloc'; d.style.cssText = 'font-size:11px;opacity:.65;padding:2px 8px'; document.body.insertBefore(d, document.body.firstChild); }
-        d.textContent = Object.keys(BL).length ? 'v-bloc4 · lignes bloquées détectées : ' + nb : '⚠ Table Lignes_budgetaires illisible (v-bloc4)';
-      } catch(e) {}
       allData = records.map(r => {
         const lim = limitesParLigne[r.id];
         // Si la línia és annualisée amb data límit, usar-la com a data d'échéance efectiva
