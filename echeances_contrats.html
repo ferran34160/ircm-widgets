@@ -182,6 +182,16 @@ function updateView() {
 }
 
 // Part du budget d'une ligne bloquée temporairement (colonnes Montant_bloque / Bloque_jusqu_au de Lignes_budgetaires)
+
+// Les colonnes de blocage ne sont pas toujours transmises par onRecords (colonnes absentes de la vue) : lecture directe de la table
+async function chargerBlocs() {
+  const m = {};
+  try {
+    const t = await grist.docApi.fetchTable('Lignes_budgetaires');
+    (t.id || []).forEach((id, i) => { m[id] = { Montant_bloque: (t.Montant_bloque || [])[i], Bloque_tout: (t.Bloque_tout || [])[i], Bloque_jusqu_au: (t.Bloque_jusqu_au || [])[i] }; });
+  } catch (e) {}
+  return m;
+}
 function blocPartiel(montant, dateG, tout, dispo) {
   // Bloque_tout coché : tout le disponible de la ligne est bloqué ; sinon Montant_bloque
   const t = !!tout && tout !== 'false' && tout !== 0;
@@ -454,14 +464,12 @@ function loadData() {
       await loadReleves();
       await loadContratsMasques();
       await loadNotifs();
+      const BL = await chargerBlocs();
       try {
-        const k = records.length ? Object.keys(records[0]) : [];
-        const miss = ['Montant_bloque','Bloque_tout','Bloque_jusqu_au'].filter(c => records.length && !k.includes(c));
-        const nb = records.filter(r => r.Bloque_tout || Number(r.Montant_bloque) > 0).length;
+        const nb = records.filter(r => { const b = BL[r.id] || {}; return b.Bloque_tout || Number(b.Montant_bloque) > 0; }).length;
         let d = document.getElementById('diag-bloc');
         if (!d) { d = document.createElement('div'); d.id = 'diag-bloc'; d.style.cssText = 'font-size:11px;opacity:.65;padding:2px 8px'; document.body.insertBefore(d, document.body.firstChild); }
-        d.textContent = miss.length ? '⚠ Colonnes non reçues : ' + miss.join(', ') + ' (v-bloc3)' : 'v-bloc3 · lignes bloquées détectées : ' + nb;
-        d.style.color = miss.length ? '#b00020' : '';
+        d.textContent = Object.keys(BL).length ? 'v-bloc4 · lignes bloquées détectées : ' + nb : '⚠ Table Lignes_budgetaires illisible (v-bloc4)';
       } catch(e) {}
       allData = records.map(r => {
         const lim = limitesParLigne[r.id];
@@ -472,7 +480,7 @@ function loadData() {
           dateEff = lim.date_limite;
           annualisee = true;
         }
-        const bp = blocPartiel(r.Montant_bloque, r.Bloque_jusqu_au, r.Bloque_tout, r.Disponible);
+        const bp = blocPartiel((BL[r.id]||r).Montant_bloque, (BL[r.id]||r).Bloque_jusqu_au, (BL[r.id]||r).Bloque_tout, r.Disponible);
         return {
           id:            r.id,
           bloque:        bp.m,
