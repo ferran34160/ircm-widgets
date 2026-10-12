@@ -454,6 +454,15 @@ function loadData() {
       await loadReleves();
       await loadContratsMasques();
       await loadNotifs();
+      try {
+        const k = records.length ? Object.keys(records[0]) : [];
+        const miss = ['Montant_bloque','Bloque_tout','Bloque_jusqu_au'].filter(c => records.length && !k.includes(c));
+        const nb = records.filter(r => r.Bloque_tout || Number(r.Montant_bloque) > 0).length;
+        let d = document.getElementById('diag-bloc');
+        if (!d) { d = document.createElement('div'); d.id = 'diag-bloc'; d.style.cssText = 'font-size:11px;opacity:.65;padding:2px 8px'; document.body.insertBefore(d, document.body.firstChild); }
+        d.textContent = miss.length ? '⚠ Colonnes non reçues : ' + miss.join(', ') + ' (v-bloc3)' : 'v-bloc3 · lignes bloquées détectées : ' + nb;
+        d.style.color = miss.length ? '#b00020' : '';
+      } catch(e) {}
       allData = records.map(r => {
         const lim = limitesParLigne[r.id];
         // Si la línia és annualisée amb data límit, usar-la com a data d'échéance efectiva
