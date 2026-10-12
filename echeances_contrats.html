@@ -116,7 +116,6 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let allData = [];
 let contratsMasques = new Set();
-let contratsBloques = new Map();   // nom du contrat -> { ms } (bloqué temporairement)
 let notifsParLigne = {};
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
 let selectedContrats = new Set();   // contrats cochés pour le sumatori (par nom) : survit aux rafraîchissements
@@ -182,16 +181,29 @@ function updateView() {
   render(filtered);
 }
 
+// Part du budget d'une ligne bloquée temporairement (colonnes Montant_bloque / Bloque_jusqu_au de Lignes_budgetaires)
+function blocPartiel(montant, dateG, tout, dispo) {
+  // Bloque_tout coché : tout le disponible de la ligne est bloqué ; sinon Montant_bloque
+  const t = !!tout && tout !== 'false' && tout !== 0;
+  let m = t ? Math.max(Number(dispo) || 0, 0) : (Number(montant) || 0);
+  if (!t && m <= 0) return { m: 0, ms: 0, tout: false };
+  let ms = 0; if (dateG) ms = dateG > 1e15 ? dateG / 1000 : dateG > 1e11 ? dateG : dateG * 1000;
+  if (ms && ms <= Date.now()) return { m: 0, ms: 0, tout: false };
+  return { m, ms, tout: t };
+}
+
 function render(data) {
   const container = document.getElementById('container');
 
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, releve: 0, reste_notifier: 0, mise: 0, mises: [], lignes: [], a_annualisee: false };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, bloque: 0, bloque_ms: 0, releve: 0, reste_notifier: 0, mise: 0, mises: [], lignes: [], a_annualisee: false };
     }
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
+    if (d.bloque_tout) c.tout_lignes = (c.tout_lignes || 0) + 1;
+    if (d.bloque) { c.bloque += d.bloque; if (d.bloque_ms && (!c.bloque_ms || d.bloque_ms < c.bloque_ms)) c.bloque_ms = d.bloque_ms; }
     c.releve += d.montant_releve;
     c.reste_notifier += (d.reste_notifier || 0);
     // Mises à disposition actives (notifications postérieures au dernier relevé de la ligne)
@@ -251,29 +263,30 @@ function render(data) {
     }
 
     const cats = c.lignes
-      .filter(l => l.montant_releve > 0 || l.disponible !== 0)
+      .filter(l => l.montant_releve > 0 || l.disponible !== 0 || l.bloque > 0)
       .sort((a, b) => catRank(a.label) - catRank(b.label));
 
     let catsHtml = '';
     cats.forEach(l => {
       const parts = l.label.split('|');
       const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
+      const bloqMark = l.bloque ? ` <span title="${l.bloque_tout ? 'Tout bloqué' : fmt(l.bloque) + ' bloqués'}${l.bloque_ms ? ' jusqu\'au ' + new Date(l.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}" style="opacity:0.8">🔒</span>` : '';
       const annMark = l.annualisee ? ' <span title="Annualisé" style="opacity:0.7">⏱</span>' : '';
       catsHtml += `
         <div class="cat-row">
-          <span class="cat-label">${sub}${annMark}</span>
+          <span class="cat-label">${sub}${annMark}${bloqMark}</span>
           <span class="cat-val" style="${l.disponible < 0 ? 'color:#E24B4A' : ''}">${fmt(l.disponible)}</span>
         </div>`;
     });
 
-    const bloc = contratsBloques.get(String(c.nom).trim());
-    const blocHtml = bloc ? `<p class="c-bloc">🔒 Contrat bloqué${bloc.ms ? " jusqu'au " + new Date(bloc.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}</p>` : '';
+    // Ratllat : toutes les lignes « actives » du contrat ont une part bloquée
+    const actives = c.lignes.filter(l => l.disponible + l.bloque !== 0);
+    const bloc = actives.length > 0 && actives.every(l => l.bloque > 0);
     html += `
       <div class="card ${state}${bloc ? ' bloque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
-            ${blocHtml}
             <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
           <div class="c-tools">
@@ -282,6 +295,7 @@ function render(data) {
           </div>
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
+        ${c.bloque ? `<p class="c-bloc">🔒 ${c.tout_lignes && c.tout_lignes === c.lignes.filter(l => l.bloque > 0).length ? 'Tout bloqué (' + fmt(c.bloque) + ')' : fmt(c.bloque) + ' bloqués'}${c.bloque_ms ? " jusqu'au " + new Date(c.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''} (déjà déduits)</p>` : ''}
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         <p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>
         ${miseHtml(c)}
@@ -408,13 +422,7 @@ function loadData() {
     try {
       const ct = await grist.docApi.fetchTable('Contrats');
       contratsMasques = new Set();
-      contratsBloques = new Map();
-      const msB = g => { if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; };
       (ct.id||[]).forEach((id,i) => {
-        if ((ct.Bloque||[])[i]) {
-          const nomB = String((ct.Nom||[])[i] || '').trim(), dB = msB((ct.Bloque_jusqu_au||[])[i]);
-          if (nomB && !(dB && dB <= Date.now())) contratsBloques.set(nomB, { ms: dB });
-        }
         if ((ct.Masquer||[])[i]) {
           const nom = (ct.Nom||[])[i];
           if (nom) contratsMasques.add(String(nom).trim());
@@ -455,14 +463,18 @@ function loadData() {
           dateEff = lim.date_limite;
           annualisee = true;
         }
+        const bp = blocPartiel(r.Montant_bloque, r.Bloque_jusqu_au, r.Bloque_tout, r.Disponible);
         return {
           id:            r.id,
+          bloque:        bp.m,
+          bloque_ms:     bp.ms,
+          bloque_tout:   bp.tout,
           label:         r.Label || '',
           contrat:       r.Contrat || '',
           date_fin:      dateEff,
           date_fin_reelle: r.Date_fin_contrat,
           annualisee:    annualisee,
-          disponible:    r.Disponible || 0,
+          disponible:    (r.Disponible || 0) - bp.m,          // disponible utilisable = disponible - part bloquée
           budget_ajuste: r.Budget_ajuste || 0,
           montant_releve: r.Montant_dernier_releve || 0,
           date_releve:   r.Date_dernier_releve,
