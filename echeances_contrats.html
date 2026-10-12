@@ -203,7 +203,7 @@ function render(data) {
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
     if (d.bloque_tout) c.tout_lignes = (c.tout_lignes || 0) + 1;
-    if (d.bloque) { c.bloque += d.bloque; if (d.bloque_ms && (!c.bloque_ms || d.bloque_ms < c.bloque_ms)) c.bloque_ms = d.bloque_ms; }
+    if (d.bloque || d.bloque_tout) { c.bloque += d.bloque; c.n_bloq = (c.n_bloq || 0) + 1; if (d.bloque_ms && (!c.bloque_ms || d.bloque_ms < c.bloque_ms)) c.bloque_ms = d.bloque_ms; }
     c.releve += d.montant_releve;
     c.reste_notifier += (d.reste_notifier || 0);
     // Mises à disposition actives (notifications postérieures au dernier relevé de la ligne)
@@ -263,14 +263,14 @@ function render(data) {
     }
 
     const cats = c.lignes
-      .filter(l => l.montant_releve > 0 || l.disponible !== 0 || l.bloque > 0)
+      .filter(l => l.montant_releve > 0 || l.disponible !== 0 || l.bloque > 0 || l.bloque_tout)
       .sort((a, b) => catRank(a.label) - catRank(b.label));
 
     let catsHtml = '';
     cats.forEach(l => {
       const parts = l.label.split('|');
       const sub = parts.length > 1 ? parts.slice(1).join('|').trim() : l.label;
-      const bloqMark = l.bloque ? ` <span title="${l.bloque_tout ? 'Tout bloqué' : fmt(l.bloque) + ' bloqués'}${l.bloque_ms ? ' jusqu\'au ' + new Date(l.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}" style="opacity:0.8">🔒</span>` : '';
+      const bloqMark = (l.bloque || l.bloque_tout) ? ` <span title="${l.bloque_tout ? 'Tout bloqué' : fmt(l.bloque) + ' bloqués'}${l.bloque_ms ? ' jusqu\'au ' + new Date(l.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}" style="opacity:0.8">🔒</span>` : '';
       const annMark = l.annualisee ? ' <span title="Annualisé" style="opacity:0.7">⏱</span>' : '';
       catsHtml += `
         <div class="cat-row">
@@ -280,8 +280,8 @@ function render(data) {
     });
 
     // Ratllat : toutes les lignes « actives » du contrat ont une part bloquée
-    const actives = c.lignes.filter(l => l.disponible + l.bloque !== 0);
-    const bloc = actives.length > 0 && actives.every(l => l.bloque > 0);
+    const actives = c.lignes.filter(l => l.disponible + l.bloque !== 0 || l.bloque_tout);
+    const bloc = actives.length > 0 && actives.every(l => l.bloque > 0 || l.bloque_tout);
     html += `
       <div class="card ${state}${bloc ? ' bloque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
@@ -295,7 +295,7 @@ function render(data) {
           </div>
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
-        ${c.bloque ? `<p class="c-bloc">🔒 ${c.tout_lignes && c.tout_lignes === c.lignes.filter(l => l.bloque > 0).length ? 'Tout bloqué (' + fmt(c.bloque) + ')' : fmt(c.bloque) + ' bloqués'}${c.bloque_ms ? " jusqu'au " + new Date(c.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''} (déjà déduits)</p>` : ''}
+        ${c.n_bloq ? `<p class="c-bloc">🔒 ${c.tout_lignes && c.tout_lignes === c.n_bloq ? 'Tout bloqué' + (c.bloque > 0 ? ' (' + fmt(c.bloque) + ')' : '') : fmt(c.bloque) + ' bloqués'}${c.bloque_ms ? " jusqu'au " + new Date(c.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}${c.tout_lignes && c.tout_lignes === c.n_bloq ? '' : ' (déjà déduits)'}</p>` : ''}
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         <p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>
         ${miseHtml(c)}
