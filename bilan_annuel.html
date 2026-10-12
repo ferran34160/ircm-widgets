@@ -49,7 +49,7 @@ tr.total td { font-weight: 700; border-top: 1.5px solid rgba(0,0,0,0.2); border-
 <body>
 <div class="wrap">
   <div class="title">📆 Bilan annuel</div>
-  <div class="subtitle">Dépenses, mouvements et transferts de l'année choisie, par contrat. Le disponible, le bloqué, l'utilisable et le reste à notifier sont ceux d'aujourd'hui (pas ceux du 31/12 de l'année).</div>
+  <div class="subtitle">Dépenses et mouvements de l'année choisie, par contrat. Le disponible, le bloqué, l'utilisable et le reste à notifier sont ceux d'aujourd'hui (pas ceux du 31/12 de l'année).</div>
   <div class="bar">
     <label for="an">Année</label>
     <select id="an" onchange="onAn(this.value)"></select>
@@ -90,13 +90,12 @@ function blocPartiel(montant, dateG, tout, dispo) {
 
 async function fetchAll() {
   try {
-    const [c, m, d, lb, ct, tr, no] = await Promise.all([
+    const [c, m, d, lb, ct, no] = await Promise.all([
       grist.docApi.fetchTable('Commandes'),
       grist.docApi.fetchTable('Mouvements'),
       grist.docApi.fetchTable('Demandes_achat'),
       grist.docApi.fetchTable('Lignes_budgetaires'),
       grist.docApi.fetchTable('Contrats'),
-      grist.docApi.fetchTable('Transferts'),
       grist.docApi.fetchTable('Notifications_credit'),
     ]);
     const noms = {}, masques = new Set();
@@ -145,13 +144,6 @@ async function fetchAll() {
       const y = yearOf(dt); annees.add(y);
       add(((m.Type||[])[i] === 'Sortie') ? L.sortie : L.entree, y, (m.Montant||[])[i] || 0);
     });
-    (tr.id||[]).forEach((id,i) => {
-      const dt = toMs((tr.Date||[])[i]); if (!dt) return;
-      const y = yearOf(dt), mt = (tr.Montant||[])[i] || 0;
-      const Ls = lignes[refId((tr.Ligne_source||[])[i])], Ld = lignes[refId((tr.Ligne_destination||[])[i])];
-      if (Ls) { annees.add(y); add(Ls.tout, y, mt); }
-      if (Ld) { annees.add(y); add(Ld.tin, y, mt); }
-    });
     (no.id||[]).forEach((id,i) => {
       const L = lignes[refId((no.Ligne_budgetaire||[])[i])]; const dt = toMs((no.Date_notification||[])[i]);
       if (!L || !dt) return;
@@ -190,7 +182,7 @@ function calcLigne(l) {
   const y = annee;
   const cmd = l.cmd[y]||0, sortie = l.sortie[y]||0, entree = l.entree[y]||0;
   const tin = l.tin[y]||0, tout = l.tout[y]||0, notif = l.notif[y]||0;
-  return { cmd, sortie, depense: cmd + sortie, entree, tin, tout, notif, budget: l.budget, dispo: l.dispo, bloque: l.bloque, utilisable: l.dispo - l.bloque, rest: l.rest };
+  return { cmd, sortie, depense: cmd + sortie - entree, entree, tin, tout, notif, budget: l.budget, dispo: l.dispo, bloque: l.bloque, utilisable: l.dispo - l.bloque, rest: l.rest };
 }
 
 function render() {
@@ -214,31 +206,30 @@ function render() {
 
   const kpi = (l, v, s, cls) => `<div class="kpi ${cls||''}"><div class="l">${l}</div><div class="v">${fmt(v)}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
   let html = '<div class="kpis">'
-    + kpi('Dépensé en ' + annee, T.depense, 'commandes ' + fmt(T.cmd) + ' · mouvements ' + fmt(T.sortie), 'main')
+    + kpi('Dépensé en ' + annee, T.depense, 'commandes ' + fmt(T.cmd) + ' + sorties ' + fmt(T.sortie) + ' − entrées ' + fmt(T.entree), 'main')
     + kpi('Crédits notifiés en ' + annee, T.notif, 'mises à disposition')
-    + kpi('Transferts nets', T.tin - T.tout, 'reçus ' + fmt(T.tin) + ' · cédés ' + fmt(T.tout))
     + kpi('Disponible actuel', T.dispo, 'dont bloqué ' + fmt(T.bloque))
     + kpi('Disponible utilisable', T.utilisable, 'après déduction du bloqué')
     + kpi('Reste à notifier', T.rest, 'au dernier relevé')
     + '</div>';
 
-  html += '<table><thead><tr><th>Contrat / ligne</th><th>Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Transferts reçus</th><th>Transferts cédés</th><th>Crédits notifiés</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
+  html += '<table><thead><tr><th>Contrat / ligne</th><th title="Commandes + mouvements (sortie) − mouvements (entrée)">Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Crédits notifiés</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
   rows.forEach((r, ri) => {
     const open = ouverts.has(r.nom);
     const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${v ? fmt(v) : '–'}</td>`;
     html += `<tr class="contrat" onclick="toggle(${ri})"><td><span class="caret">${open ? '▾' : '▸'}</span>${esc(r.nom)}</td>`
-      + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.cmd) + cell(r.tot.sortie) + cell(r.tot.entree) + cell(r.tot.tin) + cell(r.tot.tout) + cell(r.tot.notif)
+      + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.cmd) + cell(r.tot.sortie) + cell(r.tot.entree) + cell(r.tot.notif)
       + `<td class="${r.tot.dispo < 0 ? 'neg' : ''}">${fmt(r.tot.dispo)}</td>`
       + `<td class="lock">${r.tot.bloque ? '🔒 ' + fmt(r.tot.bloque) : '–'}</td><td class="${r.tot.utilisable < 0 ? 'neg' : ''}">${fmt(r.tot.utilisable)}</td></tr>`;
     r.lignes.forEach(({ l, c }) => {
       html += `<tr class="ligne" style="display:${open ? 'table-row' : 'none'}" data-ri="${ri}"><td>${esc(l.cat)} – ${esc(l.sub.replace(/^.*?–\s*/, ''))}</td>`
-        + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.cmd) + cell(c.sortie) + cell(c.entree) + cell(c.tin) + cell(c.tout) + cell(c.notif)
+        + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.cmd) + cell(c.sortie) + cell(c.entree) + cell(c.notif)
         + `<td class="${c.dispo < 0 ? 'neg' : ''}">${fmt(c.dispo)}</td>`+ `<td class="lock">${c.bloque ? '🔒 ' + fmt(c.bloque) : '–'}</td><td class="${c.utilisable < 0 ? 'neg' : ''}">${fmt(c.utilisable)}</td></tr>`;
     });
   });
-  html += `<tr class="total"><td>Total</td><td>${fmt(T.depense)}</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.tin)}</td><td>${fmt(T.tout)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
+  html += `<tr class="total"><td>Total</td><td>${fmt(T.depense)}</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
   html += '</tbody></table>';
-  html += '<div class="note">Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
+  html += '<div class="note">Dépensé = commandes + mouvements (sortie) − mouvements (entrée). Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
   document.getElementById('container').innerHTML = html;
 }
 
@@ -252,10 +243,10 @@ function toutDeplier(o) { ouverts.clear(); if (o) lastRows.forEach(r => ouverts.
 function exportCSV() {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const n = v => String(Math.round((v||0)*100)/100).replace('.', ',');
-  const head = ['Contrat','Ligne','Année','Dépensé','Commandes','Mouvements sortie','Mouvements entrée','Transferts reçus','Transferts cédés','Crédits notifiés','Disponible','Bloqué','Utilisable','Reste à notifier'];
+  const head = ['Contrat','Ligne','Année','Dépensé','Commandes','Mouvements sortie','Mouvements entrée','Crédits notifiés','Disponible','Bloqué','Utilisable','Reste à notifier'];
   const out = [head.map(q).join(';')];
   lastRows.forEach(r => r.lignes.forEach(({ l, c }) => {
-    out.push([q(r.nom), q(l.label), annee, n(c.depense), n(c.cmd), n(c.sortie), n(c.entree), n(c.tin), n(c.tout), n(c.notif), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
+    out.push([q(r.nom), q(l.label), annee, n(c.depense), n(c.cmd), n(c.sortie), n(c.entree), n(c.notif), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
   }));
   const blob = new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
