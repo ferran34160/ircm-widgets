@@ -304,12 +304,20 @@ let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = p
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
 // Part du budget d'une ligne bloquée temporairement (colonnes Montant_bloque / Bloque_jusqu_au de Lignes_budgetaires)
-function blocPartiel(montant, dateG){ const m=Number(montant)||0; if(m<=0) return {m:0,ms:0}; const ms=toMs(dateG); if(ms && ms<=Date.now()) return {m:0,ms:0}; return {m,ms}; }
+function blocPartiel(montant, dateG, tout, dispo) {
+  // Bloque_tout coché : tout le disponible de la ligne est bloqué ; sinon Montant_bloque
+  const t = !!tout && tout !== 'false' && tout !== 0;
+  let m = t ? Math.max(Number(dispo) || 0, 0) : (Number(montant) || 0);
+  if (!t && m <= 0) return { m: 0, ms: 0, tout: false };
+  const ms = toMs(dateG);
+  if (ms && ms <= Date.now()) return { m: 0, ms: 0, tout: false };
+  return { m, ms, tout: t };
+}
 function ligneInfoTxt(l){
   if(!l.bloque || !l.bloque.m) return '';
   const eur = v => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
   const net = (l.dispo!=null) ? ' · dispo. utilisable ' + eur(l.dispo - l.bloque.m) : '';
-  return ' — 🔒 ' + eur(l.bloque.m) + ' bloqués' + (l.bloque.ms ? ' jusqu\'au ' + new Date(l.bloque.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : '') + net;
+  return ' — 🔒 ' + (l.bloque.tout ? 'tout bloqué (' + eur(l.bloque.m) + ')' : eur(l.bloque.m) + ' bloqués') + (l.bloque.ms ? ' jusqu\'au ' + new Date(l.bloque.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : '') + net;
 }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 
@@ -354,7 +362,7 @@ async function fetchAll() {
       contrat:(lb.Contrat||[])[i],
       dispo:(typeof (lb.Disponible||[])[i] === 'number') ? (lb.Disponible||[])[i] : null,
       date_dernier_releve:(lb.Date_dernier_releve||[])[i] || null,
-      bloque:blocPartiel((lb.Montant_bloque||[])[i], (lb.Bloque_jusqu_au||[])[i]),
+      bloque:blocPartiel((lb.Montant_bloque||[])[i], (lb.Bloque_jusqu_au||[])[i], (lb.Bloque_tout||[])[i], (lb.Disponible||[])[i]),
     }));
 
     das = (d.id||[]).map((id,i)=>({
