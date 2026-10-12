@@ -46,6 +46,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 @media (prefers-color-scheme: dark) { .da-foot { border-top-color: #353535; } }
 .da-foot-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .03em; }
 .da-total { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.btn-row { display: flex; gap: 8px; margin: 0 14px 12px; }
+.btn-row .btn-edit { margin: 0; width: auto; flex: 1; }
+.btn-edit-nobc { color: #8A7510; border-color: #C9A93A; }
+.btn-edit-nobc:hover { background: #C9A93A; color: #fff; }
 .btn-edit { display: block; width: calc(100% - 28px); margin: 0 14px 12px; font-size: 12px; color: #378ADD; background: none; border: 1px solid #378ADD; border-radius: 7px; cursor: pointer; padding: 7px; }
 .btn-edit:hover { background: #378ADD; color: #fff; }
 .form { margin: 0 14px 12px; padding-top: 10px; border-top: 1px dashed #d5d5d5; display: none; }
@@ -240,7 +244,10 @@ function render() {
           <span class="da-foot-label">Total</span>
           <span class="da-total">${fmt(total)}</span>
         </div>
-        <button class="btn-edit" onclick="toggleBC(${d.id})">Réception BC</button>
+        <div class="btn-row">
+          <button class="btn-edit" onclick="toggleBC(${d.id})">Réception BC</button>
+          <button class="btn-edit btn-edit-nobc" title="DA traitée directement par PGM (devis seul) : enregistre « ----- » comme N° BC avec la date d'aujourd'hui" onclick="saveSansBC(${d.id})">Pas de BC</button>
+        </div>
         <div class="form" id="bc-form-${d.id}">
           <div class="form-row">
             <div class="form-field"><label>N° BC</label><input type="text" id="bc-num-${d.id}" value="${(d.num_bc||'').replace(/"/g,'&quot;')}"></div>
@@ -248,7 +255,6 @@ function render() {
           </div>
           <div class="form-actions">
             <button class="btn btn-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
-            <button class="btn btn-nobc" title="DA traitée directement par PGM : seul le devis est disponible. Enregistre « ----- » comme N° BC." onclick="saveSansBC(${d.id})">Pas de BC</button>
             <button class="btn btn-cancel" onclick="toggleBC(${d.id})">Annuler</button>
           </div>
         </div>
@@ -294,8 +300,8 @@ async function saveBC(id) {
 }
 
 async function saveSansBC(id) {
-  const dateVal = document.getElementById('bc-date-' + id).value;
-  const dateBC = dateVal ? Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000) : null;
+  const t = new Date();
+  const dateBC = Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 1000);
   try {
     await grist.docApi.applyUserActions([
       ['UpdateRecord', 'Demandes_achat', id, { Num_BC: '-----', Date_reception_BC: dateBC, Statut: 'BC reçu' }]
