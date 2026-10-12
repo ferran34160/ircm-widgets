@@ -59,6 +59,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .form-actions { display: flex; gap: 8px; }
 .btn { font-size: 12px; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; }
 .btn-save { background: #1D9E75; color: #fff; }
+.badge-nobc { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 7px; background: #FAF0CC; color: #8A7510; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .badge-nobc { background: #4A4413; color: #E8D77C; } }
+.btn-nobc { background: #FAF0CC; color: #8A7510; }
+@media (prefers-color-scheme: dark) { .btn-nobc { background: #4A4413; color: #E8D77C; } }
 .btn-cancel { background: rgba(0,0,0,0.08); color: inherit; }
 @media (prefers-color-scheme: dark) { .btn-cancel { background: rgba(255,255,255,0.12); } }
 .empty { text-align: center; padding: 30px; color: #aaa; }
@@ -74,6 +78,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 </div>
 
 <script>
+let lastSig = '';
 let das = [], commandes = [], contratNoms = {}, fourNoms = {}, contratsMasques = new Set();
 
 function fmt(v) {
@@ -149,6 +154,9 @@ async function fetchAll() {
       demandeur:     (c.Demandeur||[])[i] || null,
     }));
 
+    const sig = JSON.stringify([das, commandes, contratNoms, fourNoms]);
+    if (sig === lastSig && document.getElementById('container').querySelector('.da-grid, .empty')) return;
+    lastSig = sig;
     render();
   } catch(e) {
     document.getElementById('container').innerHTML = '<div class="empty">Erreur: '+e.message+'</div>';
@@ -223,7 +231,7 @@ function render() {
         <div class="da-head">
           <div class="da-head-top">
             <span class="da-num">${d.num_da} <span class="da-num-date">du ${fmtDate(d.date_da)}</span></span>
-            <span class="da-days ${daysClass}">${daysText}</span>
+            <span style="display:flex;gap:6px;align-items:center;">${/^\s*-{2,}\s*$/.test(d.num_bc||'') ? '<span class="badge-nobc">Pas de BC</span>' : ''}<span class="da-days ${daysClass}">${daysText}</span></span>
           </div>
           <div class="da-route">${resolveContrat(d.contrat) || '—'} <span class="da-arrow">→</span> ${resolveFour(d.fournisseur) || '—'}</div>
         </div>
@@ -240,6 +248,7 @@ function render() {
           </div>
           <div class="form-actions">
             <button class="btn btn-save" onclick="saveBC(${d.id})">Passer à BC reçu</button>
+            <button class="btn btn-nobc" title="DA traitée directement par PGM : seul le devis est disponible. Enregistre « ----- » comme N° BC." onclick="saveSansBC(${d.id})">Pas de BC</button>
             <button class="btn btn-cancel" onclick="toggleBC(${d.id})">Annuler</button>
           </div>
         </div>
@@ -276,6 +285,20 @@ async function saveBC(id) {
         Date_reception_BC: dateBC,
         Statut: 'BC reçu',
       }]
+    ]);
+    formOpen = false;
+    await fetchAll();
+  } catch(e) {
+    alert('Erreur: ' + e.message);
+  }
+}
+
+async function saveSansBC(id) {
+  const dateVal = document.getElementById('bc-date-' + id).value;
+  const dateBC = dateVal ? Math.floor(new Date(dateVal + 'T00:00:00Z').getTime() / 1000) : null;
+  try {
+    await grist.docApi.applyUserActions([
+      ['UpdateRecord', 'Demandes_achat', id, { Num_BC: '-----', Date_reception_BC: dateBC, Statut: 'BC reçu' }]
     ]);
     formOpen = false;
     await fetchAll();
