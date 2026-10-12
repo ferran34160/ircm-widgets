@@ -48,8 +48,8 @@ tr.total td { font-weight: 700; border-top: 1.5px solid rgba(0,0,0,0.2); border-
 </head>
 <body>
 <div class="wrap">
-  <div class="title">Bilan annuel</div>
-  <div class="subtitle">Dépenses, mouvements et transferts de l'année choisie, par contrat. Le budget, le disponible, le bloqué et le reste à notifier sont ceux d'aujourd'hui (pas ceux du 31/12 de l'année).</div>
+  <div class="title">📆 Bilan annuel</div>
+  <div class="subtitle">Dépenses, mouvements et transferts de l'année choisie, par contrat. Le disponible, le bloqué, l'utilisable et le reste à notifier sont ceux d'aujourd'hui (pas ceux du 31/12 de l'année).</div>
   <div class="bar">
     <label for="an">Année</label>
     <select id="an" onchange="onAn(this.value)"></select>
@@ -222,23 +222,23 @@ function render() {
     + kpi('Reste à notifier', T.rest, 'au dernier relevé')
     + '</div>';
 
-  html += '<table><thead><tr><th>Contrat / ligne</th><th>Commandes</th><th>Mouvements (sorties)</th><th>Dépensé ' + annee + '</th><th>Entrées</th><th>Transferts reçus</th><th>Transferts cédés</th><th>Crédits notifiés</th><th>Budget ajusté</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
+  html += '<table><thead><tr><th>Contrat / ligne</th><th>Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Transferts reçus</th><th>Transferts cédés</th><th>Crédits notifiés</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
   rows.forEach((r, ri) => {
     const open = ouverts.has(r.nom);
     const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${v ? fmt(v) : '–'}</td>`;
     html += `<tr class="contrat" onclick="toggle(${ri})"><td><span class="caret">${open ? '▾' : '▸'}</span>${esc(r.nom)}</td>`
-      + cell(r.tot.cmd) + cell(r.tot.sortie) + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.entree) + cell(r.tot.tin) + cell(r.tot.tout) + cell(r.tot.notif)
-      + `<td>${fmt(r.tot.budget)}</td><td class="${r.tot.dispo < 0 ? 'neg' : ''}">${fmt(r.tot.dispo)}</td>`
+      + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.cmd) + cell(r.tot.sortie) + cell(r.tot.entree) + cell(r.tot.tin) + cell(r.tot.tout) + cell(r.tot.notif)
+      + `<td class="${r.tot.dispo < 0 ? 'neg' : ''}">${fmt(r.tot.dispo)}</td>`
       + `<td class="lock">${r.tot.bloque ? '🔒 ' + fmt(r.tot.bloque) : '–'}</td><td class="${r.tot.utilisable < 0 ? 'neg' : ''}">${fmt(r.tot.utilisable)}</td></tr>`;
     r.lignes.forEach(({ l, c }) => {
       html += `<tr class="ligne" style="display:${open ? 'table-row' : 'none'}" data-ri="${ri}"><td>${esc(l.cat)} – ${esc(l.sub.replace(/^.*?–\s*/, ''))}</td>`
-        + cell(c.cmd) + cell(c.sortie) + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.entree) + cell(c.tin) + cell(c.tout) + cell(c.notif)
-        + `<td>${fmt(c.budget)}</td><td class="${c.dispo < 0 ? 'neg' : ''}">${fmt(c.dispo)}</td><td class="lock">${c.bloque ? '🔒 ' + fmt(c.bloque) : '–'}</td><td class="${c.utilisable < 0 ? 'neg' : ''}">${fmt(c.utilisable)}</td></tr>`;
+        + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.cmd) + cell(c.sortie) + cell(c.entree) + cell(c.tin) + cell(c.tout) + cell(c.notif)
+        + `<td class="${c.dispo < 0 ? 'neg' : ''}">${fmt(c.dispo)}</td>`+ `<td class="lock">${c.bloque ? '🔒 ' + fmt(c.bloque) : '–'}</td><td class="${c.utilisable < 0 ? 'neg' : ''}">${fmt(c.utilisable)}</td></tr>`;
     });
   });
-  html += `<tr class="total"><td>Total</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.depense)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.tin)}</td><td>${fmt(T.tout)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.budget)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
+  html += `<tr class="total"><td>Total</td><td>${fmt(T.depense)}</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.tin)}</td><td>${fmt(T.tout)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
   html += '</tbody></table>';
-  html += '<div class="note">Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Budget, Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
+  html += '<div class="note">Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
   document.getElementById('container').innerHTML = html;
 }
 
@@ -252,10 +252,10 @@ function toutDeplier(o) { ouverts.clear(); if (o) lastRows.forEach(r => ouverts.
 function exportCSV() {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const n = v => String(Math.round((v||0)*100)/100).replace('.', ',');
-  const head = ['Contrat','Ligne','Année','Commandes','Mouvements sorties','Dépensé','Entrées','Transferts reçus','Transferts cédés','Crédits notifiés','Budget ajusté','Disponible','Bloqué','Utilisable','Reste à notifier'];
+  const head = ['Contrat','Ligne','Année','Dépensé','Commandes','Mouvements sortie','Mouvements entrée','Transferts reçus','Transferts cédés','Crédits notifiés','Disponible','Bloqué','Utilisable','Reste à notifier'];
   const out = [head.map(q).join(';')];
   lastRows.forEach(r => r.lignes.forEach(({ l, c }) => {
-    out.push([q(r.nom), q(l.label), annee, n(c.cmd), n(c.sortie), n(c.depense), n(c.entree), n(c.tin), n(c.tout), n(c.notif), n(c.budget), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
+    out.push([q(r.nom), q(l.label), annee, n(c.depense), n(c.cmd), n(c.sortie), n(c.entree), n(c.tin), n(c.tout), n(c.notif), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
   }));
   const blob = new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
