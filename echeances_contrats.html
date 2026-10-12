@@ -23,6 +23,9 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   .card.warn { background: #4A3208; border-color: #854F0B; border-left-color: #EF9F27; }
   .card.ok { background: #0F3D31; border-color: #1D6E56; border-left-color: #1D9E75; }
 }
+.card.bloque { opacity: .68; border-style: dashed; border-left-style: solid; }
+.c-bloc { font-size: 11px; font-weight: 600; margin: 0 0 4px; padding: 2px 8px; border-radius: 6px; display: inline-block; background: rgba(0,0,0,.09); }
+@media (prefers-color-scheme: dark) { .c-bloc { background: rgba(255,255,255,.14); } }
 .c-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .c-nom { font-size: 14px; font-weight: 500; margin: 0 0 2px; }
 .c-fin { font-size: 11px; margin: 0 0 10px; opacity: 0.7; }
@@ -109,6 +112,7 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 <script>
 let allData = [];
 let contratsMasques = new Set();
+let contratsBloques = new Map();   // nom du contrat -> { ms } (bloqué temporairement)
 let notifsParLigne = {};
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
 let selectedContrats = new Set();   // contrats cochés pour le sumatori (par nom) : survit aux rafraîchissements
@@ -258,11 +262,14 @@ function render(data) {
         </div>`;
     });
 
+    const bloc = contratsBloques.get(String(c.nom).trim());
+    const blocHtml = bloc ? `<p class="c-bloc">🔒 Contrat bloqué${bloc.ms ? " jusqu'au " + new Date(bloc.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}</p>` : '';
     html += `
-      <div class="card ${state}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
+      <div class="card ${state}${bloc ? ' bloque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
+            ${blocHtml}
             <p class="c-fin">${c.a_annualisee ? 'Échéance annuelle' : 'Fin'} : ${finStr}${c.a_annualisee ? ' ⏱' : ''}</p>
           </div>
           <div class="c-tools">
@@ -397,7 +404,13 @@ function loadData() {
     try {
       const ct = await grist.docApi.fetchTable('Contrats');
       contratsMasques = new Set();
+      contratsBloques = new Map();
+      const msB = g => { if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; };
       (ct.id||[]).forEach((id,i) => {
+        if ((ct.Bloque||[])[i]) {
+          const nomB = String((ct.Nom||[])[i] || '').trim(), dB = msB((ct.Bloque_jusqu_au||[])[i]);
+          if (nomB && !(dB && dB <= Date.now())) contratsBloques.set(nomB, { ms: dB });
+        }
         if ((ct.Masquer||[])[i]) {
           const nom = (ct.Nom||[])[i];
           if (nom) contratsMasques.add(String(nom).trim());
