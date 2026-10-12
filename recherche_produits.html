@@ -165,8 +165,11 @@ function render() {
   // Grouper par produit (désignation normalisée)
   const groupes = {};
   matches.forEach(c => {
-    const key = norm(c.designation);
-    if (!groupes[key]) groupes[key] = { nom: c.designation, occ: [], total: 0, recus: 0, nbProd: 0 };
+    // Même code (référence fournisseur) = même produit, même si la désignation varie ; sans code → par désignation
+    const refKey = norm(c.ref).replace(/\s+/g, '');
+    const key = refKey ? 'ref:' + refKey : 'des:' + norm(c.designation);
+    if (!groupes[key]) groupes[key] = { nom: c.designation, ref: refKey ? String(c.ref).trim() : '', occ: [], total: 0, recus: 0, nbProd: 0, desig: new Set() };
+    groupes[key].desig.add(norm(c.designation));
     const g = groupes[key];
     g.occ.push(c);
     g.total += c.montant;
@@ -188,6 +191,7 @@ function render() {
     const isOpen = openProds.has(key);
     // Trier les occurrences par date (récentes d'abord)
     g.occ.sort((a,b) => (toMs(dasMap[b.demande_achat]?.date_bc)||toMs(dasMap[b.demande_achat]?.date_da)||0) - (toMs(dasMap[a.demande_achat]?.date_bc)||toMs(dasMap[a.demande_achat]?.date_da)||0));
+    g.nom = g.occ[0].designation;   // nom du groupe = désignation de la commande la plus récente
 
     const livrInfo = g.nbProd > 0 ? `${g.recus}/${g.nbProd} reçus` : '—';
 
@@ -216,8 +220,8 @@ function render() {
         <div class="prod-head" onclick="toggleProd(this)">
           <span class="prod-caret">▸</span>
           <div class="prod-main">
-            <div class="prod-name">${esc(g.nom)}</div>
-            <div class="prod-meta">${g.occ.length} commande${g.occ.length>1?'s':''}</div>
+            <div class="prod-name">${esc(g.nom)}${g.ref ? ` <span class="occ-ref">${esc(g.ref)}</span>` : ''}</div>
+            <div class="prod-meta">${g.occ.length} commande${g.occ.length>1?'s':''}${g.desig.size > 1 ? ' · ' + g.desig.size + ' désignations différentes' : ''}</div>
           </div>
           <div class="prod-stats">
             <div class="prod-stat"><b>${fmt(g.total)}</b><span>Total</span></div>
