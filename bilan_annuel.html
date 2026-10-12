@@ -213,23 +213,23 @@ function render() {
     + kpi('Reste à notifier', T.rest, 'au dernier relevé')
     + '</div>';
 
-  html += '<table><thead><tr><th>Contrat / ligne</th><th title="Commandes + mouvements (sortie) − mouvements (entrée)">Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Mis à disposition</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
+  html += '<table><thead><tr><th>Contrat / ligne</th><th title="Commandes + mouvements (sortie) − mouvements (entrée)">Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Mis à disposition</th><th>Reste à notifier</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
   rows.forEach((r, ri) => {
     const open = ouverts.has(r.nom);
     const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${v ? fmt(v) : '–'}</td>`;
     html += `<tr class="contrat" onclick="toggle(${ri})"><td><span class="caret">${open ? '▾' : '▸'}</span>${esc(r.nom)}</td>`
-      + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.cmd) + cell(r.tot.sortie) + cell(r.tot.entree) + cell(r.tot.notif)
+      + `<td>${fmt(r.tot.depense)}</td>` + cell(r.tot.cmd) + cell(r.tot.sortie) + cell(r.tot.entree) + cell(r.tot.notif) + cell(r.tot.rest)
       + `<td class="${r.tot.dispo < 0 ? 'neg' : ''}">${fmt(r.tot.dispo)}</td>`
       + `<td class="lock">${r.tot.bloque ? '🔒 ' + fmt(r.tot.bloque) : '–'}</td><td class="${r.tot.utilisable < 0 ? 'neg' : ''}">${fmt(r.tot.utilisable)}</td></tr>`;
     r.lignes.forEach(({ l, c }) => {
       html += `<tr class="ligne" style="display:${open ? 'table-row' : 'none'}" data-ri="${ri}"><td>${esc(l.cat)} – ${esc(l.sub.replace(/^.*?–\s*/, ''))}</td>`
-        + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.cmd) + cell(c.sortie) + cell(c.entree) + cell(c.notif)
+        + `<td>${c.depense ? fmt(c.depense) : '–'}</td>` + cell(c.cmd) + cell(c.sortie) + cell(c.entree) + cell(c.notif) + cell(c.rest)
         + `<td class="${c.dispo < 0 ? 'neg' : ''}">${fmt(c.dispo)}</td>`+ `<td class="lock">${c.bloque ? '🔒 ' + fmt(c.bloque) : '–'}</td><td class="${c.utilisable < 0 ? 'neg' : ''}">${fmt(c.utilisable)}</td></tr>`;
     });
   });
-  html += `<tr class="total"><td>Total</td><td>${fmt(T.depense)}</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
+  html += `<tr class="total"><td>Total</td><td>${fmt(T.depense)}</td><td>${fmt(T.cmd)}</td><td>${fmt(T.sortie)}</td><td>${fmt(T.entree)}</td><td>${fmt(T.notif)}</td><td>${fmt(T.rest)}</td><td>${fmt(T.dispo)}</td><td>${fmt(T.bloque)}</td><td>${fmt(T.utilisable)}</td></tr>`;
   html += '</tbody></table>';
-  html += '<div class="note">Dépensé = commandes + mouvements (sortie) − mouvements (entrée). Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Disponible, Bloqué et Utilisable sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
+  html += '<div class="note">Dépensé = commandes + mouvements (sortie) − mouvements (entrée). Commandes : DA « Envoyée PGM » ou « BC reçu », datées par la réception du BC (à défaut, la date d\'envoi PGM). Les frais accessoires sont inclus. Contrats masqués exclus. Les colonnes Disponible, Bloqué, Utilisable et Reste à notifier sont l\'état actuel : elles ne changent pas quand on change d\'année.</div>';
   document.getElementById('container').innerHTML = html;
 }
 
