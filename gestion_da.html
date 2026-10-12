@@ -303,6 +303,9 @@ let splitDAValue = null; // DA choisie dans le panneau « Répartir » (null = p
 
 function fmt(v) { return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function toMs(g){ if(!g)return 0; if(g>1e15)return g/1000; if(g>1e11)return g; return g*1000; }
+// Contrat bloqué temporairement : coché « Bloque » (et, si renseignée, date « Bloque_jusqu_au » pas encore atteinte)
+function blocInfo(bloque, dateG){ if(!bloque) return null; const ms=toMs(dateG); if(ms && ms<=Date.now()) return null; return { ms }; }
+function blocTxt(b){ return b.ms ? 'bloqué jusqu\'au ' + new Date(b.ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : 'bloqué'; }
 function fmtDate(g){ const ms=toMs(g); if(!ms)return ''; const d=new Date(ms); if(isNaN(d)||d.getFullYear()>3000)return ''; return d.toLocaleDateString('fr-FR'); }
 
 function attachIds(v){
@@ -334,7 +337,7 @@ async function fetchAll() {
     contratsMasques = new Set();
     (ct.id||[]).forEach((id,i)=>{
       contratNoms[id]=(ct.Nom||[])[i]||('#'+id);
-      contratsList.push({id, nom:contratNoms[id]});
+      contratsList.push({id, nom:contratNoms[id], bloc:blocInfo((ct.Bloque||[])[i], (ct.Bloque_jusqu_au||[])[i])});
       if((ct.Masquer||[])[i]){ const n=(ct.Nom||[])[i]; if(n) contratsMasques.add(String(n).trim()); }
     });
     fourNoms = {};
@@ -1214,7 +1217,7 @@ function nextNumDA() {
 function renderNewDAContent() {
   const contratsOpts = '<option value="">— Choisir —</option>' +
     contratsList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
-      .map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+      .map(c => c.bloc ? `<option value="${c.id}" disabled>🔒 ${c.nom} (${blocTxt(c.bloc)})</option>` : `<option value="${c.id}">${c.nom}</option>`).join('');
   const fourOpts = '<option value="">— Choisir —</option>' +
     fournisseursList.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
       .map(f => `<option value="${f.id}">${f.nom}</option>`).join('');
@@ -1287,6 +1290,8 @@ async function createDA() {
     msg.textContent = 'N° DA, contrat, ligne et fournisseur sont obligatoires.';
     return;
   }
+  const cBloc = (contratsList.find(c => String(c.id) === String(contratId)) || {}).bloc;
+  if (cBloc) { msg.className = 'msg err'; msg.textContent = 'Ce contrat est ' + blocTxt(cBloc) + ' : impossible de créer une DA.'; return; }
 
   let dateDA = null;
   if (dateVal) dateDA = Math.floor(new Date(dateVal+'T00:00:00Z').getTime()/1000);
@@ -1834,7 +1839,7 @@ function edPanelHtml() {
     const sVal = edDv('ed-statut', o.statut);
     const contratOpts = '<option value="">— Choisir —</option>' + contratsList.slice()
       .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
-      .map(x => `<option value="${x.id}" ${String(x.id) === cVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
+      .map(x => `<option value="${x.id}" ${String(x.id) === cVal ? 'selected' : ''} ${x.bloc && String(x.id) !== String(o.contrat) ? 'disabled' : ''}>${x.bloc ? '🔒 ' : ''}${edEsc(x.nom)}${x.bloc ? ' (' + blocTxt(x.bloc) + ')' : ''}</option>`).join('');
     const fourOpts = '<option value="">— Choisir —</option>' + fournisseursList.slice()
       .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
       .map(x => `<option value="${x.id}" ${String(x.id) === fVal ? 'selected' : ''}>${edEsc(x.nom)}</option>`).join('');
@@ -1895,7 +1900,11 @@ async function edSaveDA() {
   const ligne = edVal('ed-ligne') ? Number(edVal('ed-ligne')) : null;
   const four = edVal('ed-four') ? Number(edVal('ed-four')) : null;
   if (!contrat || !ligne || !four) { edMsg('Contrat, ligne et fournisseur sont obligatoires.', 'err'); return null; }
-  if (contrat !== o.contrat) f.Contrat = contrat;
+  if (contrat !== o.contrat) {
+    const cb = (contratsList.find(c => c.id === contrat) || {}).bloc;
+    if (cb) { edMsg('Ce contrat est ' + blocTxt(cb) + ' : impossible d\'y rattacher la DA.', 'err'); return null; }
+    f.Contrat = contrat;
+  }
   if (ligne !== o.ligne) f.Ligne_budgetaire = ligne;
   if (four !== o.four) f.Fournisseur = four;
   if (edVal('ed-statut') !== o.statut) f.Statut = edVal('ed-statut');
