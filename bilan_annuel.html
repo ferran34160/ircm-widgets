@@ -207,13 +207,13 @@ function render() {
   const kpi = (l, v, s, cls) => `<div class="kpi ${cls||''}"><div class="l">${l}</div><div class="v">${fmt(v)}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
   let html = '<div class="kpis">'
     + kpi('Dépensé en ' + annee, T.depense, 'commandes ' + fmt(T.cmd) + ' + sorties ' + fmt(T.sortie) + ' − entrées ' + fmt(T.entree), 'main')
-    + kpi('Crédits notifiés en ' + annee, T.notif, 'mises à disposition')
+    + kpi('Mis à disposition en ' + annee, T.notif, 'crédits notifiés par PGM')
     + kpi('Disponible actuel', T.dispo, 'dont bloqué ' + fmt(T.bloque))
     + kpi('Disponible utilisable', T.utilisable, 'après déduction du bloqué')
     + kpi('Reste à notifier', T.rest, 'au dernier relevé')
     + '</div>';
 
-  html += '<table><thead><tr><th>Contrat / ligne</th><th title="Commandes + mouvements (sortie) − mouvements (entrée)">Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Crédits notifiés</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
+  html += '<table><thead><tr><th>Contrat / ligne</th><th title="Commandes + mouvements (sortie) − mouvements (entrée)">Dépensé ' + annee + '</th><th>Commandes</th><th>Mouvements (sortie)</th><th>Mouvements (entrée)</th><th>Mis à disposition</th><th>Disponible</th><th>Bloqué</th><th>Utilisable</th></tr></thead><tbody>';
   rows.forEach((r, ri) => {
     const open = ouverts.has(r.nom);
     const cell = (v, neg) => `<td class="${neg && v < 0 ? 'neg' : ''}">${v ? fmt(v) : '–'}</td>`;
@@ -243,7 +243,7 @@ function toutDeplier(o) { ouverts.clear(); if (o) lastRows.forEach(r => ouverts.
 function exportCSV() {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const n = v => String(Math.round((v||0)*100)/100).replace('.', ',');
-  const head = ['Contrat','Ligne','Année','Dépensé','Commandes','Mouvements sortie','Mouvements entrée','Crédits notifiés','Disponible','Bloqué','Utilisable','Reste à notifier'];
+  const head = ['Contrat','Ligne','Année','Dépensé','Commandes','Mouvements sortie','Mouvements entrée','Mis à disposition','Disponible','Bloqué','Utilisable','Reste à notifier'];
   const out = [head.map(q).join(';')];
   lastRows.forEach(r => r.lignes.forEach(({ l, c }) => {
     out.push([q(r.nom), q(l.label), annee, n(c.depense), n(c.cmd), n(c.sortie), n(c.entree), n(c.notif), n(c.dispo), n(c.bloque), n(c.utilisable), n(c.rest)].join(';'));
