@@ -2110,8 +2110,11 @@ function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours, compte
   if (!lg || typeof lg.dispo !== 'number') return '';
   // Si la commande ne sera pas comptée (date antérieure ou égale au dernier relevé PGM connu),
   // le disponible après envoi reste identique au disponible actuel.
-  const apres = lg.dispo - dejaDA - (compte ? ajout : 0);
+  const bloc = (lg.bloque && lg.bloque.m > 0) ? lg.bloque.m : 0;   // part bloquée temporairement (non utilisable)
+  const blocDate = (bloc && lg.bloque.ms) ? new Date(lg.bloque.ms).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '';
+  const apres = lg.dispo - bloc - dejaDA - (compte ? ajout : 0);
   const neg = apres < -0.005;
+  const entameBloque = neg && bloc > 0 && (lg.dispo - dejaDA - (compte ? ajout : 0)) >= -0.005;
   const parts = String(lg.label).split('|');
   const nom = parts.length > 1 ? parts.slice(1).join('|').trim() : lg.label;
   const contrat = parts.length > 1 ? parts[0].trim() : '';
@@ -2119,10 +2122,11 @@ function dispoInfoCore(ligneId, dejaDA, ajout, labelAjout, autresEnCours, compte
     <div class="dispo-info ${neg ? 'neg' : ''}">
       <div class="dispo-title">Ligne : ${edEsc(nom)}${contrat ? ' · ' + edEsc(contrat) : ''}</div>
       <div class="dispo-row"><span>Disponible actuel</span><span>${fmt(lg.dispo)}</span></div>
+      ${bloc ? `<div class="dispo-row"><span>− 🔒 ${lg.bloque.tout ? 'Tout bloqué' : 'Bloqué'}${blocDate ? ' jusqu\'au ' + blocDate : ''}</span><span>${fmt(bloc)}</span></div>` : ''}
       ${dejaDA > 0.005 ? `<div class="dispo-row"><span>− Déjà dans cette DA</span><span>${fmt(dejaDA)}</span></div>` : ''}
       ${compte ? `<div class="dispo-row"><span>− ${edEsc(labelAjout || 'À ajouter')}</span><span>${fmt(ajout)}</span></div>` : ''}
       <div class="dispo-row dispo-res"><span>= Disponible après envoi de la DA</span><span>${fmt(neg ? apres : Math.max(apres, 0))}</span></div>
-      ${neg ? '<div class="dispo-alert">⚠ Dépassement : le montant dépasse le disponible de la ligne.</div>' : ''}
+      ${neg ? `<div class="dispo-alert">⚠ ${entameBloque ? 'Le montant entame la part bloquée de la ligne (' + fmt(bloc) + ').' : 'Dépassement : le montant dépasse le disponible de la ligne.'}</div>` : ''}
       ${autresEnCours > 0.005 ? `<div class="dispo-hint">Non déduits : ${fmt(autresEnCours)} dans d'autres DA « En cours » de cette même ligne.</div>` : ''}
     </div>`;
 }
