@@ -46,6 +46,8 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .occ-main { flex: 1; min-width: 0; }
 .occ-prod { font-size: 13.5px; font-weight: 600; }
 .occ-ref { font-weight: 600; color: #378ADD; margin-left: 4px; }
+.occ-ghp { font-size: 11px; font-weight: 600; color: #1D7A5A; background: rgba(29,158,117,0.12); padding: 1px 7px; border-radius: 6px; margin-left: 4px; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .occ-ghp { color: #6FD1AE; background: rgba(29,158,117,0.2); } }
 .occ-detail { font-size: 11px; color: #999; margin-top: 3px; line-height: 1.5; }
 .occ-da { font-weight: 400; }
 @media (prefers-color-scheme: dark) { .occ-ref { color: #6BA9E8; } }
@@ -71,10 +73,10 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
   <div class="title">Recherche produits</div>
   <div class="search-box">
     <span class="search-icon">🔍</span>
-    <input type="text" id="search" placeholder="Nom du produit ou référence (ex. Chloroform, T9424)…" autocomplete="off" oninput="onSearch(this.value)">
+    <input type="text" id="search" placeholder="Nom, référence ou code GHP (ex. Chloroform, T9424)…" autocomplete="off" oninput="onSearch(this.value)">
   </div>
 </div>
-<div id="content"><div class="hint">Tapez au moins 2 caractères pour rechercher un produit.</div></div>
+<div id="content"><div class="hint">Tapez au moins 2 caractères (désignation, référence ou code GHP).</div></div>
 
 <script>
 let commandes = [], dasMap = {}, fourNoms = {}, contratNoms = {}, query = '';
@@ -120,6 +122,7 @@ async function fetchAll() {
       demande_achat:daId((c.Demande_achat||[])[i]),
       designation:(c.Designation2||[])[i]||'',
       ref:(c.Reference_fournisseur||[])[i]||'',
+      ghp:String((c.Code_GHP||[])[i]||'').trim(),
       qte:(c.Quantite||[])[i]||1,
       montant:(c.Montant2||[])[i]||((c.Prix_unitaire_HT||[])[i]||0)*((c.Quantite||[])[i]||1),
       date_livraison:(c.Date_livraison||[])[i]||null,
@@ -150,12 +153,12 @@ function render() {
   const q = norm(query);
 
   if (q.length < 2) {
-    content.innerHTML = '<div class="hint">Tapez au moins 2 caractères pour rechercher un produit.</div>';
+    content.innerHTML = '<div class="hint">Tapez au moins 2 caractères (désignation, référence ou code GHP).</div>';
     return;
   }
 
   // Filtrer par désignation OU référence
-  const matches = commandes.filter(c => norm(c.designation).includes(q) || norm(c.ref).includes(q));
+  const matches = commandes.filter(c => norm(c.designation).includes(q) || norm(c.ref).includes(q) || norm(c.ghp).includes(q));
 
   if (!matches.length) {
     content.innerHTML = '<div class="hint">Aucun produit trouvé pour « ' + esc(query) +' ».</div>';
@@ -168,8 +171,9 @@ function render() {
     // Même code (référence fournisseur) = même produit, même si la désignation varie ; sans code → par désignation
     const refKey = norm(c.ref).replace(/\s+/g, '');
     const key = refKey ? 'ref:' + refKey : 'des:' + norm(c.designation);
-    if (!groupes[key]) groupes[key] = { nom: c.designation, ref: refKey ? String(c.ref).trim() : '', occ: [], total: 0, recus: 0, nbProd: 0, desig: new Set() };
+    if (!groupes[key]) groupes[key] = { nom: c.designation, ref: refKey ? String(c.ref).trim() : '', occ: [], total: 0, recus: 0, nbProd: 0, desig: new Set(), ghp: new Set() };
     groupes[key].desig.add(norm(c.designation));
+    if (c.ghp) groupes[key].ghp.add(c.ghp);
     const g = groupes[key];
     g.occ.push(c);
     g.total += c.montant;
@@ -203,7 +207,7 @@ function render() {
       occHtml += `
         <div class="occ">
           <div class="occ-main">
-            <div class="occ-prod">${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}${a.ref ? ` <span class="occ-ref">${esc(a.ref)}</span>` : ''}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
+            <div class="occ-prod">${a.qte > 1 ? a.qte + '× ' : ''}${esc(a.designation)}${a.ref ? ` <span class="occ-ref">${esc(a.ref)}</span>` : ''}${a.ghp ? ` <span class="occ-ghp" title="Code GHP">GHP ${esc(a.ghp)}</span>` : ''}${isSvc ? '<span class="tag-svc">Service</span>' : ''}</div>
             <div class="occ-detail">
               <span class="occ-da">${da ? esc(da.num_da) : 'Sans DA'}</span> · ${da ? esc(da.fournisseur||'—') + ' · ' + esc(da.contrat||'—') : ''}${da && da.num_bc ? ' · BC ' + esc(da.num_bc) + (fmtDate(da.date_bc) ? ' (' + fmtDate(da.date_bc) + ')' : '') : ''}${a.lieu ? ' · 📍 ' + esc(a.lieu) : ''}
             </div>
@@ -220,7 +224,7 @@ function render() {
         <div class="prod-head" onclick="toggleProd(this)">
           <span class="prod-caret">▸</span>
           <div class="prod-main">
-            <div class="prod-name">${esc(g.nom)}${g.ref ? ` <span class="occ-ref">${esc(g.ref)}</span>` : ''}</div>
+            <div class="prod-name">${esc(g.nom)}${g.ref ? ` <span class="occ-ref">${esc(g.ref)}</span>` : ''}${[...g.ghp].map(x => ` <span class="occ-ghp" title="Code GHP">GHP ${esc(x)}</span>`).join('')}</div>
             <div class="prod-meta">${g.occ.length} commande${g.occ.length>1?'s':''}${g.desig.size > 1 ? ' · ' + g.desig.size + ' désignations différentes' : ''}</div>
           </div>
           <div class="prod-stats">
