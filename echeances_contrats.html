@@ -98,6 +98,17 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .resume-table tfoot tr.resume-comb td { font-weight: 500; font-size: 12.5px; border-top: 1px dashed rgba(128,128,128,.4); opacity: .85; }
 .resume-table tfoot tr.resume-comb td:first-child { text-align: right; }
 .resume-table td.nul { opacity: .4; }
+.bf { margin-top: 12px; padding-top: 8px; border-top: 1px dashed rgba(128,128,128,.5); font-size: 12px; }
+.bf-title { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .7; margin-bottom: 6px; }
+.bf-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 6px; }
+.bf select, .bf input[type=number], .bf input[type=date] { font-size: 12px; padding: 3px 6px; border: 1px solid #999; border-radius: 5px; background: inherit; color: inherit; }
+.bf input[type=number] { width: 110px; }
+.bf label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.bf-msg { font-size: 11.5px; margin-top: 4px; }
+.bf-msg.err { color: #E24B4A; } .bf-msg.ok { color: #2e9e5b; }
+.bf button.bf-go { background: #378ADD; color: #fff; border: none; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.bf button.bf-un { background: none; border: 1px solid #999; color: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.bf button:disabled { opacity: .5; cursor: wait; }
 .resume-sub { margin: 12px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .7; }
 </style>
 <div class="header">
@@ -345,6 +356,70 @@ function syncCards() {
 function selectAllVisible() { lastList.forEach(c => selectedContrats.add(c.nom)); syncCards(); renderResume(); }
 function clearSel() { selectedContrats.clear(); syncCards(); renderResume(); }
 
+// ---- Bloquer / débloquer depuis la sélection (un seul contrat sélectionné) ----
+let blocForm = { ligne: '*', mode: 'tout', montant: '', date: '' };
+let blocMsg = null;
+function bfLignes(c) { return c.lignes.filter(l => l.disponible + l.bloque > 0.005 || l.bloque > 0 || l.bloque_tout); }
+function blocPanelHtml(c) {
+  const ls = bfLignes(c);
+  if (!ls.length) return '';
+  if (blocForm.ligne !== '*' && !ls.some(l => String(l.id) === String(blocForm.ligne))) blocForm.ligne = '*';
+  const opts = `<option value="*"${blocForm.ligne === '*' ? ' selected' : ''}>Toutes les lignes</option>` +
+    ls.map(l => `<option value="${l.id}"${String(l.id) === String(blocForm.ligne) ? ' selected' : ''}>${escAttr(getSub(l.label))} — dispo ${fmt(l.disponible + l.bloque)}${(l.bloque || l.bloque_tout) ? ' 🔒' : ''}</option>`).join('');
+  const partiel = blocForm.mode === 'partiel';
+  return `<div class="bf" onclick="event.stopPropagation()">
+    <div class="bf-title">🔒 Bloquer — ${escAttr(c.nom)}</div>
+    <div class="bf-row"><select onchange="bfSet('ligne', this.value, true)">${opts}</select></div>
+    <div class="bf-row">
+      <label><input type="radio" name="bf-mode" ${!partiel ? 'checked' : ''} onchange="bfSet('mode','tout',true)"> Total</label>
+      <label><input type="radio" name="bf-mode" ${partiel ? 'checked' : ''} onchange="bfSet('mode','partiel',true)"> Partiel</label>
+      ${partiel ? `<input type="number" min="0" step="0.01" placeholder="Montant" value="${escAttr(blocForm.montant)}" oninput="bfSet('montant', this.value)">` : ''}
+      <label>jusqu'au <input type="date" value="${escAttr(blocForm.date)}" onchange="bfSet('date', this.value)"></label>
+    </div>
+    <div class="bf-row">
+      <button class="bf-go" onclick="bfAppliquer(false)">Appliquer</button>
+      <button class="bf-un" onclick="bfAppliquer(true)">Débloquer</button>
+    </div>
+    <div class="bf-msg ${blocMsg ? blocMsg.t : ''}">${blocMsg ? blocMsg.m : (partiel ? 'Partiel : une seule ligne à la fois. Sans date : blocage permanent.' : 'Total : tout le disponible actuel de la ligne. Sans date : blocage permanent.')}</div>
+  </div>`;
+}
+function bfSet(k, v, rerender) { blocForm[k] = v; blocMsg = null; if (rerender) renderResume(); }
+async function bfAppliquer(debloquer) {
+  const c = lastList.find(x => selectedContrats.has(x.nom));
+  if (!c || !window.grist) return;
+  const ls = bfLignes(c);
+  const cibles = blocForm.ligne === '*' ? ls : ls.filter(l => String(l.id) === String(blocForm.ligne));
+  const fail = m => { blocMsg = { t: 'err', m }; renderResume(); };
+  if (!cibles.length) return fail('Aucune ligne concernée.');
+  let champs;
+  if (debloquer) {
+    champs = { Bloque_tout: false, Montant_bloque: 0, Bloque_jusqu_au: null };
+  } else {
+    const dMs = blocForm.date ? Date.parse(blocForm.date + 'T00:00:00Z') : 0;
+    if (blocForm.date && (!dMs || dMs <= Date.now())) return fail('La date doit être dans le futur.');
+    const g = dMs ? Math.floor(dMs / 1000) : null;
+    if (blocForm.mode === 'tout') {
+      champs = { Bloque_tout: true, Montant_bloque: 0, Bloque_jusqu_au: g };
+    } else {
+      if (cibles.length !== 1) return fail('Le blocage partiel se fait sur une seule ligne : choisissez-en une.');
+      const m = Number(String(blocForm.montant).replace(',', '.'));
+      const raw = cibles[0].disponible + cibles[0].bloque;
+      if (!(m > 0)) return fail('Saisissez un montant supérieur à 0.');
+      if (m > raw + 0.005) return fail('Montant supérieur au disponible de la ligne (' + fmt(raw) + ').');
+      champs = { Bloque_tout: false, Montant_bloque: m, Bloque_jusqu_au: g };
+    }
+  }
+  document.querySelectorAll('.bf button').forEach(b => b.disabled = true);
+  try {
+    await grist.docApi.applyUserActions(cibles.map(l => ['UpdateRecord', 'Lignes_budgetaires', l.id, champs]));
+    if (window._rechargerBlocs) await window._rechargerBlocs();
+    blocMsg = { t: 'ok', m: debloquer ? 'Débloqué ✓' : 'Blocage enregistré ✓' };
+  } catch (e) {
+    blocMsg = { t: 'err', m: 'Erreur : ' + (e && e.message ? e.message : e) };
+  }
+  renderResume();
+}
+
 function renderResume() {
   const box = document.getElementById('resume');
   if (!box) return;
@@ -398,6 +473,7 @@ function renderResume() {
         </tfoot>
       </table>
       ${detail}
+      ${visibles.length === 1 ? blocPanelHtml(visibles[0]) : ''}
     </div>`;
 }
 
@@ -460,7 +536,8 @@ function loadData() {
 
   if (window.grist) {
     grist.ready({ requiredAccess: 'full' });
-    grist.onRecords(async (records) => {
+    let dernRecords = [];
+    const traiter = async (records) => {
       await loadReleves();
       await loadContratsMasques();
       await loadNotifs();
@@ -522,7 +599,9 @@ function loadData() {
       }
 
       updateView();
-    });
+    };
+    window._rechargerBlocs = () => traiter(dernRecords);
+    grist.onRecords((records) => { dernRecords = records; return traiter(records); });
   } else {
     document.getElementById('loading').textContent = 'Connectez ce widget à la table Lignes_budgetaires.';
   }
