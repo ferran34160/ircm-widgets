@@ -1221,7 +1221,7 @@ function nextNumDA() {
   let maxN = 0;
   das.forEach(d => {
     if (d.statut === 'Annulée' || String(d.num_da).endsWith('-ANN')) return;
-    const m = String(d.num_da).match(/-(\d+)$/);
+    const m = String(d.num_da).match(/(\d+)$/);
     if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
   });
   const next = maxN + 1;
