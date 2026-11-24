@@ -110,11 +110,16 @@ body { font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; pad
 .bf button.bf-un { background: none; border: 1px solid #999; color: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .bf button:disabled { opacity: .5; cursor: wait; }
 .resume-sub { margin: 12px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .7; }
+.hdr-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; cursor: pointer; user-select: none; }
+.hdr-toggle input { cursor: pointer; }
+.card.masque { opacity: .65; }
 </style>
 <div class="header">
   <div class="title">Échéances des contrats</div>
   <div class="hdr-right">
     <button class="hdr-btn" id="btn-sel-all" onclick="selectAllVisible()" title="Cocher tous les contrats affichés">☑ Tout sélectionner</button>
+    <label class="hdr-toggle" title="Afficher aussi les contrats dont le champ Masquer est coché"><input type="checkbox" id="chk-masques"> Afficher les contrats masqués</label>
+    <label class="hdr-toggle" title="Décocher pour cacher les contrats ayant une part du budget bloquée"><input type="checkbox" id="chk-bloques" checked> Afficher les contrats bloqués</label>
     <select id="cat-filter"><option value="">Toutes catégories</option></select>
   </div>
 </div>
@@ -130,6 +135,7 @@ let contratsMasques = new Set();
 let notifsParLigne = {};
 let subFilterActif = false;   // vrai quand on filtre sur un sous-libellé précis
 let selectedContrats = new Set();   // contrats cochés pour le sumatori (par nom) : survit aux rafraîchissements
+let catInit = false;               // vrai une fois la catégorie par défaut appliquée
 let lastList = [];                  // contrats (agrégés) affichés au dernier rendu
 
 function fmt(v) {
@@ -188,6 +194,12 @@ function updateView() {
   } else {
     if (lbl) lbl.textContent = '';
   }
+  // Filtres « contrats masqués » et « contrats à budget bloqué »
+  if (!document.getElementById('chk-masques').checked) filtered = filtered.filter(d => !d.masque);
+  if (!document.getElementById('chk-bloques').checked) {
+    const bloques = new Set(filtered.filter(d => d.bloque > 0 || d.bloque_tout).map(d => d.contrat));
+    filtered = filtered.filter(d => !bloques.has(d.contrat));
+  }
   subFilterActif = v.startsWith('sub:');
   render(filtered);
 }
@@ -219,7 +231,7 @@ function render(data) {
   const contrats = {};
   data.forEach(d => {
     if (!contrats[d.contrat]) {
-      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, bloque: 0, bloque_ms: 0, releve: 0, reste_notifier: 0, mise: 0, mises: [], lignes: [], a_annualisee: false };
+      contrats[d.contrat] = { nom: d.contrat, date_fin: d.date_fin, disponible: 0, bloque: 0, bloque_ms: 0, releve: 0, reste_notifier: 0, mise: 0, mises: [], lignes: [], a_annualisee: false, masque: !!d.masque };
     }
     const c = contrats[d.contrat];
     c.disponible += d.disponible;
@@ -304,7 +316,7 @@ function render(data) {
     const actives = c.lignes.filter(l => l.disponible + l.bloque !== 0 || l.bloque_tout);
     const bloc = actives.length > 0 && actives.every(l => l.bloque_tout || (l.bloque > 0 && l.disponible <= 0));
     html += `
-      <div class="card ${state}${bloc ? ' bloque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
+      <div class="card ${state}${bloc ? ' bloque' : ''}${c.masque ? ' masque' : ''}${selectedContrats.has(c.nom) ? ' selected' : ''}" data-nom="${escAttr(c.nom)}" onclick="toggleSelCard(this)">
         <div class="c-top">
           <div>
             <p class="c-nom">${c.nom}</p>
@@ -317,6 +329,7 @@ function render(data) {
         </div>
         <p class="c-dispo">${fmt(c.disponible)}</p>
         ${c.n_bloq ? `<p class="c-bloc">🔒 ${c.tout_lignes && c.tout_lignes === c.n_bloq ? 'Tout bloqué' + (c.bloque > 0 ? ' (' + fmt(c.bloque) + ')' : '') : fmt(c.bloque) + ' bloqués'}${c.bloque_ms ? " jusqu'au " + new Date(c.bloque_ms).toLocaleDateString('fr-FR',{timeZone:'UTC'}) : ''}${c.tout_lignes && c.tout_lignes === c.n_bloq ? '' : ' (déjà déduits)'}</p>` : ''}
+        ${c.masque ? '<p class="c-bloc" title="Champ Masquer coché sur le contrat">🙈 Contrat masqué</p>' : ''}
         <p class="c-budget">sur ${fmt(c.releve)} du dernier relevé</p>
         <p class="c-reste">Reste à notifier : ${fmt(c.reste_notifier)}</p>
         ${miseHtml(c)}
@@ -503,6 +516,36 @@ async function loadReleves() {
   }
 }
 
+// Remplit la liste des catégories à partir des lignes visibles (selon « contrats masqués »)
+function fillCatFilter() {
+  const base = allData.filter(d => document.getElementById('chk-masques').checked || !d.masque);
+  const catsPresents = [...new Set(base.map(d => getCat(d.label)))]
+    .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+  const sel = document.getElementById('cat-filter');
+  const cur = sel.value;
+
+  let html = '<option value="">Toutes catégories</option>';
+  catsPresents.forEach(c => {
+    html += `<optgroup label="${c}">`;
+    html += `<option value="cat:${c}">${c} (tout)</option>`;
+    const subs = [...new Set(base.filter(d => getCat(d.label) === c).map(d => getSub(d.label)))]
+      .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
+    subs.forEach(s => {
+      html += `<option value="sub:${s.replace(/"/g,'&quot;')}">${s}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+  if (cur && [...sel.options].some(o => o.value === cur)) {
+    sel.value = cur;
+  } else if (!catInit) {
+    // Sélection par défaut au premier chargement : Fonctionnement – Coûts Directs (si présent)
+    const optDirects = [...sel.options].find(o => o.value.startsWith('sub:') && o.value.slice(4).includes('Coûts Directs') && o.value.slice(4).includes('Fonctionnement'));
+    if (optDirects) sel.value = optDirects.value;
+  }
+  if (allData.length) catInit = true;
+}
+
 function loadData() {
   async function loadContratsMasques() {
     try {
@@ -567,36 +610,11 @@ function loadData() {
           montant_releve: r.Montant_dernier_releve || 0,
           date_releve:   r.Date_dernier_releve,
           reste_notifier: r.Reste_a_notifier || 0,
+          masque:        contratsMasques.has(String(r.Contrat || '').trim()),
         };
-      }).filter(d => d.label && !contratsMasques.has(String(d.contrat).trim()));
+      }).filter(d => d.label);
 
-      // Omplir el filtre de categories (ordenades)
-      const catsPresents = [...new Set(allData.map(d => getCat(d.label)))]
-        .sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
-      const sel = document.getElementById('cat-filter');
-      const cur = sel.value;
-
-      let html = '<option value="">Toutes catégories</option>';
-      catsPresents.forEach(c => {
-        // La catégorie entière
-        html += `<optgroup label="${c}">`;
-        html += `<option value="cat:${c}">${c} (tout)</option>`;
-        // Les sous-libellés de cette catégorie
-        const subs = [...new Set(allData.filter(d => getCat(d.label) === c).map(d => getSub(d.label)))]
-          .sort((a,b) => a.localeCompare(b, 'fr', {sensitivity:'base'}));
-        subs.forEach(s => {
-          html += `<option value="sub:${s.replace(/"/g,'&quot;')}">${s}</option>`;
-        });
-        html += '</optgroup>';
-      });
-      sel.innerHTML = html;
-      if (cur) {
-        sel.value = cur;
-      } else {
-        // Sélection par défaut : Fonctionnement – Coûts Directs (si présent)
-        const optDirects = [...sel.options].find(o => o.value.startsWith('sub:') && o.value.slice(4).includes('Coûts Directs') && o.value.slice(4).includes('Fonctionnement'));
-        if (optDirects) sel.value = optDirects.value;
-      }
+      fillCatFilter();
 
       updateView();
     };
@@ -608,6 +626,8 @@ function loadData() {
 }
 
 document.getElementById('cat-filter').addEventListener('change', updateView);
+document.getElementById('chk-masques').addEventListener('change', () => { fillCatFilter(); updateView(); });
+document.getElementById('chk-bloques').addEventListener('change', updateView);
 
 const gristScript = document.createElement('script');
 gristScript.src = 'https://docs.getgrist.com/grist-plugin-api.js';
